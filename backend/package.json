@@ -1,0 +1,45 @@
+{
+  "name": "fin-path-insight-backend",
+  "version": "1.0.0",
+  "description": "Backend for FinPath Insight financial data service",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "dev:memory": "nodemon --max-old-space-size=4096 index.js",
+    "start:memory": "node --max-old-space-size=4096 index.js",
+    "update-data": "node scripts/update-data.js",
+    "update-kb": "node --max-old-space-size=4096 scripts/update-knowledge-base.js"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "@pinecone-database/pinecone": "^6.0.0",
+    "axios": "^1.9.0",
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "crypto": "^1.0.1",
+    "csv-parser": "^3.2.0",
+    "dotenv": "^16.5.0",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
+    "helmet": "^7.1.0",
+    "http-proxy-middleware": "^3.0.5",
+    "jsonwebtoken": "^9.0.2",
+    "mongodb": "^6.16.0",
+    "mongoose": "^8.14.1",
+    "multer": "^1.4.5-lts.2",
+    "node-cache": "^5.1.2",
+    "node-cron": "^3.0.3",
+    "nodemailer": "^7.0.3",
+    "nse-data": "^2.0.0",
+    "passport": "^0.7.0",
+    "passport-google-oauth20": "^2.0.0",
+    "python-shell": "^5.0.0",
+    "yahoo-finance2": "^2.13.3",
+    "yfinance": "^0.0.6"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}
