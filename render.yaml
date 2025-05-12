@@ -5,8 +5,8 @@ services:
     env: python
     plan: free
     region: singapore
-    buildCommand: cd fastapi-backend && chmod +x ./build.sh && ./build.sh
-    startCommand: cd fastapi-backend && chmod +x ./start.sh && ./start.sh
+    buildCommand: chmod +x ./build.sh && ./build.sh
+    startCommand: chmod +x ./start.sh && ./start.sh
     envVars:
       - key: GEMINI_API_KEY
         sync: false
