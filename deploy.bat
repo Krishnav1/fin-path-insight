@@ -30,7 +30,7 @@ if /i "%push_choice%"=="Y" (
   
   echo.
   echo Pushing to GitHub...
-  git push origin main
+  git push krishna main
   
   if %ERRORLEVEL% NEQ 0 (
     echo.
