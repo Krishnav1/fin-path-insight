@@ -20,33 +20,33 @@ if [ -z "$PORT" ]; then
   echo "PORT not set, defaulting to $PORT"
 fi
 
-# Add current directory to PYTHONPATH
-export PYTHONPATH="$PYTHONPATH:$(pwd)"
+# Add fastapi-backend directory to PYTHONPATH
+export PYTHONPATH="$(pwd)"
 echo "PYTHONPATH set to: $PYTHONPATH"
 
-# Verify FastAPI installation
-python -c "import fastapi; print('FastAPI version:', fastapi.__version__)"
+# Verify FastAPI installation and imports
+python -c "import fastapi; from app.core.config import settings; print('FastAPI version:', fastapi.__version__)"
 
-# Try to start the FastAPI application with different methods
+# Try to start the FastAPI application
 echo "Attempting to start FastAPI application..."
 
 # First try: uvicorn directly
 if command -v uvicorn &> /dev/null; then
   echo "Starting with uvicorn command..."
-  exec uvicorn main:app --host 0.0.0.0 --port $PORT --app-dir app
+  exec uvicorn app.main:app --host 0.0.0.0 --port $PORT
   exit 0
 fi
 
 # Second try: python -m uvicorn
 echo "uvicorn command not found, trying python -m uvicorn"
-if python -m uvicorn main:app --host 0.0.0.0 --port $PORT --app-dir app; then
+if python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT; then
   exit 0
 fi
 
 # Third try: gunicorn with uvicorn worker
 echo "Trying gunicorn with uvicorn worker..."
 if command -v gunicorn &> /dev/null; then
-  cd app && exec gunicorn main:app -b 0.0.0.0:$PORT -k uvicorn.workers.UvicornWorker
+  exec gunicorn app.main:app -b 0.0.0.0:$PORT -k uvicorn.workers.UvicornWorker
   exit 0
 fi
 

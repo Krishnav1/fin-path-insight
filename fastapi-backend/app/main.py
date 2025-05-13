@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .api.routes import market_data, ai_analysis, document_processing, fingenie
-from .core.config import settings
+from app.api.routes import market_data, ai_analysis, document_processing, fingenie
+from app.core.config import settings
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
