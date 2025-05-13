@@ -29,6 +29,35 @@ The project consists of three main components:
   - Google Gemini AI
   - Pinecone Vector Database
   - Alpha Vantage
+
+## Deployment
+
+The application is deployed using the following services:
+
+- **Frontend**: Netlify
+- **Node.js Backend**: Render.com
+- **FastAPI Backend**: Render.com
+
+### Deployment Scripts
+
+We've provided several scripts to simplify the deployment process:
+
+- `test-api-connections.bat` - Test API connections before deployment
+- `test-build.bat` - Build and preview the application locally
+- `deploy.bat` - Deploy the frontend to Netlify
+
+For detailed deployment instructions, see [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md).
+
+## Error Handling System
+
+The application includes a comprehensive error handling system that:
+
+- Categorizes errors by type (network, server, timeout, etc.)
+- Provides user-friendly error messages
+- Supports automatic retries with fallback endpoints
+- Includes a reusable error display component
+
+For more information about the error handling system, see [ERROR_HANDLING.md](./frontend/src/utils/ERROR_HANDLING.md).
   - News API
 
 ### Backend Setup
