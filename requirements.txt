@@ -1,10 +1,6 @@
-# Essential packages for Render deployment
 fastapi==0.104.1
-uvicorn==0.24.0
+uvicorn
 gunicorn==21.2.0
 pydantic==2.4.2
 python-dotenv==1.0.0
 httpx==0.25.1
-
-# These packages will be installed by the build script if needed
-# Additional dependencies for the full application
