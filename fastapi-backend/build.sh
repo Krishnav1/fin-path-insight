@@ -30,26 +30,8 @@ pip install "passlib[bcrypt]==1.7.4"
 pip install python-multipart==0.0.6
 
 # Verify installations
+echo "Installed packages:"
 pip list
 
 # Test importing key packages
 python -c "import fastapi; import uvicorn; print('Key imports successful!')"
-
-        
-        # Check if pyproject.toml exists for Poetry
-        if [ -f "pyproject.toml" ]; then
-            echo "Found pyproject.toml, installing dependencies with Poetry..."
-            pip install poetry
-            poetry config virtualenvs.create false
-            poetry install --no-dev
-        else
-            echo "ERROR: No dependency files found!"
-            echo "Installing common dependencies as fallback..."
-            pip install fastapi uvicorn gunicorn pydantic python-dotenv httpx
-        fi
-    fi
-fi
-
-# Print installed packages for debugging
-echo "Installed packages:"
-pip list
