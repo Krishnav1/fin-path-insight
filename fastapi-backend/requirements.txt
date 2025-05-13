@@ -1,49 +1,12 @@
-<<<<<<< HEAD
-# Web Framework
 fastapi==0.104.1
 uvicorn==0.24.0
 gunicorn==21.2.0
-
-# Data Validation
 pydantic==2.4.2
-pydantic-settings==2.0.3
-
-# Environment Variables
-python-dotenv==1.0.0
-
-# HTTP Client
-httpx==0.25.1
-
-# Vector Database
-pinecone-client==2.2.4
-
-# AI and ML
-google-generativeai==0.3.1
-
-# File Handling
-python-multipart==0.0.6
-PyPDF2==3.0.1
-
-# Data Processing
-pandas==2.1.1
-openpyxl==3.1.2
-numpy==1.24.3
-
-# Authentication
-=======
-fastapi==0.104.1
-uvicorn==0.24.0
-pydantic==2.4.2
-pydantic-settings==2.0.3
 python-dotenv==1.0.0
 httpx==0.25.1
-pinecone-client==2.2.4
-google-generativeai==0.3.1
+requests==2.31.0
+pinecone-client==3.0.2
+google-generativeai==0.3.2
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
 python-multipart==0.0.6
-pandas==2.1.1
-PyPDF2==3.0.1
-openpyxl==3.1.2
->>>>>>> 2e0a894f26bc330c63a124b105795a1ff6f4338e
-python-jose==3.3.0
-passlib==1.7.4
-bcrypt==4.0.1
