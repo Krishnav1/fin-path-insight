@@ -1,5 +1,5 @@
 import os
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional, Dict, Any, List
 
 class Settings(BaseSettings):
@@ -11,25 +11,23 @@ class Settings(BaseSettings):
     BACKEND_CORS_ORIGINS: List[str] = ["*"]
     
     # Google Gemini API Settings
-    GEMINI_API_KEY: Optional[str] = os.getenv("GEMINI_API_KEY")
+    GEMINI_API_KEY: Optional[str] = None
     
     # Pinecone Settings
-    PINECONE_API_KEY: Optional[str] = os.getenv("PINECONE_API_KEY")
-    PINECONE_INDEX_NAME: str = os.getenv("PINECONE_INDEX_NAME", "fingenie-finance-vectors")
-    PINECONE_CLOUD: str = os.getenv("PINECONE_CLOUD", "aws")
+    PINECONE_API_KEY: Optional[str] = None
+    PINECONE_INDEX_NAME: str = "fingenie-finance-vectors"
+    PINECONE_CLOUD: str = "aws"
     
     # Alpha Vantage API Settings
-    ALPHA_VANTAGE_API_KEY: Optional[str] = os.getenv("ALPHA_VANTAGE_API_KEY")
+    ALPHA_VANTAGE_API_KEY: Optional[str] = None
     
     # News API Settings
-    NEWS_API_KEY: Optional[str] = os.getenv("NEWS_API_KEY")
+    NEWS_API_KEY: Optional[str] = None
     
     # Document Processing Settings
     UPLOAD_FOLDER: str = "uploads"
     ALLOWED_EXTENSIONS: List[str] = ["pdf", "csv", "xlsx"]
     
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+    model_config = SettingsConfigDict(env_file='.env', case_sensitive=True)
 
 settings = Settings()
