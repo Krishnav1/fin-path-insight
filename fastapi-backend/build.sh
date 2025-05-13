@@ -7,8 +7,15 @@ echo "Current directory: $(pwd)"
 echo "Directory contents:"
 ls -la
 
+# Create and activate virtual environment
+python -m venv .venv
+source .venv/bin/activate
+
 # Upgrade pip
 pip install --upgrade pip
+
+# Ensure uvicorn is installed first
+pip install uvicorn==0.24.0
 
 # Check if requirements.txt exists
 if [ -f "requirements.txt" ]; then
