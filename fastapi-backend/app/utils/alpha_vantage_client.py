@@ -4,7 +4,7 @@ import httpx
 from typing import Dict, Any, List, Optional
 import json
 from datetime import datetime, timedelta
-from app.core.config import settings
+from ..core.config import settings
 
 logger = logging.getLogger(__name__)
 

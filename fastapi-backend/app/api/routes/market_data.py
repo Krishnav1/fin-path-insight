@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Query
 from typing import List, Dict, Any, Optional
-from app.models.schemas import StockPrice, MarketOverview, IndexMovers
-from app.utils.alpha_vantage_client import (
+from ...models.schemas import StockPrice, MarketOverview, IndexMovers
+from ...utils.alpha_vantage_client import (
     fetch_stock_data, 
     fetch_intraday_data, 
     fetch_daily_data, 
