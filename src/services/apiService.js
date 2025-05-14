@@ -1,28 +1,24 @@
 import axios from 'axios';
 import errorHandler from '../utils/errorHandler';
 
-// Create axios instances for different backends
-const nodeBackendApi = axios.create({
-  baseURL: '/api',
-  timeout: 30000, // 30 seconds timeout
+// Create a single axios instance for all API calls
+const api = axios.create({
+  baseURL: '/api',  // All requests now go through the /api proxy
+  timeout: 30000,   // 30 seconds timeout
   headers: {
     'Content-Type': 'application/json'
   }
 });
 
-const fastApiBackend = axios.create({
-  baseURL: '/fastapi',
-  timeout: 30000, // 30 seconds timeout
-  headers: {
-    'Content-Type': 'application/json'
-  }
-});
+// For backward compatibility, keep these references
+const nodeBackendApi = api;
+const fastApiBackend = api;
 
-// Flag to enable fallback APIs
+// Flag for feature toggling (kept for backward compatibility)
 const enableFallbacks = import.meta.env.VITE_ENABLE_FALLBACK_APIS === 'true';
 
 // Add request interceptor for logging and headers
-nodeBackendApi.interceptors.request.use(
+api.interceptors.request.use(
   (config) => {
     // Add environment info to requests
     config.headers['X-Environment'] = import.meta.env.MODE;
@@ -30,75 +26,42 @@ nodeBackendApi.interceptors.request.use(
     
     // Log requests in development
     if (import.meta.env.DEV) {
-      console.log(`[Node API Request] ${config.method?.toUpperCase()} ${config.url}`);
+      console.log(`[API Request] ${config.method?.toUpperCase()} ${config.url}`);
     }
     
     return config;
   },
   (error) => {
-    errorHandler.logError(error, 'Node API Request Interceptor');
+    errorHandler.logError(error, 'API Request Interceptor');
     return Promise.reject(error);
   }
 );
 
 // Add response interceptor for error handling
-nodeBackendApi.interceptors.response.use(
+api.interceptors.response.use(
   (response) => {
     // Log responses in development
     if (import.meta.env.DEV) {
-      console.log(`[Node API Response] ${response.status} ${response.config.url}`);
+      console.log(`[API Response] ${response.status} ${response.config.url}`);
     }
     
     return response;
   },
   (error) => {
-    errorHandler.logError(error, 'Node API Response');
-    return Promise.reject(error);
-  }
-);
-
-// Similar interceptors for FastAPI
-fastApiBackend.interceptors.request.use(
-  (config) => {
-    config.headers['X-Environment'] = import.meta.env.MODE;
-    config.headers['X-Client-Version'] = import.meta.env.VITE_APP_VERSION || '1.0.0';
-    
-    if (import.meta.env.DEV) {
-      console.log(`[FastAPI Request] ${config.method?.toUpperCase()} ${config.url}`);
-    }
-    
-    return config;
-  },
-  (error) => {
-    errorHandler.logError(error, 'FastAPI Request Interceptor');
-    return Promise.reject(error);
-  }
-);
-
-fastApiBackend.interceptors.response.use(
-  (response) => {
-    if (import.meta.env.DEV) {
-      console.log(`[FastAPI Response] ${response.status} ${response.config.url}`);
-    }
-    
-    return response;
-  },
-  (error) => {
-    errorHandler.logError(error, 'FastAPI Response');
+    errorHandler.logError(error, 'API Response');
     return Promise.reject(error);
   }
 );
 
 /**
- * Get stock data with fallback mechanism
+ * Get stock data from the API
  * @param {string} symbol - Stock symbol
  * @param {string} market - Market (india, us, etc.)
  * @returns {Promise<Object>} Stock data
  */
 export async function getStockData(symbol, market = 'india') {
   try {
-    // First try Node.js backend
-    const response = await nodeBackendApi.get(`/stocks/${symbol}`, {
+    const response = await api.get(`/market-data/stock/${symbol}`, {
       params: { market }
     });
     
@@ -106,43 +69,30 @@ export async function getStockData(symbol, market = 'india') {
   } catch (error) {
     errorHandler.logError(error, `getStockData(${symbol}, ${market})`);
     
-    // If fallbacks are enabled, try FastAPI
+    // Try static data as a last resort
     if (enableFallbacks) {
       try {
-        console.log(`Trying fallback API for stock data: ${symbol}`);
-        const fallbackResponse = await fastApiBackend.get(`/market-data/stock/${symbol}`, {
-          params: { market }
-        });
-        
-        return fallbackResponse.data;
-      } catch (fallbackError) {
-        errorHandler.logError(fallbackError, `getStockData fallback(${symbol}, ${market})`);
-        
-        // If both APIs fail, try static data
-        try {
-          const staticResponse = await axios.get(`/data/stock_${symbol.replace(/\./g, '_')}.json`);
-          return staticResponse.data;
-        } catch (staticError) {
-          // All attempts failed, throw the original error
-          throw error;
-        }
+        console.log(`Trying static data for stock: ${symbol}`);
+        const staticResponse = await axios.get(`/data/stock_${symbol.replace(/\./g, '_')}.json`);
+        return staticResponse.data;
+      } catch (staticError) {
+        // Static data failed too, throw the original error
+        throw error;
       }
     } else {
-      // Fallbacks disabled, throw the original error
       throw error;
     }
   }
 }
 
 /**
- * Get market overview with fallback mechanism
+ * Get market overview data
  * @param {string} market - Market (india, us, global)
  * @returns {Promise<Object>} Market overview data
  */
 export async function getMarketOverview(market = 'india') {
   try {
-    // First try Node.js backend
-    const response = await nodeBackendApi.get(`/stocks/market-overview`, {
+    const response = await api.get(`/market-data/overview`, {
       params: { market }
     });
     
@@ -150,36 +100,24 @@ export async function getMarketOverview(market = 'india') {
   } catch (error) {
     errorHandler.logError(error, `getMarketOverview(${market})`);
     
-    // If fallbacks are enabled, try FastAPI
+    // Try static data as a last resort
     if (enableFallbacks) {
       try {
-        console.log(`Trying fallback API for market overview: ${market}`);
-        const fallbackResponse = await fastApiBackend.get(`/market-data/overview`, {
-          params: { market }
-        });
-        
-        return fallbackResponse.data;
-      } catch (fallbackError) {
-        errorHandler.logError(fallbackError, `getMarketOverview fallback(${market})`);
-        
-        // If both APIs fail, try static data
-        try {
-          const staticResponse = await axios.get(`/data/market_${market}.json`);
-          return staticResponse.data;
-        } catch (staticError) {
-          // All attempts failed, throw the original error
-          throw error;
-        }
+        console.log(`Trying static data for market overview: ${market}`);
+        const staticResponse = await axios.get(`/data/market_${market}.json`);
+        return staticResponse.data;
+      } catch (staticError) {
+        // Static data failed too, throw the original error
+        throw error;
       }
     } else {
-      // Fallbacks disabled, throw the original error
       throw error;
     }
   }
 }
 
 /**
- * Get stock chart data with fallback mechanism
+ * Get stock chart data
  * @param {string} symbol - Stock symbol
  * @param {string} interval - Chart interval (1d, 1w, 1m, etc.)
  * @param {string} range - Chart range (1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, max)
@@ -188,8 +126,7 @@ export async function getMarketOverview(market = 'india') {
  */
 export async function getStockChart(symbol, interval = '1d', range = '1y', market = 'india') {
   try {
-    // First try Node.js backend
-    const response = await nodeBackendApi.get(`/stocks/${symbol}/chart`, {
+    const response = await api.get(`/market-data/chart/${symbol}`, {
       params: { interval, range, market }
     });
     
@@ -197,44 +134,31 @@ export async function getStockChart(symbol, interval = '1d', range = '1y', marke
   } catch (error) {
     errorHandler.logError(error, `getStockChart(${symbol}, ${interval}, ${range}, ${market})`);
     
-    // If fallbacks are enabled, try FastAPI
+    // Try static data as a last resort
     if (enableFallbacks) {
       try {
-        console.log(`Trying fallback API for stock chart: ${symbol}`);
-        const fallbackResponse = await fastApiBackend.get(`/market-data/chart/${symbol}`, {
-          params: { interval, range, market }
-        });
-        
-        return fallbackResponse.data;
-      } catch (fallbackError) {
-        errorHandler.logError(fallbackError, `getStockChart fallback(${symbol}, ${interval}, ${range}, ${market})`);
-        
-        // If both APIs fail, try static data
-        try {
-          const staticResponse = await axios.get(`/data/chart_${symbol.replace(/\./g, '_')}_${interval}_${range}.json`);
-          return staticResponse.data;
-        } catch (staticError) {
-          // All attempts failed, throw the original error
-          throw error;
-        }
+        console.log(`Trying static data for chart: ${symbol}`);
+        const staticResponse = await axios.get(`/data/chart_${symbol.replace(/\./g, '_')}_${interval}_${range}.json`);
+        return staticResponse.data;
+      } catch (staticError) {
+        // Static data failed too, throw the original error
+        throw error;
       }
     } else {
-      // Fallbacks disabled, throw the original error
       throw error;
     }
   }
 }
 
 /**
- * Get stock financials with fallback mechanism
+ * Get stock financials
  * @param {string} symbol - Stock symbol
  * @param {string} market - Market (india, us, etc.)
  * @returns {Promise<Object>} Financial data
  */
 export async function getStockFinancials(symbol, market = 'india') {
   try {
-    // First try Node.js backend
-    const response = await nodeBackendApi.get(`/stocks/${symbol}/financials`, {
+    const response = await api.get(`/market-data/financials/${symbol}`, {
       params: { market }
     });
     
@@ -242,43 +166,30 @@ export async function getStockFinancials(symbol, market = 'india') {
   } catch (error) {
     errorHandler.logError(error, `getStockFinancials(${symbol}, ${market})`);
     
-    // If fallbacks are enabled, try FastAPI
+    // Try static data as a last resort
     if (enableFallbacks) {
       try {
-        console.log(`Trying fallback API for stock financials: ${symbol}`);
-        const fallbackResponse = await fastApiBackend.get(`/market-data/financials/${symbol}`, {
-          params: { market }
-        });
-        
-        return fallbackResponse.data;
-      } catch (fallbackError) {
-        errorHandler.logError(fallbackError, `getStockFinancials fallback(${symbol}, ${market})`);
-        
-        // If both APIs fail, try static data
-        try {
-          const staticResponse = await axios.get(`/data/financials_${symbol.replace(/\./g, '_')}.json`);
-          return staticResponse.data;
-        } catch (staticError) {
-          // All attempts failed, throw the original error
-          throw error;
-        }
+        console.log(`Trying static data for financials: ${symbol}`);
+        const staticResponse = await axios.get(`/data/financials_${symbol.replace(/\./g, '_')}.json`);
+        return staticResponse.data;
+      } catch (staticError) {
+        // Static data failed too, throw the original error
+        throw error;
       }
     } else {
-      // Fallbacks disabled, throw the original error
       throw error;
     }
   }
 }
 
 /**
- * Get latest news with fallback mechanism
+ * Get latest news
  * @param {string} market - Market (india, us, global)
  * @returns {Promise<Array>} News articles
  */
 export async function getLatestNews(market = 'global') {
   try {
-    // First try Node.js backend
-    const response = await nodeBackendApi.get(`/news/latest`, {
+    const response = await api.get(`/news/latest`, {
       params: { market }
     });
     
@@ -286,84 +197,60 @@ export async function getLatestNews(market = 'global') {
   } catch (error) {
     errorHandler.logError(error, `getLatestNews(${market})`);
     
-    // If fallbacks are enabled, try FastAPI
+    // Try static data as a last resort
     if (enableFallbacks) {
       try {
-        console.log(`Trying fallback API for latest news: ${market}`);
-        const fallbackResponse = await fastApiBackend.get(`/news/latest`, {
-          params: { market }
-        });
-        
-        return fallbackResponse.data;
-      } catch (fallbackError) {
-        errorHandler.logError(fallbackError, `getLatestNews fallback(${market})`);
-        
-        // If both APIs fail, try static data
-        try {
-          const staticResponse = await axios.get(`/data/news_${market}.json`);
-          return staticResponse.data;
-        } catch (staticError) {
-          // All attempts failed, throw the original error
-          throw error;
-        }
+        console.log(`Trying static data for news: ${market}`);
+        const staticResponse = await axios.get(`/data/news_${market}.json`);
+        return staticResponse.data;
+      } catch (staticError) {
+        // Static data failed too, throw the original error
+        throw error;
       }
     } else {
-      // Fallbacks disabled, throw the original error
       throw error;
     }
   }
 }
 
 /**
- * Get company news with fallback mechanism
+ * Get company news
  * @param {string} symbol - Stock symbol
  * @returns {Promise<Array>} News articles
  */
 export async function getCompanyNews(symbol) {
   try {
-    // First try Node.js backend
-    const response = await nodeBackendApi.get(`/news/company/${symbol}`);
+    const response = await api.get(`/news/company/${symbol}`);
     
     return response.data;
   } catch (error) {
     errorHandler.logError(error, `getCompanyNews(${symbol})`);
     
-    // If fallbacks are enabled, try FastAPI
+    // Try static data as a last resort
     if (enableFallbacks) {
       try {
-        console.log(`Trying fallback API for company news: ${symbol}`);
-        const fallbackResponse = await fastApiBackend.get(`/news/company/${symbol}`);
-        
-        return fallbackResponse.data;
-      } catch (fallbackError) {
-        errorHandler.logError(fallbackError, `getCompanyNews fallback(${symbol})`);
-        
-        // If both APIs fail, try static data
-        try {
-          const staticResponse = await axios.get(`/data/news_company_${symbol.replace(/\./g, '_')}.json`);
-          return staticResponse.data;
-        } catch (staticError) {
-          // All attempts failed, return empty array to avoid breaking the UI
-          return [];
-        }
+        console.log(`Trying static data for company news: ${symbol}`);
+        const staticResponse = await axios.get(`/data/company_news_${symbol.replace(/\./g, '_')}.json`);
+        return staticResponse.data;
+      } catch (staticError) {
+        // Static data failed too, throw the original error
+        throw error;
       }
     } else {
-      // Fallbacks disabled, return empty array to avoid breaking the UI
-      return [];
+      throw error;
     }
   }
 }
 
 /**
- * Get peer comparison data with fallback mechanism
+ * Get peer comparison data
  * @param {string} symbol - Stock symbol
  * @param {string} sector - Optional sector
  * @returns {Promise<Array>} Peer comparison data
  */
 export async function getPeerComparison(symbol, sector = null) {
   try {
-    // First try Node.js backend
-    const response = await nodeBackendApi.get(`/stocks/${symbol}/peers`, {
+    const response = await api.get(`/market-data/peers/${symbol}`, {
       params: { sector: sector || undefined } // Send sector only if it's not null
     });
     
@@ -371,30 +258,18 @@ export async function getPeerComparison(symbol, sector = null) {
   } catch (error) {
     errorHandler.logError(error, `getPeerComparison(${symbol}, ${sector})`);
     
-    // If fallbacks are enabled, try FastAPI
+    // Try static data as a last resort
     if (enableFallbacks) {
       try {
-        console.log(`Trying fallback API for peer comparison: ${symbol}`);
-        const fallbackResponse = await fastApiBackend.get(`/market-data/peers/${symbol}`, {
-          params: { sector: sector || undefined }
-        });
-        
-        return fallbackResponse.data;
-      } catch (fallbackError) {
-        errorHandler.logError(fallbackError, `getPeerComparison fallback(${symbol}, ${sector})`);
-        
-        // If both APIs fail, try static data
-        try {
-          const staticResponse = await axios.get(`/data/peers_${symbol.replace(/\./g, '_')}.json`);
-          return staticResponse.data;
-        } catch (staticError) {
-          // All attempts failed, return empty array to avoid breaking the UI
-          return [];
-        }
+        console.log(`Trying static data for peers: ${symbol}`);
+        const staticResponse = await axios.get(`/data/peers_${symbol.replace(/\./g, '_')}.json`);
+        return staticResponse.data;
+      } catch (staticError) {
+        // Static data failed too, throw the original error
+        throw error;
       }
     } else {
-      // Fallbacks disabled, return empty array to avoid breaking the UI
-      return [];
+      throw error;
     }
   }
 }

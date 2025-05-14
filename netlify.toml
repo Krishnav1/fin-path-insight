@@ -3,13 +3,13 @@
   publish = "dist"
   environment = { NODE_VERSION = "18", VITE_SUPABASE_URL = "https://ydakwyplcqoshxcdllah.supabase.co", VITE_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlkYWt3eXBsY3Fvc2h4Y2RsbGFoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDcyMTAwNTMsImV4cCI6MjA2Mjc4NjA1M30.J0c0YqSsR9XbtbYLVOq6oqQwYQ3G7j65Q0stEtS4W2s" }
 
-# Node.js API proxy with fallback handling
+# All API traffic routed to FastAPI backend
 [[redirects]]
   from = "/api/*"
   to = "https://fininsight.onrender.com/api/:splat"
   status = 200
   force = true
-  headers = {X-From = "Netlify", X-Proxy-Type = "Node"}
+  headers = {X-From = "Netlify", X-Proxy-Type = "FastAPI"}
 
 # FastAPI proxy for specific endpoints
 [[redirects]]
