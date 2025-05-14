@@ -24,7 +24,10 @@ def init_supabase() -> Optional[Client]:
             logger.warning("Supabase URL or anon key not set. Caching will not be available.")
             return None
         
-        supabase_client = create_client(settings.SUPABASE_URL, settings.SUPABASE_ANON_KEY)
+        # Clean the anon key to remove any newlines or whitespace
+        clean_anon_key = settings.SUPABASE_ANON_KEY.strip()
+        
+        supabase_client = create_client(settings.SUPABASE_URL, clean_anon_key)
         logger.info("Supabase client initialized successfully")
         return supabase_client
     except Exception as e:

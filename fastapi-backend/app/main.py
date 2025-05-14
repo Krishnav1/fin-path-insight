@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import market_data, ai_analysis, document_processing, fingenie, supabase_data, news, analysis
+from app.middleware.response_formatter import format_news_response
 
 app = FastAPI(
     title="FinPath Insight API",
@@ -39,6 +40,9 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "X-Environment", "X-Client-Version"],
 )
+
+# Add custom middleware for formatting news responses
+app.middleware("http")(format_news_response)
 
 # Include routers
 app.include_router(market_data.router, prefix="/api/market-data", tags=["Market Data"])
