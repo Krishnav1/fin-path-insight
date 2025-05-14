@@ -32,19 +32,20 @@ def init_supabase() -> Optional[Client]:
         
         # Create cache table if it doesn't exist
         try:
-            # SQL to create the cache table if it doesn't exist
+            # SQL to create the cache table if it doesn't exist with the new structure
             create_table_sql = """
-            create table if not exists public.cache (
-                id text primary key,
-                key text,
-                data text,
-                ttl integer,
-                created_at text
+            CREATE TABLE IF NOT EXISTS public.cache (
+                key TEXT PRIMARY KEY,
+                value JSONB,
+                created_at TIMESTAMPTZ DEFAULT current_timestamp
             );
+            
+            -- Add index on created_at for faster expiration checks
+            CREATE INDEX IF NOT EXISTS cache_created_at_idx ON public.cache (created_at);
             """
             
             # Execute the SQL using Supabase's REST API
-            supabase_client.table('cache').select('id').limit(1).execute()
+            supabase_client.table('cache').select('key').limit(1).execute()
             logger.info("Cache table exists")
         except Exception as table_error:
             if "relation \"public.cache\" does not exist" in str(table_error):
@@ -78,30 +79,27 @@ async def get_cached_data(key: str) -> Optional[Dict[str, Any]]:
         if not client:
             return None
         
-        # Create a hash of the key to use as the cache ID
-        cache_id = hashlib.md5(key.encode()).hexdigest()
-        
         try:
-            # Query the cache table
-            response = client.table("cache").select("*").eq("id", cache_id).execute()
+            # Query the cache table using the key directly
+            response = client.table("cache").select("*").eq("key", key).execute()
             
             if response.data and len(response.data) > 0:
                 cache_item = response.data[0]
                 
-                # Check if cache is expired
+                # Check if cache is expired (using TTL from settings)
                 created_at = datetime.fromisoformat(cache_item["created_at"].replace("Z", "+00:00"))
-                ttl = cache_item.get("ttl", settings.SUPABASE_TTL_CACHE)
+                ttl = settings.SUPABASE_TTL_CACHE
                 
                 if datetime.now() - created_at < timedelta(seconds=ttl):
                     # Cache is still valid
-                    return json.loads(cache_item["data"])
+                    return cache_item["value"]
                 else:
                     # Cache is expired, delete it
                     try:
-                        client.table("cache").delete().eq("id", cache_id).execute()
-                    except:
+                        client.table("cache").delete().eq("key", key).execute()
+                    except Exception as delete_error:
                         # Ignore deletion errors
-                        pass
+                        logger.warning(f"Cache deletion failed: {str(delete_error)}")
         except Exception as cache_error:
             # If the cache table doesn't exist or other cache error, log and continue
             logger.warning(f"Cache retrieval failed: {str(cache_error)}")
@@ -118,7 +116,7 @@ async def set_cached_data(key: str, data: Dict[str, Any], ttl: Optional[int] = N
     Args:
         key: Cache key
         data: Data to cache
-        ttl: Time to live in seconds (optional, defaults to settings.SUPABASE_TTL_CACHE)
+        ttl: Time to live in seconds (optional, not used with new schema but kept for compatibility)
         
     Returns:
         True if successful, False otherwise
@@ -128,20 +126,11 @@ async def set_cached_data(key: str, data: Dict[str, Any], ttl: Optional[int] = N
         if not client:
             return False
         
-        # Create a hash of the key to use as the cache ID
-        cache_id = hashlib.md5(key.encode()).hexdigest()
-        
-        # Set TTL to default if not provided
-        if ttl is None:
-            ttl = settings.SUPABASE_TTL_CACHE
-        
-        # Prepare cache item
+        # Prepare cache item with the new schema
         cache_item = {
-            "id": cache_id,
             "key": key,
-            "data": json.dumps(data),
-            "ttl": ttl,
-            "created_at": datetime.now().isoformat()
+            "value": data,
+            # created_at will be set automatically by the database default
         }
         
         try:
@@ -171,12 +160,9 @@ async def delete_cached_data(key: str) -> bool:
         if not client:
             return False
         
-        # Create a hash of the key to use as the cache ID
-        cache_id = hashlib.md5(key.encode()).hexdigest()
-        
         try:
-            # Delete from cache table
-            client.table("cache").delete().eq("id", cache_id).execute()
+            # Delete from cache table using the key directly
+            client.table("cache").delete().eq("key", key).execute()
             return True
         except Exception as cache_error:
             # If the cache table doesn't exist, log and continue
@@ -188,7 +174,7 @@ async def delete_cached_data(key: str) -> bool:
 
 async def clear_expired_cache() -> bool:
     """
-    Clear expired cache items
+    Clear expired cache entries
     
     Returns:
         True if successful, False otherwise
@@ -199,26 +185,25 @@ async def clear_expired_cache() -> bool:
             return False
         
         try:
-            # Get all cache items
+            # Get all cache entries
             response = client.table("cache").select("*").execute()
             
             if response.data:
+                now = datetime.now()
+                ttl = settings.SUPABASE_TTL_CACHE
+                
                 for cache_item in response.data:
                     # Check if cache is expired
                     created_at = datetime.fromisoformat(cache_item["created_at"].replace("Z", "+00:00"))
-                    ttl = cache_item.get("ttl", settings.SUPABASE_TTL_CACHE)
                     
-                    if datetime.now() - created_at >= timedelta(seconds=ttl):
-                        try:
-                            # Cache is expired, delete it
-                            client.table("cache").delete().eq("id", cache_item["id"]).execute()
-                        except Exception as delete_error:
-                            logger.warning(f"Error deleting expired cache item: {str(delete_error)}")
+                    if now - created_at > timedelta(seconds=ttl):
+                        # Delete expired cache entry
+                        client.table("cache").delete().eq("key", cache_item["key"]).execute()
             
             return True
         except Exception as cache_error:
             # If the cache table doesn't exist, log and continue
-            logger.warning(f"Cache cleanup failed: {str(cache_error)}")
+            logger.warning(f"Cache clearing failed: {str(cache_error)}")
             return False
     except Exception as e:
         logger.error(f"Error clearing expired cache: {str(e)}")

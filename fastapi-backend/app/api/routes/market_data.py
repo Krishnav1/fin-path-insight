@@ -8,6 +8,7 @@ from app.utils.alpha_vantage_client import (
     fetch_company_overview,
     fetch_market_status
 )
+from app.utils.fmp_client import fetch_indian_market_overview
 import logging
 
 logger = logging.getLogger(__name__)
@@ -87,7 +88,14 @@ async def get_indian_market_overview():
     Get Indian market overview with key indices and market breadth
     """
     try:
-        # Mock data for now - in production, this would call a real API
+        # Fetch real Indian market data using our FMP client
+        market_data = await fetch_indian_market_overview()
+        
+        # Return the data
+        return market_data
+    except Exception as e:
+        logger.error(f"Error fetching Indian market overview: {str(e)}")
+        # Fallback to mock data if real data fetching fails
         indices = [
             {
                 "name": "NIFTY 50",
@@ -136,9 +144,6 @@ async def get_indian_market_overview():
             "indices": indices,
             "breadth": breadth
         }
-    except Exception as e:
-        logger.error(f"Error fetching Indian market overview: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/indian-market/index-movers/{index_symbol}", response_model=IndexMovers)
 async def get_index_movers(

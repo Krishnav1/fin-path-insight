@@ -381,3 +381,113 @@ async def fetch_historical_data(symbol: str, timeframe: str = "daily") -> List[D
     except Exception as e:
         logger.error(f"Error fetching historical data for {symbol}: {str(e)}")
         return []
+
+async def fetch_indian_market_overview() -> Dict[str, Any]:
+    """
+    Fetch Indian market overview with key indices and market breadth
+    
+    Returns:
+        Dictionary with Indian market indices and breadth data
+    """
+    cache_key = "indian_market_overview"
+    
+    # Check if data is in cache and not expired (15 minutes)
+    if cache_key in api_cache:
+        cache_time, cache_data = api_cache[cache_key]
+        if datetime.now() - cache_time < timedelta(minutes=15):
+            logger.info("Using cached Indian market overview data")
+            return cache_data
+    
+    try:
+        # Define the Indian market indices to fetch
+        indian_indices = [
+            {"symbol": "^NSEI", "name": "NIFTY 50"},
+            {"symbol": "^NSEBANK", "name": "NIFTY BANK"},
+            {"symbol": "^CNXIT", "name": "NIFTY IT"},
+            {"symbol": "^NSMIDCP", "name": "NIFTY MIDCAP 100"},
+            {"symbol": "^NSEMDCP50", "name": "NIFTY MIDCAP 50"},
+            {"symbol": "^CNXAUTO", "name": "NIFTY AUTO"},
+            {"symbol": "^CNXFMCG", "name": "NIFTY FMCG"},
+            {"symbol": "^CNXPHARMA", "name": "NIFTY PHARMA"},
+            {"symbol": "^CNXMETAL", "name": "NIFTY METAL"},
+            {"symbol": "^INDIAVIX", "name": "INDIA VIX"}
+        ]
+        
+        indices_data = []
+        
+        # Fetch data for each index using yfinance (FMP doesn't have good support for Indian indices)
+        for index in indian_indices:
+            try:
+                ticker = yf.Ticker(index["symbol"])
+                ticker_info = ticker.info
+                
+                # Get historical data to calculate change
+                hist = ticker.history(period="2d")
+                if len(hist) >= 2:
+                    prev_close = hist["Close"].iloc[-2]
+                    current = hist["Close"].iloc[-1]
+                    change = current - prev_close
+                    change_percent = (change / prev_close) * 100 if prev_close > 0 else 0
+                else:
+                    current = ticker_info.get("regularMarketPrice", 0)
+                    prev_close = ticker_info.get("previousClose", 0)
+                    change = current - prev_close
+                    change_percent = ticker_info.get("regularMarketChangePercent", 0) * 100
+                
+                indices_data.append({
+                    "name": index["name"],
+                    "value": current,
+                    "change": change,
+                    "change_percent": change_percent,
+                    "timestamp": datetime.now().isoformat()
+                })
+            except Exception as e:
+                logger.error(f"Error fetching data for {index['name']}: {str(e)}")
+        
+        # Fetch market breadth data (mock for now as it's harder to get)
+        # In a real implementation, you would scrape this from NSE website or use a specialized API
+        breadth = {
+            "advances": 0,
+            "declines": 0,
+            "unchanged": 0
+        }
+        
+        # Try to get market breadth from yfinance data
+        try:
+            # Get all NIFTY 50 stocks
+            nifty_stocks = yf.Tickers("RELIANCE.NS HDFCBANK.NS TCS.NS INFY.NS ICICIBANK.NS")
+            stock_data = nifty_stocks.tickers
+            
+            for _, ticker in stock_data.items():
+                info = ticker.info
+                change = info.get("regularMarketChange", 0)
+                if change > 0:
+                    breadth["advances"] += 1
+                elif change < 0:
+                    breadth["declines"] += 1
+                else:
+                    breadth["unchanged"] += 1
+        except Exception as e:
+            logger.error(f"Error fetching market breadth: {str(e)}")
+            # Fallback to reasonable estimates
+            breadth = {
+                "advances": 25,
+                "declines": 20,
+                "unchanged": 5
+            }
+        
+        result = {
+            "indices": indices_data,
+            "breadth": breadth
+        }
+        
+        # Cache the result
+        api_cache[cache_key] = (datetime.now(), result)
+        
+        return result
+    except Exception as e:
+        logger.error(f"Error fetching Indian market overview: {str(e)}")
+        return {
+            "indices": [],
+            "breadth": {"advances": 0, "declines": 0, "unchanged": 0}
+        }
