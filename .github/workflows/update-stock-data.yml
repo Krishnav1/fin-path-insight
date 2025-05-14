@@ -31,8 +31,8 @@ jobs:
           # Create a temporary .env file with secrets
           echo "NODE_ENV=production" > .env
           echo "SUPABASE_URL=https://ydakwyplcqoshxcdllah.supabase.co" >> .env
-          echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlkYWt3eXBsY3Fvc2h4Y2RsbGFoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDcyMTAwNTMsImV4cCI6MjA2Mjc4NjA1M30.J0c0YqSsR9XbtbYLVOq6oqQwYQ3G7j65Q0stEtS4W2s' }}" >> .env
-          echo "SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_SERVICE_KEY || '' }}" >> .env
+          echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" >> .env
+          echo "SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_SERVICE_KEY }}" >> .env
           echo "USE_FALLBACK_DATA=true" >> .env
           echo "GITHUB_ACTIONS=true" >> .env
           
@@ -64,8 +64,8 @@ jobs:
         env:
           # Also provide as environment variables for redundancy
           SUPABASE_URL: https://ydakwyplcqoshxcdllah.supabase.co
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlkYWt3eXBsY3Fvc2h4Y2RsbGFoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDcyMTAwNTMsImV4cCI6MjA2Mjc4NjA1M30.J0c0YqSsR9XbtbYLVOq6oqQwYQ3G7j65Q0stEtS4W2s' }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || '' }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }} 
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           NODE_ENV: production
           USE_FALLBACK_DATA: true
           GITHUB_ACTIONS: true
@@ -83,8 +83,8 @@ jobs:
             if ! git diff --staged --quiet; then
               git commit -m "Update stock data [skip ci]"
               
-              # Push to the correct remote (krishna instead of origin)
-              git push krishna main || echo "Warning: Failed to push to remote 'krishna'. This is not critical."
+              # Push to GitHub (using GITHUB_TOKEN for authentication)
+              git push https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:main || echo "Warning: Failed to push. This is not critical."
             else
               echo "No changes to commit"
             fi
