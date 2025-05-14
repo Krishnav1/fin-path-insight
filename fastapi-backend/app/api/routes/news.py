@@ -23,11 +23,22 @@ async def get_latest_news(topics: Optional[str] = None, market: Optional[str] = 
         # If market is specified, use it as a topic
         search_topic = market if market else topics
         news_data = await fetch_news(search_topic, limit)
-        return {"news": news_data}
+        
+        # Format response in the structure expected by the frontend
+        return {
+            "status": "ok",
+            "totalResults": len(news_data),
+            "articles": format_news_for_frontend(news_data)
+        }
     except Exception as e:
         logger.error(f"Error fetching latest news: {str(e)}")
         # Return mock data as fallback
-        return {"news": get_mock_news(limit, search_topic)}
+        mock_news = get_mock_news(limit, search_topic)
+        return {
+            "status": "ok",
+            "totalResults": len(mock_news),
+            "articles": format_news_for_frontend(mock_news)
+        }
 
 @router.get("/company/{symbol}")
 async def get_company_news(symbol: str, limit: int = 5):
@@ -36,11 +47,21 @@ async def get_company_news(symbol: str, limit: int = 5):
     """
     try:
         news_data = await fetch_news(f"{symbol}", limit)
-        return {"news": news_data}
+        # Format response in the structure expected by the frontend
+        return {
+            "status": "ok",
+            "totalResults": len(news_data),
+            "articles": format_news_for_frontend(news_data)
+        }
     except Exception as e:
         logger.error(f"Error fetching news for {symbol}: {str(e)}")
         # Return mock data as fallback
-        return {"news": get_mock_news(limit, search_topic)}
+        mock_news = get_mock_news(limit, symbol)
+        return {
+            "status": "ok",
+            "totalResults": len(mock_news),
+            "articles": format_news_for_frontend(mock_news)
+        }
 
 async def fetch_news(topics: Optional[str] = None, limit: int = 10):
     """
@@ -74,6 +95,41 @@ async def fetch_news(topics: Optional[str] = None, limit: int = 10):
     except Exception as e:
         logger.error(f"Error fetching news from Alpha Vantage: {str(e)}")
         return get_mock_news(limit, topics)
+
+def format_news_for_frontend(news_items):
+    """
+    Format news data in the structure expected by the frontend
+    
+    Parameters:
+    - news_items: List of news items from Alpha Vantage or mock data
+    
+    Returns:
+    - List of news articles formatted for the frontend
+    """
+    formatted_articles = []
+    
+    for item in news_items:
+        # Check if the item is already in the expected format
+        if "urlToImage" in item and "source" in item and isinstance(item["source"], dict):
+            formatted_articles.append(item)
+            continue
+            
+        # Format from Alpha Vantage structure
+        article = {
+            "title": item.get("title", ""),
+            "description": item.get("summary", ""),
+            "url": item.get("url", ""),
+            "urlToImage": item.get("banner_image", "https://via.placeholder.com/300x200?text=Financial+News"),
+            "publishedAt": item.get("time_published", datetime.now().isoformat()),
+            "source": {
+                "id": item.get("source_domain", "").replace(".", "-") if "source_domain" in item else "",
+                "name": item.get("source", "Financial News")
+            },
+            "content": item.get("summary", "")
+        }
+        formatted_articles.append(article)
+    
+    return formatted_articles
 
 def get_mock_news(limit: int = 10, topics: Optional[str] = None):
     """

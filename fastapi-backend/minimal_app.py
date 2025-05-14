@@ -72,29 +72,55 @@ MOCK_MARKET_OVERVIEW = {
     }
 }
 
-MOCK_NEWS = [
+# News articles in the format expected by the frontend
+MOCK_NEWS_ARTICLES = [
     {
         "title": "Reliance Industries Reports Strong Q4 Earnings",
         "description": "Reliance Industries Limited (RIL) reported a 15% increase in quarterly profits, beating market expectations.",
         "url": "https://example.com/news/reliance-q4-earnings",
-        "source": "Financial Times",
-        "date": "2023-05-05T10:30:00Z"
+        "urlToImage": "https://via.placeholder.com/300x200?text=Reliance+Q4",
+        "publishedAt": "2023-05-05T10:30:00Z",
+        "source": {
+            "id": "financial-times",
+            "name": "Financial Times"
+        },
+        "content": "Reliance Industries Limited (RIL) reported a 15% increase in quarterly profits, beating market expectations. The company's retail and digital services segments showed strong growth..."
     },
     {
         "title": "HDFC Bank Completes Merger with HDFC Ltd",
         "description": "HDFC Bank has completed its merger with HDFC Ltd, creating one of the largest banks in India by market capitalization.",
         "url": "https://example.com/news/hdfc-merger-complete",
-        "source": "Economic Times",
-        "date": "2023-05-04T14:45:00Z"
+        "urlToImage": "https://via.placeholder.com/300x200?text=HDFC+Merger",
+        "publishedAt": "2023-05-04T14:45:00Z",
+        "source": {
+            "id": "economic-times",
+            "name": "Economic Times"
+        },
+        "content": "HDFC Bank has completed its merger with HDFC Ltd, creating one of the largest banks in India by market capitalization. The merger is expected to enhance the bank's competitive position..."
     },
     {
         "title": "Indian Markets Hit New All-Time High",
         "description": "Indian stock markets reached a new all-time high today, driven by strong foreign institutional investor inflows.",
         "url": "https://example.com/news/markets-all-time-high",
-        "source": "Business Standard",
-        "date": "2023-05-03T09:15:00Z"
+        "urlToImage": "https://via.placeholder.com/300x200?text=Market+High",
+        "publishedAt": "2023-05-03T09:15:00Z",
+        "source": {
+            "id": "business-standard",
+            "name": "Business Standard"
+        },
+        "content": "Indian stock markets reached a new all-time high today, driven by strong foreign institutional investor inflows. Both the Sensex and Nifty indices closed at record levels..."
     }
 ]
+
+# News response format with articles property
+MOCK_NEWS_RESPONSE = {
+    "status": "ok",
+    "totalResults": 3,
+    "articles": MOCK_NEWS_ARTICLES
+}
+
+# Simplified format for backward compatibility
+MOCK_NEWS = MOCK_NEWS_ARTICLES
 
 # Root endpoint
 @app.get("/")

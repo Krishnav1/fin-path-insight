@@ -35,21 +35,26 @@ async def chat(message: ChatMessage = Body(...)):
             "timestamp": datetime.now().isoformat()
         })
         
-        # Get relevant context from knowledge base
-        relevant_context = await get_relevant_context(user_message)
-        
-        # Get real-time financial data if needed
-        financial_data = await get_financial_data(user_message)
-        
-        # Create system prompt with context and financial data
-        system_prompt = create_system_prompt(relevant_context, financial_data)
-        
-        # Generate response
-        bot_response = await generate_text_response(
-            prompt=user_message,
-            system_prompt=system_prompt,
-            conversation_history=conversation_history[user_id][-6:] if len(conversation_history[user_id]) > 6 else conversation_history[user_id]
-        )
+        try:
+            # Get relevant context from knowledge base
+            relevant_context = await get_relevant_context(user_message)
+            
+            # Get real-time financial data if needed
+            financial_data = await get_financial_data(user_message)
+            
+            # Create system prompt with context and financial data
+            system_prompt = create_system_prompt(relevant_context, financial_data)
+            
+            # Generate response
+            bot_response = await generate_text_response(
+                prompt=user_message,
+                system_prompt=system_prompt,
+                conversation_history=conversation_history[user_id][-6:] if len(conversation_history[user_id]) > 6 else conversation_history[user_id]
+            )
+        except Exception as inner_e:
+            logger.error(f"Error generating AI response: {str(inner_e)}")
+            # Fallback response if AI generation fails
+            bot_response = "I'm sorry, I'm having trouble processing your request right now. Please try again later or ask a different question about financial markets or investments."
         
         # Add bot response to history
         conversation_history[user_id].append({
@@ -62,14 +67,33 @@ async def chat(message: ChatMessage = Body(...)):
         if len(conversation_history[user_id]) > 20:
             conversation_history[user_id] = conversation_history[user_id][-20:]
         
-        logger.info(f"FinGenie responded to {user_id}")
+        return ChatResponse(message=bot_response)
         
-        return {"message": bot_response}
     except Exception as e:
-        logger.error(f"Error in FinGenie chat: {str(e)}")
-        return {
-            "message": "I'm sorry, I'm having trouble processing your request right now. Please try again in a moment."
-        }
+        logger.error(f"Error in chat endpoint: {str(e)}")
+        # Return a friendly error message instead of throwing an exception
+        return ChatResponse(message="I apologize, but I'm experiencing technical difficulties. Please try again later.")
+
+@router.get("/chat")
+async def chat_get():
+    """
+    Simple GET handler for the chat endpoint
+    """
+    return {"message": "FinGenie chat API is running. Please use POST method to send messages."}
+
+@router.delete("/conversations/{user_id}")
+async def clear_conversation(user_id: str):
+    """
+    Clear conversation history for a user
+    """
+    try:
+        if user_id in conversation_history:
+            conversation_history[user_id] = []
+        
+        return {"status": "success", "message": f"Conversation history cleared for user {user_id}"}
+    except Exception as e:
+        logger.error(f"Error clearing conversation for user {user_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 async def get_relevant_context(message: str) -> str:
     """

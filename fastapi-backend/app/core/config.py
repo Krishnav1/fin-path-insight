@@ -1,6 +1,9 @@
 import os
+import logging
 from pydantic_settings import BaseSettings
 from typing import Optional, Dict, Any, List
+
+logger = logging.getLogger(__name__)
 
 class Settings(BaseSettings):
     # API Settings
@@ -11,30 +14,30 @@ class Settings(BaseSettings):
     BACKEND_CORS_ORIGINS: List[str] = ["*"]
     
     # Google Gemini API Settings
-    GEMINI_API_KEY: Optional[str] = os.getenv("GEMINI_API_KEY")
+    GEMINI_API_KEY: Optional[str] = None
     
     # Pinecone Settings
-    PINECONE_API_KEY: Optional[str] = os.getenv("PINECONE_API_KEY")
-    PINECONE_INDEX_NAME: str = os.getenv("PINECONE_INDEX_NAME", "fingenie-finance-vectors")
-    PINECONE_CLOUD: str = os.getenv("PINECONE_CLOUD", "aws")
+    PINECONE_API_KEY: Optional[str] = None
+    PINECONE_INDEX_NAME: str = "fingenie-finance-vectors"
+    PINECONE_CLOUD: str = "aws"
     
     # Alpha Vantage API Settings
-    ALPHA_VANTAGE_API_KEY: Optional[str] = os.getenv("ALPHA_VANTAGE_API_KEY")
+    ALPHA_VANTAGE_API_KEY: Optional[str] = None
     
     # News API Settings
-    NEWS_API_KEY: Optional[str] = os.getenv("NEWS_API_KEY")
+    NEWS_API_KEY: Optional[str] = None
     
     # Document Processing Settings
     UPLOAD_FOLDER: str = "uploads"
     ALLOWED_EXTENSIONS: List[str] = ["pdf", "csv", "xlsx"]
     
     # Render Environment Variables
-    PORT: Optional[str] = os.getenv("PORT")
-    NODE_ENV: Optional[str] = os.getenv("NODE_ENV")
+    PORT: Optional[str] = None
+    NODE_ENV: Optional[str] = None
     
     # Supabase Settings
-    SUPABASE_URL: Optional[str] = os.getenv("SUPABASE_URL")
-    SUPABASE_ANON_KEY: Optional[str] = os.getenv("SUPABASE_ANON_KEY")
+    SUPABASE_URL: Optional[str] = None
+    SUPABASE_ANON_KEY: Optional[str] = None
     
     class Config:
         env_file = ".env"
@@ -43,13 +46,36 @@ class Settings(BaseSettings):
 
 # Initialize settings with environment variables
 try:
+    # Create settings instance
     settings = Settings()
-    print(f"Settings loaded successfully. API_V1_STR: {settings.API_V1_STR}")
-    print(f"PORT: {settings.PORT}, NODE_ENV: {settings.NODE_ENV}")
-    print(f"SUPABASE_URL is {'set' if settings.SUPABASE_URL else 'not set'}")
-    print(f"SUPABASE_ANON_KEY is {'set' if settings.SUPABASE_ANON_KEY else 'not set'}")
+    
+    # Manually load environment variables to ensure they're set
+    settings.GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+    settings.PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
+    settings.PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME", "fingenie-finance-vectors")
+    settings.PINECONE_CLOUD = os.getenv("PINECONE_CLOUD", "aws")
+    settings.ALPHA_VANTAGE_API_KEY = os.getenv("ALPHA_VANTAGE_API_KEY")
+    settings.NEWS_API_KEY = os.getenv("NEWS_API_KEY")
+    settings.PORT = os.getenv("PORT")
+    settings.NODE_ENV = os.getenv("NODE_ENV")
+    settings.SUPABASE_URL = os.getenv("SUPABASE_URL")
+    settings.SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
+    
+    # Log successful loading
+    logger.info(f"Settings loaded successfully. API_V1_STR: {settings.API_V1_STR}")
+    logger.info(f"Environment: {settings.NODE_ENV}")
+    logger.info(f"Alpha Vantage API Key: {'Set' if settings.ALPHA_VANTAGE_API_KEY else 'Not set'}")
+    logger.info(f"Supabase URL: {'Set' if settings.SUPABASE_URL else 'Not set'}")
+    
+    # Print for debugging during deployment
+    print(f"Settings loaded successfully. Environment: {settings.NODE_ENV}")
+    print(f"Alpha Vantage API Key: {'Set' if settings.ALPHA_VANTAGE_API_KEY else 'Not set'}")
+    print(f"Supabase URL: {'Set' if settings.SUPABASE_URL else 'Not set'}")
+    
 except Exception as e:
-    print(f"Error loading settings: {e}")
-    # Fallback to a minimal settings object if there's an error
+    error_msg = f"Error loading settings: {e}"
+    print(error_msg)
+    logger.error(error_msg)
+    # Create a minimal settings object if there's an error
     settings = Settings()
 
