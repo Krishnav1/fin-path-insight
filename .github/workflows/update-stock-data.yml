@@ -33,15 +33,15 @@ jobs:
       # This approach avoids the context access warnings
       - name: Write SUPABASE_URL to .env
         working-directory: ./backend
-        run: echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" > .env
+        run: echo "SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}" > .env
       
       - name: Write SUPABASE_ANON_KEY to .env
         working-directory: ./backend
-        run: echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" >> .env
+        run: echo "SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}" >> .env
       
       - name: Write SUPABASE_SERVICE_KEY to .env
         working-directory: ./backend
-        run: echo "SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_SERVICE_KEY }}" >> .env
+        run: echo "SUPABASE_SERVICE_KEY=${{ secrets.VITE_SUPABASE_SERVICE_KEY }}" >> .env
       
       - name: Write additional config to .env
         working-directory: ./backend
