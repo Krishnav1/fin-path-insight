@@ -343,3 +343,204 @@ def get_next_market_close() -> str:
     
     next_close = (today + timedelta(days=days_to_add)).replace(hour=15, minute=30, second=0, microsecond=0)
     return next_close.strftime("%Y-%m-%d %H:%M:%S")
+
+
+async def fetch_news(topics: Optional[str] = None, limit: int = 10) -> List[Dict[str, Any]]:
+    """
+    Fetch news from Alpha Vantage API
+    
+    Args:
+        topics: Topics to filter news by (comma-separated)
+        limit: Maximum number of news items to return
+        
+    Returns:
+        List of dictionaries with news data
+    """
+    cache_key = f"news_{topics}_{limit}"
+    
+    # Check cache first
+    if cache_key in api_cache and (datetime.now() - api_cache[cache_key]["timestamp"]).seconds < 3600:  # Cache for 1 hour
+        logger.info(f"Using cached news data for {topics}")
+        return api_cache[cache_key]["data"]
+    
+    params = {
+        "function": "NEWS_SENTIMENT",
+        "apikey": settings.ALPHA_VANTAGE_API_KEY,
+    }
+    
+    if topics:
+        params["topics"] = topics
+        
+    if limit:
+        params["limit"] = str(limit)
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(BASE_URL, params=params)
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                if "feed" in data:
+                    news_items = data["feed"]
+                    
+                    # Format the news items
+                    formatted_news = []
+                    for item in news_items:
+                        formatted_item = {
+                            "title": item.get("title", ""),
+                            "url": item.get("url", ""),
+                            "time_published": item.get("time_published", ""),
+                            "summary": item.get("summary", ""),
+                            "source": item.get("source", ""),
+                            "category": item.get("category", ""),
+                            "topics": item.get("topics", []),
+                            "banner_image": item.get("banner_image", "")
+                        }
+                        formatted_news.append(formatted_item)
+                    
+                    # Cache the result
+                    api_cache[cache_key] = {
+                        "data": formatted_news,
+                        "timestamp": datetime.now()
+                    }
+                    
+                    return formatted_news
+                else:
+                    logger.warning(f"No news data in Alpha Vantage response: {data}")
+                    return get_mock_news(limit, topics)
+            else:
+                logger.error(f"Error fetching news from Alpha Vantage: {response.status_code} {response.text}")
+                return get_mock_news(limit, topics)
+    except Exception as e:
+        logger.error(f"Exception fetching news from Alpha Vantage: {str(e)}")
+        return get_mock_news(limit, topics)
+
+def get_mock_news(limit: int = 10, topics: Optional[str] = None) -> List[Dict[str, Any]]:
+    """
+    Generate mock news data for fallback
+    
+    Args:
+        limit: Maximum number of news items to return
+        topics: Topics to filter news by
+        
+    Returns:
+        List of dictionaries with mock news data
+    """
+    today = datetime.now().strftime("%Y%m%dT%H%M%S")
+    
+    # Base news items
+    news_items = [
+        {
+            "title": "Market Update: Major Indices Show Mixed Results",
+            "url": "https://example.com/market-update",
+            "time_published": today,
+            "summary": "Major indices showed mixed results today as investors weighed economic data.",
+            "source": "Financial Times",
+            "category": "Market News",
+            "topics": ["market", "indices"],
+            "banner_image": "https://placehold.co/600x400/png?text=Market+Update"
+        },
+        {
+            "title": "RBI Announces New Monetary Policy Measures",
+            "url": "https://example.com/rbi-policy",
+            "time_published": today,
+            "summary": "The Reserve Bank of India announced new monetary policy measures aimed at controlling inflation.",
+            "source": "Economic Times",
+            "category": "Economy",
+            "topics": ["rbi", "monetary policy", "inflation"],
+            "banner_image": "https://placehold.co/600x400/png?text=RBI+Policy"
+        },
+        {
+            "title": "Tech Stocks Rally on Strong Earnings Reports",
+            "url": "https://example.com/tech-rally",
+            "time_published": today,
+            "summary": "Technology stocks rallied today following better-than-expected earnings reports from major companies.",
+            "source": "Bloomberg",
+            "category": "Stocks",
+            "topics": ["technology", "earnings", "stocks"],
+            "banner_image": "https://placehold.co/600x400/png?text=Tech+Stocks"
+        },
+        {
+            "title": "Oil Prices Surge Amid Supply Concerns",
+            "url": "https://example.com/oil-prices",
+            "time_published": today,
+            "summary": "Oil prices surged today amid concerns about global supply disruptions.",
+            "source": "Reuters",
+            "category": "Commodities",
+            "topics": ["oil", "commodities", "energy"],
+            "banner_image": "https://placehold.co/600x400/png?text=Oil+Prices"
+        },
+        {
+            "title": "Global Markets React to US Federal Reserve Decision",
+            "url": "https://example.com/fed-decision",
+            "time_published": today,
+            "summary": "Global markets reacted strongly to the latest US Federal Reserve interest rate decision.",
+            "source": "CNBC",
+            "category": "Economy",
+            "topics": ["federal reserve", "interest rates", "global markets"],
+            "banner_image": "https://placehold.co/600x400/png?text=Fed+Decision"
+        },
+        {
+            "title": "Indian Rupee Strengthens Against US Dollar",
+            "url": "https://example.com/rupee-dollar",
+            "time_published": today,
+            "summary": "The Indian Rupee strengthened against the US Dollar following positive economic data.",
+            "source": "Mint",
+            "category": "Forex",
+            "topics": ["rupee", "dollar", "forex"],
+            "banner_image": "https://placehold.co/600x400/png?text=Rupee+Dollar"
+        },
+        {
+            "title": "Government Announces New Economic Stimulus Package",
+            "url": "https://example.com/stimulus-package",
+            "time_published": today,
+            "summary": "The government announced a new economic stimulus package to boost growth and create jobs.",
+            "source": "Business Standard",
+            "category": "Economy",
+            "topics": ["stimulus", "economy", "government"],
+            "banner_image": "https://placehold.co/600x400/png?text=Stimulus+Package"
+        },
+        {
+            "title": "Banking Sector Faces New Regulatory Challenges",
+            "url": "https://example.com/banking-regulations",
+            "time_published": today,
+            "summary": "The banking sector is facing new regulatory challenges as authorities tighten oversight.",
+            "source": "Financial Express",
+            "category": "Banking",
+            "topics": ["banking", "regulations", "finance"],
+            "banner_image": "https://placehold.co/600x400/png?text=Banking+Regulations"
+        },
+        {
+            "title": "Cryptocurrency Market Sees Significant Volatility",
+            "url": "https://example.com/crypto-volatility",
+            "time_published": today,
+            "summary": "The cryptocurrency market experienced significant volatility as Bitcoin and other major coins fluctuated widely.",
+            "source": "CoinDesk",
+            "category": "Cryptocurrency",
+            "topics": ["cryptocurrency", "bitcoin", "blockchain"],
+            "banner_image": "https://placehold.co/600x400/png?text=Crypto+Volatility"
+        },
+        {
+            "title": "Real Estate Sector Shows Signs of Recovery",
+            "url": "https://example.com/real-estate-recovery",
+            "time_published": today,
+            "summary": "The real estate sector is showing signs of recovery with increased sales and stable prices.",
+            "source": "Property Times",
+            "category": "Real Estate",
+            "topics": ["real estate", "property", "housing"],
+            "banner_image": "https://placehold.co/600x400/png?text=Real+Estate+Recovery"
+        }
+    ]
+    
+    # Filter by topics if provided
+    if topics:
+        topic_list = [t.strip().lower() for t in topics.split(',')]
+        filtered_items = []
+        for item in news_items:
+            item_topics = [t.lower() for t in item.get("topics", [])]
+            if any(topic in item_topics for topic in topic_list):
+                filtered_items.append(item)
+        news_items = filtered_items if filtered_items else news_items  # Use all items if no matches
+    
+    return news_items[:limit]
