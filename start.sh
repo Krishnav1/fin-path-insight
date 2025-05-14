@@ -1,16 +1,17 @@
 #!/bin/bash
-# Root start.sh - Redirects to the fastapi-backend start script
+# Root start.sh - Starts the FastAPI application
 
-echo "Running root start.sh script"
-echo "Current directory: $(pwd)"
-echo "Directory contents:"
+echo "Starting FastAPI application..."
+echo "Python version: $(python --version)"
+echo "Working directory: $(pwd)"
+echo "Files in directory:"
 ls -la
 
 # Ensure uvicorn is installed
 echo "Checking if uvicorn is installed..."
-if ! pip list | grep -q uvicorn; then
+if ! python -m pip list | grep -q uvicorn; then
     echo "uvicorn not found, installing it..."
-    pip install uvicorn gunicorn fastapi
+    python -m pip install uvicorn gunicorn fastapi
 fi
 
 # Set default port if not provided
@@ -18,6 +19,10 @@ if [ -z "$PORT" ]; then
     export PORT=10000
     echo "PORT not set, defaulting to $PORT"
 fi
+
+# Set PYTHONPATH to include the current directory
+export PYTHONPATH=$PYTHONPATH:$(pwd)
+echo "PYTHONPATH set to: $PYTHONPATH"
 
 # Check if fastapi-backend directory exists
 if [ -d "fastapi-backend" ]; then
