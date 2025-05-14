@@ -83,7 +83,7 @@ export default function FinGenie() {
     
     try {
       // Send the message to our backend API
-      const response = await axios.post('http://localhost:3003/api/fingenie/chat', {
+      const response = await axios.post('/fastapi/fingenie/chat', {
         userId: userId,
         message: userMessage.content
       }, {

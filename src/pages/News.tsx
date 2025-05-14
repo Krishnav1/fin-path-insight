@@ -48,8 +48,8 @@ export default function News() {
       
       try {
         // Make API call to get market news
-        const response = await axios.get(`http://localhost:3003/api/news/market/${market || 'global'}`);
-        const apiNewsItems: NewsItem[] = response.data;
+        const response = await axios.get(`/fastapi/news/market/${market || 'global'}`);
+        const apiNewsItems: NewsItem[] = response.data.articles || response.data;
         
         // Add category field to each news item based on content analysis
         const categorizedNews = apiNewsItems.map(item => {

@@ -36,7 +36,7 @@ export const FinGenieProvider = ({ children }) => {
     setError(null);
     
     try {
-      const response = await axios.post('http://localhost:3003/api/fingenie/chat', {
+      const response = await axios.post('/fastapi/fingenie/chat', {
         userId: sessionId,
         message: message
       }, {

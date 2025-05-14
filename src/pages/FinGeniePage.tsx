@@ -169,7 +169,7 @@ const FinGeniePage: React.FC = () => {
       } catch (error) {
         console.log('Error using context method, trying direct API call:', error);
         // Direct API call as fallback
-        const apiResponse = await fetch('http://localhost:3003/api/fingenie/chat', {
+        const apiResponse = await fetch('/fastapi/fingenie/chat', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'

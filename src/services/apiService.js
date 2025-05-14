@@ -3,7 +3,7 @@ import errorHandler from '../utils/errorHandler';
 
 // Create axios instances for different backends
 const nodeBackendApi = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'https://fininsight.onrender.com',
+  baseURL: '/api',
   timeout: 30000, // 30 seconds timeout
   headers: {
     'Content-Type': 'application/json'
@@ -11,7 +11,7 @@ const nodeBackendApi = axios.create({
 });
 
 const fastApiBackend = axios.create({
-  baseURL: import.meta.env.VITE_FASTAPI_URL || 'https://fin-path-insight-fastapi.onrender.com',
+  baseURL: '/fastapi',
   timeout: 30000, // 30 seconds timeout
   headers: {
     'Content-Type': 'application/json'

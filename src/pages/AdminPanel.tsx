@@ -58,7 +58,7 @@ const AdminPanel: React.FC = () => {
   // Fetch knowledge base status
   const fetchStatus = async () => {
     try {
-      const response = await axios.get('http://localhost:3003/api/knowledge-base/status');
+      const response = await axios.get('/fastapi/knowledge-base/status');
       setStatus(response.data);
     } catch (error) {
       console.error('Error fetching knowledge base status:', error);
@@ -103,7 +103,7 @@ const AdminPanel: React.FC = () => {
     });
     
     try {
-      const response = await axios.post('http://localhost:3003/api/knowledge-base/upload', formData, {
+      const response = await axios.post('/fastapi/knowledge-base/upload', formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
@@ -139,7 +139,7 @@ const AdminPanel: React.FC = () => {
     });
     
     try {
-      const response = await axios.post('http://localhost:3003/api/knowledge-base/update');
+      const response = await axios.post('/fastapi/knowledge-base/update');
       
       setMessage({
         type: 'success',
