@@ -29,6 +29,35 @@ def init_supabase() -> Optional[Client]:
         
         supabase_client = create_client(settings.SUPABASE_URL, clean_anon_key)
         logger.info("Supabase client initialized successfully")
+        
+        # Create cache table if it doesn't exist
+        try:
+            # SQL to create the cache table if it doesn't exist
+            create_table_sql = """
+            create table if not exists public.cache (
+                id text primary key,
+                key text,
+                data text,
+                ttl integer,
+                created_at text
+            );
+            """
+            
+            # Execute the SQL using Supabase's REST API
+            supabase_client.table('cache').select('id').limit(1).execute()
+            logger.info("Cache table exists")
+        except Exception as table_error:
+            if "relation \"public.cache\" does not exist" in str(table_error):
+                logger.warning("Cache table does not exist. Creating it...")
+                try:
+                    # Use raw SQL query to create the table
+                    response = supabase_client.rpc('exec_sql', {'query': create_table_sql}).execute()
+                    logger.info("Cache table created successfully")
+                except Exception as create_error:
+                    logger.error(f"Error creating cache table: {str(create_error)}")
+            else:
+                logger.error(f"Error checking cache table: {str(table_error)}")
+        
         return supabase_client
     except Exception as e:
         logger.error(f"Error initializing Supabase client: {str(e)}")
@@ -52,22 +81,30 @@ async def get_cached_data(key: str) -> Optional[Dict[str, Any]]:
         # Create a hash of the key to use as the cache ID
         cache_id = hashlib.md5(key.encode()).hexdigest()
         
-        # Query the cache table
-        response = client.table("cache").select("*").eq("id", cache_id).execute()
-        
-        if response.data and len(response.data) > 0:
-            cache_item = response.data[0]
+        try:
+            # Query the cache table
+            response = client.table("cache").select("*").eq("id", cache_id).execute()
             
-            # Check if cache is expired
-            created_at = datetime.fromisoformat(cache_item["created_at"].replace("Z", "+00:00"))
-            ttl = cache_item.get("ttl", settings.SUPABASE_TTL_CACHE)
-            
-            if datetime.now() - created_at < timedelta(seconds=ttl):
-                # Cache is still valid
-                return json.loads(cache_item["data"])
-            else:
-                # Cache is expired, delete it
-                client.table("cache").delete().eq("id", cache_id).execute()
+            if response.data and len(response.data) > 0:
+                cache_item = response.data[0]
+                
+                # Check if cache is expired
+                created_at = datetime.fromisoformat(cache_item["created_at"].replace("Z", "+00:00"))
+                ttl = cache_item.get("ttl", settings.SUPABASE_TTL_CACHE)
+                
+                if datetime.now() - created_at < timedelta(seconds=ttl):
+                    # Cache is still valid
+                    return json.loads(cache_item["data"])
+                else:
+                    # Cache is expired, delete it
+                    try:
+                        client.table("cache").delete().eq("id", cache_id).execute()
+                    except:
+                        # Ignore deletion errors
+                        pass
+        except Exception as cache_error:
+            # If the cache table doesn't exist or other cache error, log and continue
+            logger.warning(f"Cache retrieval failed: {str(cache_error)}")
         
         return None
     except Exception as e:
@@ -107,10 +144,14 @@ async def set_cached_data(key: str, data: Dict[str, Any], ttl: Optional[int] = N
             "created_at": datetime.now().isoformat()
         }
         
-        # Upsert to cache table
-        client.table("cache").upsert(cache_item).execute()
-        
-        return True
+        try:
+            # Upsert to cache table
+            client.table("cache").upsert(cache_item).execute()
+            return True
+        except Exception as cache_error:
+            # If the cache table doesn't exist, log and continue
+            logger.warning(f"Cache storage failed: {str(cache_error)}")
+            return False
     except Exception as e:
         logger.error(f"Error setting cached data: {str(e)}")
         return False
@@ -133,10 +174,14 @@ async def delete_cached_data(key: str) -> bool:
         # Create a hash of the key to use as the cache ID
         cache_id = hashlib.md5(key.encode()).hexdigest()
         
-        # Delete from cache table
-        client.table("cache").delete().eq("id", cache_id).execute()
-        
-        return True
+        try:
+            # Delete from cache table
+            client.table("cache").delete().eq("id", cache_id).execute()
+            return True
+        except Exception as cache_error:
+            # If the cache table doesn't exist, log and continue
+            logger.warning(f"Cache deletion failed: {str(cache_error)}")
+            return False
     except Exception as e:
         logger.error(f"Error deleting cached data: {str(e)}")
         return False
@@ -153,20 +198,28 @@ async def clear_expired_cache() -> bool:
         if not client:
             return False
         
-        # Get all cache items
-        response = client.table("cache").select("*").execute()
-        
-        if response.data:
-            for cache_item in response.data:
-                # Check if cache is expired
-                created_at = datetime.fromisoformat(cache_item["created_at"].replace("Z", "+00:00"))
-                ttl = cache_item.get("ttl", settings.SUPABASE_TTL_CACHE)
-                
-                if datetime.now() - created_at >= timedelta(seconds=ttl):
-                    # Cache is expired, delete it
-                    client.table("cache").delete().eq("id", cache_item["id"]).execute()
-        
-        return True
+        try:
+            # Get all cache items
+            response = client.table("cache").select("*").execute()
+            
+            if response.data:
+                for cache_item in response.data:
+                    # Check if cache is expired
+                    created_at = datetime.fromisoformat(cache_item["created_at"].replace("Z", "+00:00"))
+                    ttl = cache_item.get("ttl", settings.SUPABASE_TTL_CACHE)
+                    
+                    if datetime.now() - created_at >= timedelta(seconds=ttl):
+                        try:
+                            # Cache is expired, delete it
+                            client.table("cache").delete().eq("id", cache_item["id"]).execute()
+                        except Exception as delete_error:
+                            logger.warning(f"Error deleting expired cache item: {str(delete_error)}")
+            
+            return True
+        except Exception as cache_error:
+            # If the cache table doesn't exist, log and continue
+            logger.warning(f"Cache cleanup failed: {str(cache_error)}")
+            return False
     except Exception as e:
         logger.error(f"Error clearing expired cache: {str(e)}")
         return False
