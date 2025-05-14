@@ -15,25 +15,35 @@ class Settings(BaseSettings):
     # CORS Settings
     BACKEND_CORS_ORIGINS: List[str] = ["*"]
     
+    # Database Settings
+    DATABASE_URL: Optional[str] = os.getenv("DATABASE_URL", "postgresql://postgres.ydakwyplcqoshxcdllah:0RwuxjGlRJwgquO4@aws-0-us-east-2.pooler.supabase.com:6543/postgres")
+    
     # Google Gemini API Settings
-    GEMINI_API_KEY: Optional[str] = None
+    GEMINI_API_KEY: Optional[str] = os.getenv("GOOGLE_GEMINI_API_KEY")
     
     # Pinecone Settings
-    PINECONE_API_KEY: Optional[str] = None
-    PINECONE_INDEX_NAME: str = "fingenie-finance-vectors"
-    PINECONE_CLOUD: str = "aws"
-    PINECONE_REGION: Optional[str] = "us-east-1"
+    PINECONE_API_KEY: Optional[str] = os.getenv("PINECONE_API_KEY")
+    PINECONE_INDEX_NAME: str = os.getenv("PINECONE_INDEX_NAME", "fingenie-finance-vectors")
+    PINECONE_ENVIRONMENT: str = os.getenv("PINECONE_ENVIRONMENT", "gcp-starter")
+    PINECONE_CLOUD: str = os.getenv("PINECONE_CLOUD", "aws")
+    PINECONE_REGION: Optional[str] = os.getenv("PINECONE_REGION", "us-east-1")
     
     # Alpha Vantage API Settings
-    ALPHA_VANTAGE_API_KEY: Optional[str] = None
+    ALPHA_VANTAGE_API_KEY: Optional[str] = os.getenv("ALPHA_VANTAGE_API_KEY")
+    ALPHA_VANTAGE_BASE_URL: str = "https://www.alphavantage.co/query"
     
     # News API Settings
-    NEWS_API_KEY: Optional[str] = None
-    GNEWS_API_KEY: Optional[str] = None
+    NEWS_API_KEY: Optional[str] = os.getenv("NEWS_API_KEY")
+    GNEWS_API_KEY: Optional[str] = os.getenv("GNEWS_API_KEY")
     
     # Document Processing Settings
-    UPLOAD_FOLDER: str = "uploads"
-    ALLOWED_EXTENSIONS: List[str] = ["pdf", "csv", "xlsx"]
+    UPLOAD_FOLDER: str = os.getenv("UPLOAD_FOLDER", "uploads")
+    ALLOWED_EXTENSIONS: List[str] = ["pdf", "csv", "xlsx", "docx", "txt"]
+    
+    # Supabase Settings
+    SUPABASE_URL: Optional[str] = os.getenv("SUPABASE_URL", "https://ydakwyplcqoshxcdllah.supabase.co")
+    SUPABASE_KEY: Optional[str] = os.getenv("SUPABASE_KEY")
+    SUPABASE_JWT_SECRET: Optional[str] = os.getenv("SUPABASE_JWT_SECRET")
     
     model_config = SettingsConfigDict(
         env_file='.env',

@@ -3,4 +3,8 @@
 anon publc (api) - eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlkYWt3eXBsY3Fvc2h4Y2RsbGFoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDcyMTAwNTMsImV4cCI6MjA2Mjc4NjA1M30.J0c0YqSsR9XbtbYLVOq6oqQwYQ3G7j65Q0stEtS4W2s
 
 direct connection (string) - postgresql://postgres:[YOUR-PASSWORD]@db.ydakwyplcqoshxcdllah.supabase.co:5432/postgres
+
+data base password - 0RwuxjGlRJwgquO4 using on string
+
+pool strng (best) - postgresql://postgres.ydakwyplcqoshxcdllah:0RwuxjGlRJwgquO4@aws-0-us-east-2.pooler.supabase.com:6543/postgres
  
