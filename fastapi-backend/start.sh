@@ -29,6 +29,15 @@ echo "Checking for critical packages..."
 python -c "import fastapi" 2>/dev/null || pip install fastapi==0.104.1
 python -c "import uvicorn" 2>/dev/null || pip install uvicorn==0.24.0
 python -c "import gunicorn" 2>/dev/null || pip install gunicorn==21.2.0
+python -c "import httpx" 2>/dev/null || pip install httpx==0.25.1
+python -c "import requests" 2>/dev/null || pip install requests==2.31.0
+python -c "import aiohttp" 2>/dev/null || pip install aiohttp==3.9.1
+python -c "import pandas" 2>/dev/null || pip install pandas==2.1.4
+python -c "import numpy" 2>/dev/null || pip install numpy==1.26.2
+
+# Ensure all dependencies are installed
+echo "Installing all dependencies from requirements.txt..."
+pip install -r requirements.txt
 
 # Verify FastAPI installation and imports
 python -c "import fastapi; print('FastAPI version:', fastapi.__version__)" || echo "WARNING: FastAPI not found"
