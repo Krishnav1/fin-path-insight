@@ -24,44 +24,52 @@ fi
 export PYTHONPATH="$(pwd)"
 echo "PYTHONPATH set to: $PYTHONPATH"
 
+# Install critical packages if they're missing
+echo "Checking for critical packages..."
+python -c "import fastapi" 2>/dev/null || pip install fastapi==0.104.1
+python -c "import uvicorn" 2>/dev/null || pip install uvicorn==0.24.0
+python -c "import gunicorn" 2>/dev/null || pip install gunicorn==21.2.0
+
 # Verify FastAPI installation and imports
-python -c "import fastapi; from app.core.config import settings; print('FastAPI version:', fastapi.__version__)"
+python -c "import fastapi; print('FastAPI version:', fastapi.__version__)" || echo "WARNING: FastAPI not found"
 
 # Try to start the FastAPI application
 echo "Attempting to start FastAPI application..."
 
-# First try: uvicorn directly
+# First try: uvicorn directly from .venv/bin
+if [ -f ".venv/bin/uvicorn" ]; then
+  echo "Starting with .venv/bin/uvicorn..."
+  exec .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port $PORT
+  exit 0
+fi
+
+# Second try: uvicorn directly
 if command -v uvicorn &> /dev/null; then
   echo "Starting with uvicorn command..."
   exec uvicorn app.main:app --host 0.0.0.0 --port $PORT
   exit 0
 fi
 
-# Second try: python -m uvicorn
+# Third try: python -m uvicorn
 echo "uvicorn command not found, trying python -m uvicorn"
-if python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT; then
+python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
+if [ $? -eq 0 ]; then
   exit 0
 fi
 
-# Third try: gunicorn with uvicorn worker
+# Fourth try: gunicorn with uvicorn worker
 echo "Trying gunicorn with uvicorn worker..."
 if command -v gunicorn &> /dev/null; then
   exec gunicorn app.main:app -b 0.0.0.0:$PORT -k uvicorn.workers.UvicornWorker
   exit 0
 fi
 
+# Fifth try: direct python execution
+echo "Trying direct Python execution..."
+python -c "import uvicorn; uvicorn.run('app.main:app', host='0.0.0.0', port=$PORT)"
+if [ $? -eq 0 ]; then
+  exit 0
+fi
+
 echo "ERROR: Could not start the FastAPI application"
 exit 1
-
-# Try different ways to start the application
-echo "Attempting to start FastAPI application with uvicorn..."
-
-# Method 1: Direct uvicorn command
-if command -v uvicorn &> /dev/null; then
-  echo "Starting with uvicorn directly"
-  uvicorn app.main:app --host 0.0.0.0 --port $PORT
-else
-  # Method 2: Python module
-  echo "uvicorn command not found, trying python -m uvicorn"
-  python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
-fi
