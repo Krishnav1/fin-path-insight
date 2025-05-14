@@ -98,7 +98,7 @@ fastApiBackend.interceptors.response.use(
 export async function getStockData(symbol, market = 'india') {
   try {
     // First try Node.js backend
-    const response = await nodeBackendApi.get(`/api/stocks/${symbol}`, {
+    const response = await nodeBackendApi.get(`/stocks/${symbol}`, {
       params: { market }
     });
     
@@ -110,7 +110,7 @@ export async function getStockData(symbol, market = 'india') {
     if (enableFallbacks) {
       try {
         console.log(`Trying fallback API for stock data: ${symbol}`);
-        const fallbackResponse = await fastApiBackend.get(`/api/market-data/stock/${symbol}`, {
+        const fallbackResponse = await fastApiBackend.get(`/market-data/stock/${symbol}`, {
           params: { market }
         });
         
@@ -142,7 +142,7 @@ export async function getStockData(symbol, market = 'india') {
 export async function getMarketOverview(market = 'india') {
   try {
     // First try Node.js backend
-    const response = await nodeBackendApi.get(`/api/stocks/market-overview`, {
+    const response = await nodeBackendApi.get(`/stocks/market-overview`, {
       params: { market }
     });
     
@@ -154,7 +154,7 @@ export async function getMarketOverview(market = 'india') {
     if (enableFallbacks) {
       try {
         console.log(`Trying fallback API for market overview: ${market}`);
-        const fallbackResponse = await fastApiBackend.get(`/api/market-data/overview`, {
+        const fallbackResponse = await fastApiBackend.get(`/market-data/overview`, {
           params: { market }
         });
         
@@ -189,7 +189,7 @@ export async function getMarketOverview(market = 'india') {
 export async function getStockChart(symbol, interval = '1d', range = '1y', market = 'india') {
   try {
     // First try Node.js backend
-    const response = await nodeBackendApi.get(`/api/stocks/${symbol}/chart`, {
+    const response = await nodeBackendApi.get(`/stocks/${symbol}/chart`, {
       params: { interval, range, market }
     });
     
@@ -201,7 +201,7 @@ export async function getStockChart(symbol, interval = '1d', range = '1y', marke
     if (enableFallbacks) {
       try {
         console.log(`Trying fallback API for stock chart: ${symbol}`);
-        const fallbackResponse = await fastApiBackend.get(`/api/market-data/chart/${symbol}`, {
+        const fallbackResponse = await fastApiBackend.get(`/market-data/chart/${symbol}`, {
           params: { interval, range, market }
         });
         
@@ -234,7 +234,7 @@ export async function getStockChart(symbol, interval = '1d', range = '1y', marke
 export async function getStockFinancials(symbol, market = 'india') {
   try {
     // First try Node.js backend
-    const response = await nodeBackendApi.get(`/api/stocks/${symbol}/financials`, {
+    const response = await nodeBackendApi.get(`/stocks/${symbol}/financials`, {
       params: { market }
     });
     
@@ -246,7 +246,7 @@ export async function getStockFinancials(symbol, market = 'india') {
     if (enableFallbacks) {
       try {
         console.log(`Trying fallback API for stock financials: ${symbol}`);
-        const fallbackResponse = await fastApiBackend.get(`/api/market-data/financials/${symbol}`, {
+        const fallbackResponse = await fastApiBackend.get(`/market-data/financials/${symbol}`, {
           params: { market }
         });
         
@@ -278,7 +278,7 @@ export async function getStockFinancials(symbol, market = 'india') {
 export async function getLatestNews(market = 'global') {
   try {
     // First try Node.js backend
-    const response = await nodeBackendApi.get(`/api/news/latest`, {
+    const response = await nodeBackendApi.get(`/news/latest`, {
       params: { market }
     });
     
@@ -290,7 +290,7 @@ export async function getLatestNews(market = 'global') {
     if (enableFallbacks) {
       try {
         console.log(`Trying fallback API for latest news: ${market}`);
-        const fallbackResponse = await fastApiBackend.get(`/api/news/latest`, {
+        const fallbackResponse = await fastApiBackend.get(`/news/latest`, {
           params: { market }
         });
         
@@ -322,7 +322,7 @@ export async function getLatestNews(market = 'global') {
 export async function getCompanyNews(symbol) {
   try {
     // First try Node.js backend
-    const response = await nodeBackendApi.get(`/api/news/company/${symbol}`);
+    const response = await nodeBackendApi.get(`/news/company/${symbol}`);
     
     return response.data;
   } catch (error) {
@@ -332,7 +332,7 @@ export async function getCompanyNews(symbol) {
     if (enableFallbacks) {
       try {
         console.log(`Trying fallback API for company news: ${symbol}`);
-        const fallbackResponse = await fastApiBackend.get(`/api/news/company/${symbol}`);
+        const fallbackResponse = await fastApiBackend.get(`/news/company/${symbol}`);
         
         return fallbackResponse.data;
       } catch (fallbackError) {
@@ -363,11 +363,8 @@ export async function getCompanyNews(symbol) {
 export async function getPeerComparison(symbol, sector = null) {
   try {
     // First try Node.js backend
-    const response = await nodeBackendApi.get(`/api/stocks/peers`, {
-      params: { 
-        symbol: encodeURIComponent(symbol),
-        sector: sector ? encodeURIComponent(sector) : undefined
-      }
+    const response = await nodeBackendApi.get(`/stocks/${symbol}/peers`, {
+      params: { sector: sector || undefined } // Send sector only if it's not null
     });
     
     return response.data;
@@ -378,10 +375,8 @@ export async function getPeerComparison(symbol, sector = null) {
     if (enableFallbacks) {
       try {
         console.log(`Trying fallback API for peer comparison: ${symbol}`);
-        const fallbackResponse = await fastApiBackend.get(`/api/market-data/peers/${symbol}`, {
-          params: { 
-            sector: sector ? encodeURIComponent(sector) : undefined
-          }
+        const fallbackResponse = await fastApiBackend.get(`/market-data/peers/${symbol}`, {
+          params: { sector: sector || undefined }
         });
         
         return fallbackResponse.data;

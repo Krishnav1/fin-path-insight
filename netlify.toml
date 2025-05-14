@@ -14,7 +14,7 @@
 # FastAPI proxy for specific endpoints
 [[redirects]]
   from = "/fastapi/*"
-  to = "https://fin-path-insight-fastapi.onrender.com/api/:splat"
+  to = "https://fininsight.onrender.com/api/fastapi/:splat"
   status = 200
   force = true
   headers = {X-From = "Netlify", X-Proxy-Type = "FastAPI"}
