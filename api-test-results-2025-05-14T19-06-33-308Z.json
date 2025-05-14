@@ -1,0 +1,73 @@
+{
+  "success": 7,
+  "failed": 0,
+  "details": [
+    {
+      "name": "FastAPI Root",
+      "url": "https://fininsight.onrender.com/",
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "duration": 588,
+      "data": "{\"message\":\"Welcome to FinPath Insight FastAPI API\",\"version\":\"1.0.0\",\"docs_url\":\"/docs\",\"redoc_url\"...",
+      "error": null
+    },
+    {
+      "name": "FastAPI Docs",
+      "url": "https://fininsight.onrender.com/docs",
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "duration": 449,
+      "data": "\"\\n    <!DOCTYPE html>\\n    <html>\\n    <head>\\n    <link type=\\\"text/css\\\" rel=\\\"stylesheet\\\" href=...",
+      "error": null
+    },
+    {
+      "name": "Global News API",
+      "url": "https://fin-insight.netlify.app/fastapi/news/market/global",
+      "fallbackUrl": "https://fininsight.onrender.com/api/v1/news/latest?market=global",
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "duration": 1504,
+      "data": "{\"news\":[{\"title\":\"Wall Street Rallies on Tech Earnings\",\"url\":\"https://example.com/wall-street\",\"ti...",
+      "error": null
+    },
+    {
+      "name": "India News API",
+      "url": "https://fin-insight.netlify.app/fastapi/news/market/india",
+      "fallbackUrl": "https://fininsight.onrender.com/api/v1/news/latest?market=india",
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "duration": 785,
+      "data": "{\"news\":[{\"title\":\"Sensex Climbs 500 Points as IT Stocks Rally\",\"url\":\"https://example.com/sensex-ra...",
+      "error": null
+    },
+    {
+      "name": "Latest News API",
+      "url": "https://fin-insight.netlify.app/api/news/latest",
+      "fallbackUrl": "https://fininsight.onrender.com/api/v1/news/latest",
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "duration": 858,
+      "data": "{\"news\":[{\"title\":\"Market Update: Major Indices Show Mixed Results\",\"url\":\"https://example.com/marke...",
+      "error": null
+    },
+    {
+      "name": "Indian Market Overview",
+      "url": "https://fin-insight.netlify.app/api/market-data/indian-market/overview",
+      "fallbackUrl": "https://fininsight.onrender.com/api/v1/market-data/indian-market/overview",
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "duration": 500,
+      "data": "{\"indices\":[{\"name\":\"NIFTY 50\",\"value\":22345.6,\"change\":123.45,\"change_percent\":0.55,\"timestamp\":\"20...",
+      "error": null
+    },
+    {
+      "name": "External API (Alpha Vantage)",
+      "url": "https://www.alphavantage.co/",
+      "status": "SUCCESS",
+      "statusCode": 200,
+      "duration": 1301,
+      "data": "\"<!DOCTYPE html>\\n<html lang=\\\"en\\\">\\n\\n<head>\\n\\n    <meta charset=\\\"utf-8\\\">\\n    <meta http-equiv...",
+      "error": null
+    }
+  ]
+}

@@ -1,79 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { marketDataApi } from '../../services/fastApiService';
-import './IndianMarketPage.css';
-
-// Define types for our API responses
-interface MarketStatus {
-  status: string;
-  reason: string;
-  next_open: string;
-  next_close: string;
-  marketState?: string;
-  timestamp?: string;
-  indicativenifty50?: {
-    value: number;
-    change: number;
-    change_percent: number;
-    finalClosingValue?: number;
-    closingValue?: number;
-    perChange?: number;
-    status?: string;
-    dateTime?: string;
-  };
-  marketcap?: {
-    total: number;
-    large: number;
-    mid: number;
-    small: number;
-    marketCapinLACCRRupeesFormatted?: string;
-    marketCapinTRDollars?: number;
-    timeStamp?: string;
-  };
-}
-
-interface MarketIndex {
-  name: string;
-  value: number;
-  change: number;
-  change_percent: number;
-  timestamp: string;
-  indexSymbol?: string;
-  variation?: number;
-  last?: number;
-  percentChange?: number;
-  open?: number;
-  high?: number;
-  low?: number;
-}
-
-interface MarketOverview {
-  indices: MarketIndex[];
-  breadth: {
-    advances: number;
-    declines: number;
-    unchanged: number;
-  };
-  marketBreadth?: {
-    advances: number;
-    declines: number;
-    unchanged: number;
-  };
-  timestamp?: string;
-}
-
-interface MarketMover {
-  symbol: string;
-  name: string;
-  price: number;
-  change: number;
-  change_percent: number;
-}
-
-interface IndexMovers {
-  index_name: string;
-  gainers: MarketMover[];
-  losers: MarketMover[];
-}
+import axios from 'axios';
+import './IndianMarketPage.css'; // We'll create this CSS file next
 
 // Define key indices to display
 const KEY_INDICES_SYMBOLS = [
@@ -85,9 +12,9 @@ const KEY_INDICES_SYMBOLS = [
 ];
 
 const IndianMarketPage = () => {
-  const [marketStatus, setMarketStatus] = useState<MarketStatus | null>(null);
-  const [overviewData, setOverviewData] = useState<MarketOverview | null>(null);
-  const [nifty50MoversData, setNifty50MoversData] = useState<IndexMovers | null>(null);
+  const [marketStatus, setMarketStatus] = useState(null);
+  const [overviewData, setOverviewData] = useState(null); // New state for overview data
+  const [nifty50MoversData, setNifty50MoversData] = useState(null); // New state for NIFTY 50 gainers/losers
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -97,21 +24,22 @@ const IndianMarketPage = () => {
         setLoading(true);
         setError(null);
 
-        // Fetch market status
-        const statusResponse = await marketDataApi.getMarketStatus();
-        setMarketStatus(statusResponse);
+        // Fetch market status (existing)
+        const statusResponse = await axios.get('http://localhost:3002/api/indian-market/status');
+        setMarketStatus(statusResponse.data);
 
-        // Fetch market overview
-        const overviewResponse = await marketDataApi.getIndianMarketOverview();
-        setOverviewData(overviewResponse);
+        // Fetch market overview (new)
+        const overviewResponse = await axios.get('http://localhost:3002/api/indian-market/overview');
+        setOverviewData(overviewResponse.data);
 
-        // Fetch NIFTY 50 Top Gainers/Losers
-        const niftyMoversResponse = await marketDataApi.getIndexMovers('NIFTY 50', 5);
-        setNifty50MoversData(niftyMoversResponse);
+        // Fetch NIFTY 50 Top Gainers/Losers (new)
+        // Encode 'NIFTY 50' as 'NIFTY%2050' for the URL parameter
+        const niftyMoversResponse = await axios.get('http://localhost:3002/api/indian-market/index-movers/NIFTY%2050?topN=5');
+        setNifty50MoversData(niftyMoversResponse.data);
 
-      } catch (err: any) {
+      } catch (err) {
         console.error('Error fetching Indian market data:', err);
-        let errorMessage = 'Failed to fetch market data from the FastAPI backend.';
+        let errorMessage = 'Failed to fetch market data. Is the backend running on port 3002?';
         if (err.response && err.response.data && err.response.data.message) {
           errorMessage = err.response.data.message;
         } else if (err.message) {
@@ -162,7 +90,7 @@ const IndianMarketPage = () => {
       return <p>Key indices data not available.</p>;
     }
     const filteredIndices = overviewData.indices.filter(index => 
-      KEY_INDICES_SYMBOLS.includes(index.name)
+      KEY_INDICES_SYMBOLS.includes(index.indexSymbol)
     );
 
     if (filteredIndices.length === 0) {
@@ -171,7 +99,7 @@ const IndianMarketPage = () => {
 
     return filteredIndices.map((index, idx) => (
       <div key={idx} className="index-card card">
-        <h4>{index.name}</h4>
+        <h4>{index.indexSymbol}</h4>
         <p>Last: <span className={index.variation >= 0 ? 'positive' : 'negative'}>{index.last.toLocaleString('en-IN')}</span></p>
         <p>Change: <span className={index.variation >= 0 ? 'positive' : 'negative'}>{index.variation.toFixed(2)} ({index.percentChange.toFixed(2)}%)</span></p>
         <p>Open: {index.open.toLocaleString('en-IN')} High: {index.high.toLocaleString('en-IN')} Low: {index.low.toLocaleString('en-IN')}</p>
@@ -197,27 +125,27 @@ const IndianMarketPage = () => {
   };
 
   // Helper to render Top Gainers/Losers for an index (new)
-  const renderIndexMovers = (moversData: IndexMovers, title: string) => {
+  const renderIndexMovers = (moversData, title) => {
     if (!moversData) {
       return <p>{title} data loading or not available...</p>;
     }
     if (moversData.error) {
       return <p>Error loading {title}: {moversData.error}</p>;
     }
-    if (!moversData.gainers || !moversData.losers) {
+    if (!moversData.topGainers || !moversData.topLosers) {
         return <p>{title} data structure is not as expected.</p>;
     }
 
     return (
       <div className="index-movers-card card">
-        <h3>{title} (from {moversData.index_name})</h3>
+        <h3>{title} (from {moversData.indexName})</h3>
         <div className="movers-container">
           <div className="gainers-list">
             <h4>Top Gainers</h4>
             <ul>
-              {moversData.gainers.map((stock, idx) => (
+              {moversData.topGainers.map((stock, idx) => (
                 <li key={`gainer-${idx}`}>
-                  {stock.symbol}: <span className="positive">{stock.price.toLocaleString('en-IN')} (+{stock.change_percent.toFixed(2)}%)</span>
+                  {stock.symbol}: <span className="positive">{stock.lastPrice.toLocaleString('en-IN')} (+{stock.pChange.toFixed(2)}%)</span>
                 </li>
               ))}
             </ul>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
-import { aiAnalysisApi } from '../../services/fastApiService';
 import './CompanyAiAnalysis.css';
 
 // Rating badge component for investment recommendation
@@ -69,14 +69,13 @@ const CompanyAiAnalysis = ({ companyData }) => {
       setError(null);
       
       try {
-        // Use the FastAPI service instead of direct axios call
-        const response = await aiAnalysisApi.generateCompanyAnalysis(companyData);
+        const response = await axios.post('/api/ai-analysis/company', { companyData });
         
-        if (response.error) {
-          throw new Error(response.error);
+        if (response.data.error) {
+          throw new Error(response.data.error);
         }
         
-        const analysisText = response.analysis;
+        const analysisText = response.data.analysis;
         setAnalysis(analysisText);
         
         // Extract recommendation from the analysis text

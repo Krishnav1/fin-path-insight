@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { marketDataApi } from '../../services/fastApiService';
-import ErrorDisplay from '../common/ErrorDisplay';
+import axios from 'axios';
 import './IndianStockDashboard.css';
-import '../common/ErrorDisplay.css';
 
 const IndianStockDashboard = () => {
   const [marketIndices, setMarketIndices] = useState({});
@@ -31,15 +29,12 @@ const IndianStockDashboard = () => {
   useEffect(() => {
     const fetchMarketIndices = async () => {
       try {
-        const response = await marketDataApi.getIndianMarketOverview();
-        setMarketIndices(response.indices);
+        const response = await axios.get('/api/indian-stocks/market/indices');
+        setMarketIndices(response.data);
         setLoading(prev => ({ ...prev, indices: false }));
-        // Clear any previous errors
-        setError(prev => ({ ...prev, indices: null }));
       } catch (err) {
         console.error('Error fetching market indices:', err);
-        // Use the categorized error from our error handling system
-        setError(prev => ({ ...prev, indices: err }));
+        setError(prev => ({ ...prev, indices: 'Failed to load market indices' }));
         setLoading(prev => ({ ...prev, indices: false }));
       }
     };
@@ -51,11 +46,8 @@ const IndianStockDashboard = () => {
   useEffect(() => {
     const fetchTopGainersLosers = async () => {
       try {
-        const response = await marketDataApi.getIndexMovers('NIFTY 50', 5);
-        setTopGainersLosers({
-          gainers: response.gainers,
-          losers: response.losers
-        });
+        const response = await axios.get('/api/indian-stocks/market/gainers-losers');
+        setTopGainersLosers(response.data);
         setLoading(prev => ({ ...prev, gainersLosers: false }));
       } catch (err) {
         console.error('Error fetching top gainers and losers:', err);
@@ -71,11 +63,8 @@ const IndianStockDashboard = () => {
   useEffect(() => {
     const fetchSectorPerformance = async () => {
       try {
-        // Using the market overview data as a fallback since we don't have a specific sectors endpoint
-        const response = await marketDataApi.getIndianMarketOverview();
-        // Extract sector-related data or create a placeholder
-        const sectorData = response.indices.filter(index => index.name.includes('NIFTY') && index.name.includes('SECTOR'));
-        setSectorPerformance(sectorData);
+        const response = await axios.get('/api/indian-stocks/market/sectors');
+        setSectorPerformance(response.data);
         setLoading(prev => ({ ...prev, sectors: false }));
       } catch (err) {
         console.error('Error fetching sector performance:', err);
@@ -93,26 +82,22 @@ const IndianStockDashboard = () => {
   };
 
   // Search for stocks
-  const handleSearch = async () => {
+  const handleSearch = async (e) => {
+    e.preventDefault();
+    
     if (!searchQuery.trim()) return;
     
     setLoading(prev => ({ ...prev, search: true }));
     setError(prev => ({ ...prev, search: null }));
     
     try {
-      // Since we don't have a specific search endpoint, we'll use the market overview
-      // and filter the results based on the search query
-      const response = await marketDataApi.getIndianMarketOverview();
-      const filteredResults = response.indices.filter(index => 
-        index.name.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-      setSearchResults(filteredResults);
+      const response = await axios.get(`/api/indian-stocks/search?query=${searchQuery}`);
+      setSearchResults(response.data);
       setLoading(prev => ({ ...prev, search: false }));
     } catch (err) {
       console.error('Error searching stocks:', err);
       setError(prev => ({ ...prev, search: 'Failed to search stocks' }));
       setLoading(prev => ({ ...prev, search: false }));
-      setSearchResults([]);
     }
   };
 
@@ -123,15 +108,13 @@ const IndianStockDashboard = () => {
     setError(prev => ({ ...prev, stockData: null }));
     
     try {
-      // Use the stock price endpoint to get basic stock data
-      const response = await marketDataApi.getStockPrice(ticker);
-      setStockData(response);
+      const response = await axios.get(`/api/indian-stocks/${ticker}`);
+      setStockData(response.data);
       setLoading(prev => ({ ...prev, stockData: false }));
     } catch (err) {
       console.error(`Error fetching data for ${ticker}:`, err);
       setError(prev => ({ ...prev, stockData: `Failed to load data for ${ticker}` }));
       setLoading(prev => ({ ...prev, stockData: false }));
-      setStockData(null);
     }
   };
 
@@ -149,14 +132,8 @@ const IndianStockDashboard = () => {
 
   // Render market indices
   const renderMarketIndices = () => {
-    if (loading.indices) return <div className="loading-spinner">Loading...</div>;
-    if (error.indices) return (
-      <ErrorDisplay 
-        error={error.indices} 
-        onRetry={() => fetchMarketIndices()} 
-        className="market-error"
-      />
-    );
+    if (loading.indices) return <div className="loading">Loading market indices...</div>;
+    if (error.indices) return <div className="error">{error.indices}</div>;
     
     return (
       <div className="market-indices">

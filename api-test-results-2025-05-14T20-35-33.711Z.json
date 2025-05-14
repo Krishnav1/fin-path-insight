@@ -1,0 +1,74 @@
+{
+  "timestamp": "2025-05-14T20:35:26.553Z",
+  "tests": [
+    {
+      "name": "FastAPI Backend Health",
+      "endpoint": "https://fininsight.onrender.com/",
+      "status": "PASSED",
+      "statusCode": 200
+    },
+    {
+      "name": "Stock Data API",
+      "endpoint": "https://fininsight.onrender.com/api/market-data/stock/RELIANCE",
+      "status": "FAILED",
+      "statusCode": 500,
+      "error": "Request failed with status code 500",
+      "responseData": {
+        "detail": ""
+      }
+    },
+    {
+      "name": "Stock Daily Data API",
+      "endpoint": "https://fininsight.onrender.com/api/market-data/stock/RELIANCE/daily",
+      "status": "FAILED",
+      "statusCode": 500,
+      "error": "Request failed with status code 500",
+      "responseData": {
+        "detail": ""
+      }
+    },
+    {
+      "name": "Company Overview API",
+      "endpoint": "https://fininsight.onrender.com/api/market-data/stock/RELIANCE/overview",
+      "status": "FAILED",
+      "statusCode": 500,
+      "error": "Request failed with status code 500",
+      "responseData": {
+        "detail": ""
+      }
+    },
+    {
+      "name": "Indian Market Overview API",
+      "endpoint": "https://fininsight.onrender.com/api/market-data/indian-market/overview",
+      "status": "PASSED",
+      "statusCode": 200
+    },
+    {
+      "name": "Latest News API",
+      "endpoint": "https://fininsight.onrender.com/api/news/latest?market=india",
+      "status": "PASSED",
+      "statusCode": 200
+    },
+    {
+      "name": "Company News API",
+      "endpoint": "https://fininsight.onrender.com/api/news/company/RELIANCE",
+      "status": "PASSED",
+      "statusCode": 200
+    },
+    {
+      "name": "Frontend Proxy to Backend",
+      "endpoint": "https://fin-insight.netlify.app/api/market-data/stock/RELIANCE",
+      "status": "FAILED",
+      "statusCode": 500,
+      "error": "Request failed with status code 500",
+      "responseData": {
+        "detail": ""
+      }
+    }
+  ],
+  "summary": {
+    "total": 8,
+    "passed": 4,
+    "failed": 4
+  }
+}

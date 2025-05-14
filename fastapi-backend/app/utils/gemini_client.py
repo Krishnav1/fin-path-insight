@@ -1,30 +1,14 @@
 import os
 import logging
-import json
-import random
 from typing import List, Dict, Any, Optional
+import google.generativeai as genai
 from app.core.config import settings
-
-# Fallback mode flag
-USE_FALLBACK = True
-
-# Try to import Google Generative AI, but don't fail if it's not available
-try:
-    import google.generativeai as genai
-    USE_FALLBACK = False
-except ImportError:
-    logging.warning("Google Generative AI package not available. Using fallback mode.")
-    USE_FALLBACK = True
 
 logger = logging.getLogger(__name__)
 
 # Initialize Gemini API
 def init_gemini():
     """Initialize the Google Gemini API client"""
-    if USE_FALLBACK:
-        logger.info("Using fallback mode for Gemini API")
-        return True
-        
     try:
         genai.configure(api_key=settings.GEMINI_API_KEY)
         logger.info("Successfully initialized Google Gemini API client")
@@ -44,21 +28,10 @@ async def generate_embedding(text: str) -> List[float]:
     Returns:
         List of embedding values
     """
-    # Initialize Gemini if not already initialized
-    init_gemini()
-    
-    if USE_FALLBACK:
-        # Generate mock embeddings in fallback mode
-        logger.info("Using fallback mode for embeddings generation")
-        # Create a deterministic but random-looking embedding based on the text
-        import hashlib
-        hash_object = hashlib.md5(text.encode())
-        seed = int(hash_object.hexdigest(), 16) % 10000
-        random.seed(seed)
-        # Generate a 768-dimensional embedding (common size)
-        return [random.uniform(-1, 1) for _ in range(768)]
-    
     try:
+        # Initialize Gemini if not already initialized
+        init_gemini()
+        
         # Generate embeddings
         embedding_model = "models/embedding-001"
         embedding = genai.embed_content(
@@ -71,13 +44,7 @@ async def generate_embedding(text: str) -> List[float]:
         return embedding["embedding"]
     except Exception as e:
         logger.error(f"Error generating embeddings: {str(e)}")
-        # Fallback to mock embeddings if real generation fails
-        logger.info("Falling back to mock embeddings after error")
-        import hashlib
-        hash_object = hashlib.md5(text.encode())
-        seed = int(hash_object.hexdigest(), 16) % 10000
-        random.seed(seed)
-        return [random.uniform(-1, 1) for _ in range(768)]
+        raise
 
 # Generate text response using Gemini
 async def generate_text_response(prompt: str, system_prompt: Optional[str] = None, 
@@ -93,24 +60,10 @@ async def generate_text_response(prompt: str, system_prompt: Optional[str] = Non
     Returns:
         Generated text response
     """
-    # Initialize Gemini if not already initialized
-    init_gemini()
-    
-    if USE_FALLBACK:
-        # Generate mock response in fallback mode
-        logger.info("Using fallback mode for text response generation")
-        
-        # Create a simple response based on the prompt
-        if "stock" in prompt.lower() or "market" in prompt.lower():
-            return "Based on the market data, the stock shows moderate volatility with potential for growth in the coming quarters. Consider the industry trends and company fundamentals before making investment decisions."
-        elif "company" in prompt.lower() or "analysis" in prompt.lower():
-            return "The company appears to have stable financials with a reasonable debt-to-equity ratio. Recent quarterly results show improvement in operating margins, though revenue growth has been modest compared to industry peers."
-        elif "financial" in prompt.lower() or "report" in prompt.lower():
-            return "The financial report indicates positive cash flow and healthy liquidity ratios. The company has maintained consistent dividend payouts while investing in R&D for future growth opportunities."
-        else:
-            return "I've analyzed the information you provided. While specific details would require more in-depth analysis, the general outlook appears positive with some areas that warrant careful monitoring in the near term."
-    
     try:
+        # Initialize Gemini if not already initialized
+        init_gemini()
+        
         # Set up the model
         generation_config = {
             "temperature": 0.7,
@@ -146,13 +99,11 @@ async def generate_text_response(prompt: str, system_prompt: Optional[str] = Non
             else:
                 response = model.generate_content(prompt)
         
-        # Return the text response
+        # Return the response text
         return response.text
     except Exception as e:
         logger.error(f"Error generating text response: {str(e)}")
-        # Return fallback response if real generation fails
-        logger.info("Falling back to mock response after error")
-        return "Based on the available information, this appears to be a company with potential for growth. Consider reviewing more detailed financial metrics and industry comparisons for a comprehensive analysis."
+        raise
 
 # Generate company analysis using Gemini
 async def generate_company_analysis(company_data: Dict[str, Any], 
@@ -167,68 +118,41 @@ async def generate_company_analysis(company_data: Dict[str, Any],
     Returns:
         Generated analysis report
     """
-    # Initialize Gemini if not already initialized
-    init_gemini()
-    
-    if USE_FALLBACK:
-        # Generate mock analysis in fallback mode
-        logger.info("Using fallback mode for company analysis generation")
-        
-        # Extract company name or symbol for personalized response
-        company_name = company_data.get("company_name", "")
-        symbol = company_data.get("symbol", "")
-        company_identifier = company_name or symbol or "The company"
-        
-        # Create a structured mock analysis
-        mock_analysis = f"""
-# Investment Analysis Report: {company_identifier}
-
-## 1. Company Overview
-{company_identifier} operates in a competitive market environment with established business operations. The company has demonstrated resilience in its core business segments.
-
-## 2. Financial Analysis
-The financial metrics indicate a stable financial position with reasonable debt levels. Revenue growth has been consistent, though profit margins show room for improvement compared to industry benchmarks.
-
-## 3. Technical Analysis
-Price action shows moderate volatility with support levels holding in recent trading sessions. Volume patterns suggest accumulation by institutional investors, which is typically a positive signal.
-
-## 4. News Sentiment
-Recent news coverage has been mixed, with positive developments in operational efficiency offset by concerns about industry-wide regulatory changes.
-
-## 5. Risk Assessment
-Key risks include market competition, potential supply chain disruptions, and sensitivity to macroeconomic factors. The company's diversification strategy helps mitigate some of these risks.
-
-## 6. Investment Outlook
-The medium to long-term outlook appears cautiously optimistic, with growth opportunities in emerging markets and through product innovation.
-
-## 7. Recommendation
-HOLD - Current valuation appears fair given the risk-reward profile. Investors should monitor upcoming quarterly results for confirmation of growth trajectory.
-
-*This analysis is based on available data and should not be considered as financial advice. Investors should conduct their own research before making investment decisions.*
-"""
-        return mock_analysis
-    
     try:
-        # Format company data for the prompt
+        # Initialize Gemini if not already initialized
+        init_gemini()
+        
+        # Format the company data for the prompt
         formatted_data = format_company_data_for_prompt(company_data)
         
-        # Create the prompt
-        system_prompt = """
-You are FinGenie, an expert financial analyst specializing in stock market analysis.
-Analyze the provided company data and generate a comprehensive investment analysis report.
+        # Create the system prompt
+        system_prompt = f"""
+You are a senior equity research analyst and financial strategist with deep knowledge of global finance, macroeconomics, and fundamental analysis. Given the following structured financial and market data of a company, generate a high-quality, professional-grade investment report. The tone should be neutral, objective, and insightful like a top-tier sell-side analyst.
+
 Your analysis should include:
 
-1. Company Overview: Brief description of the company and its business model
-2. Financial Analysis: Key insights from financial metrics
-3. Technical Analysis: Patterns and trends from price and volume data
-4. News Sentiment: Analysis of recent news and its potential impact
-5. Risk Assessment: Key risks and concerns for investors
-6. Investment Outlook: Overall assessment and potential future performance
-7. Recommendation: Clear buy/hold/sell recommendation with justification
+1. Business Summary & Strategic Position
+   - Core business model with a clear analogy to help investors understand
+   - Competitive positioning in the industry
+   - Key revenue drivers and business segments
 
-Use professional financial language but make it accessible to retail investors.
-Base your analysis strictly on the provided data and avoid making up information.
-If certain data is missing, acknowledge the limitation rather than inventing facts.
+2. Enhanced Financial Analysis
+   - Key metrics with plain-English explanations
+   - Free Cash Flow (FCF) analysis and implications
+   - Segment-wise revenue breakdown where available
+   - Earnings quality assessment
+   - Trend analysis for 3-year data where available
+
+3. Macro & Industry Context
+   - How current macroeconomic factors impact this specific business
+   - Industry position relative to peers (using comparative metrics)
+   - Sector trends and how the company is positioned to benefit or face challenges
+
+4. Comprehensive SWOT Analysis
+   - Strengths: Competitive advantages, financial strengths, market position
+   - Weaknesses: Areas of concern in operations, financials, or market position
+   - Opportunities: Growth vectors, market expansion, new products/services
+   - Threats: Competitive pressures, regulatory risks, macroeconomic headwinds
 
 5. Valuation & Price Target
    - Multiple-based valuation with industry comparisons
@@ -277,151 +201,88 @@ Here is the comprehensive company data:
 # Format company data for prompt
 def format_company_data_for_prompt(company_data: Dict[str, Any]) -> str:
     """Format company data for the AI prompt"""
-    # Handle empty or None company_data
-    if not company_data:
-        return "# COMPANY DATA FOR ANALYSIS\n\nNo detailed company data available."
-        
-    formatted_data = """# COMPANY DATA FOR ANALYSIS\n\n"""
-    
     try:
-        # Company Information
-        formatted_data += "## COMPANY INFORMATION\n"
-        if "company_name" in company_data:
-            formatted_data += f"Company Name: {company_data['company_name']}\n"
-        if "symbol" in company_data:
-            formatted_data += f"Symbol: {company_data['symbol']}\n"
-        if "sector" in company_data:
-            formatted_data += f"Sector: {company_data['sector']}\n"
-        if "industry" in company_data:
-            formatted_data += f"Industry: {company_data['industry']}\n"
-        if "description" in company_data:
-            formatted_data += f"Business Description: {company_data['description']}\n"
-        formatted_data += "\n"
-        
-        # Market Data
-        if "market_data" in company_data:
-            formatted_data += "## MARKET DATA\n"
-            market_data = company_data["market_data"]
+        # Basic company information
+        formatted_data = f"""
+==== COMPANY OVERVIEW ====
+Name: {company_data.get('company', {}).get('name', company_data.get('symbol', 'N/A'))}
+Ticker: {company_data.get('symbol', 'N/A')}.NS
+Sector: {company_data.get('company', {}).get('sector', 'N/A')}
+Industry: {company_data.get('company', {}).get('industry', 'N/A')}
+"""
+
+        # Market data
+        formatted_data += f"""
+==== MARKET DATA ====
+Current Price: ₹{company_data.get('currentPrice', 0):.2f}
+Day Change: {'+' if company_data.get('dayChangePct', 0) > 0 else ''}{company_data.get('dayChangePct', 0):.2f}%
+Market Cap: ₹{format_in_crores(company_data.get('company', {}).get('marketCap', 0))}
+"""
+
+        # Add historical performance if available
+        if company_data.get('history') and len(company_data.get('history', [])) > 0:
+            history = company_data.get('history', [])
+            # Calculate 52-week high/low
+            high_52_week = max([day.get('High', 0) for day in history])
+            low_52_week = min([day.get('Low', 0) for day in history])
             
-            if "current_price" in market_data:
-                formatted_data += f"Current Price: ₹{market_data['current_price']}\n"
-            if "previous_close" in market_data:
-                formatted_data += f"Previous Close: ₹{market_data['previous_close']}\n"
-            if "open" in market_data:
-                formatted_data += f"Open: ₹{market_data['open']}\n"
-            if "day_high" in market_data:
-                formatted_data += f"Day High: ₹{market_data['day_high']}\n"
-            if "day_low" in market_data:
-                formatted_data += f"Day Low: ₹{market_data['day_low']}\n"
-            if "52_week_high" in market_data:
-                formatted_data += f"52-Week High: ₹{market_data['52_week_high']}\n"
-            if "52_week_low" in market_data:
-                formatted_data += f"52-Week Low: ₹{market_data['52_week_low']}\n"
-            if "volume" in market_data:
-                formatted_data += f"Volume: {format_volume(market_data['volume'])}\n"
-            if "market_cap" in market_data:
-                formatted_data += f"Market Cap: ₹{format_in_crores(market_data['market_cap'])} Cr\n"
-            if "pe_ratio" in market_data:
-                formatted_data += f"P/E Ratio: {market_data['pe_ratio']}\n"
-            if "eps" in market_data:
-                formatted_data += f"EPS: ₹{market_data['eps']}\n"
-            if "dividend_yield" in market_data:
-                formatted_data += f"Dividend Yield: {market_data['dividend_yield']}%\n"
-            formatted_data += "\n"
-        
-        # Financial Metrics
-        if "financial_metrics" in company_data:
-            formatted_data += "## FINANCIAL METRICS\n"
-            financials = company_data["financial_metrics"]
+            # Calculate 1-year return
+            oldest_price = history[0].get('Close', 0)
+            latest_price = history[-1].get('Close', 0)
+            year_return = ((latest_price - oldest_price) / oldest_price) * 100 if oldest_price > 0 else 0
             
-            if "revenue" in financials:
-                formatted_data += f"Revenue: ₹{format_in_crores(financials['revenue'])} Cr\n"
-            if "net_income" in financials:
-                formatted_data += f"Net Income: ₹{format_in_crores(financials['net_income'])} Cr\n"
-            if "profit_margin" in financials:
-                formatted_data += f"Profit Margin: {financials['profit_margin']}%\n"
-            if "operating_margin" in financials:
-                formatted_data += f"Operating Margin: {financials['operating_margin']}%\n"
-            if "roa" in financials:
-                formatted_data += f"Return on Assets: {financials['roa']}%\n"
-            if "roe" in financials:
-                formatted_data += f"Return on Equity: {financials['roe']}%\n"
-            if "debt_to_equity" in financials:
-                formatted_data += f"Debt to Equity: {financials['debt_to_equity']}\n"
-            if "current_ratio" in financials:
-                formatted_data += f"Current Ratio: {financials['current_ratio']}\n"
-            if "quick_ratio" in financials:
-                formatted_data += f"Quick Ratio: {financials['quick_ratio']}\n"
-            if "inventory_turnover" in financials:
-                formatted_data += f"Inventory Turnover: {financials['inventory_turnover']}\n"
-            formatted_data += "\n"
-        
-        # Technical Indicators
-        if "technical_indicators" in company_data:
-            formatted_data += "## TECHNICAL INDICATORS\n"
-            technical = company_data["technical_indicators"]
+            formatted_data += f"""
+==== PERFORMANCE METRICS ====
+52-Week High: ₹{high_52_week:.2f}
+52-Week Low: ₹{low_52_week:.2f}
+1-Year Return: {'+' if year_return > 0 else ''}{year_return:.2f}%
+Period Change: {'+' if company_data.get('periodChangePct', 0) > 0 else ''}{company_data.get('periodChangePct', 0):.2f}%
+"""
+
+        # Add financial ratios if available
+        if company_data.get('company', {}).get('financials'):
+            financials = company_data.get('company', {}).get('financials', {})
+            formatted_data += f"""
+==== FINANCIAL RATIOS ====
+P/E Ratio: {financials.get('pe', 'N/A')}
+EPS: ₹{financials.get('eps', 'N/A')}
+ROE: {financials.get('roe', 'N/A')}%
+Debt-to-Equity: {financials.get('debtToEquity', 'N/A')}
+Dividend Yield: {financials.get('dividendYield', 'N/A')}%
+"""
+
+        # Add recent trading activity if available
+        if company_data.get('history') and len(company_data.get('history', [])) > 0:
+            recent_days = company_data.get('history', [])[-5:]
+            recent_days.reverse()  # Show most recent first
             
-            if "rsi_14" in technical:
-                formatted_data += f"RSI (14): {technical['rsi_14']}\n"
-            if "macd" in technical:
-                formatted_data += f"MACD: {technical['macd']}\n"
-            if "sma_20" in technical:
-                formatted_data += f"SMA 20: ₹{technical['sma_20']}\n"
-            if "sma_50" in technical:
-                formatted_data += f"SMA 50: ₹{technical['sma_50']}\n"
-            if "sma_200" in technical:
-                formatted_data += f"SMA 200: ₹{technical['sma_200']}\n"
-            if "ema_12" in technical:
-                formatted_data += f"EMA 12: ₹{technical['ema_12']}\n"
-            if "ema_26" in technical:
-                formatted_data += f"EMA 26: ₹{technical['ema_26']}\n"
-            if "bollinger_upper" in technical:
-                formatted_data += f"Bollinger Upper: ₹{technical['bollinger_upper']}\n"
-            if "bollinger_lower" in technical:
-                formatted_data += f"Bollinger Lower: ₹{technical['bollinger_lower']}\n"
-            if "atr" in technical:
-                formatted_data += f"ATR: {technical['atr']}\n"
-            formatted_data += "\n"
-        
-        # News
-        if "news" in company_data and company_data["news"]:
-            formatted_data += "## RECENT NEWS\n"
-            for idx, news_item in enumerate(company_data["news"][:5], 1):
-                formatted_data += f"### News {idx}\n"
-                if "title" in news_item:
-                    formatted_data += f"Title: {news_item['title']}\n"
-                if "date" in news_item:
-                    formatted_data += f"Date: {news_item['date']}\n"
-                if "summary" in news_item:
-                    formatted_data += f"Summary: {news_item['summary']}\n"
-                if "sentiment" in news_item:
-                    formatted_data += f"Sentiment: {news_item['sentiment']}\n"
-                formatted_data += "\n"
-        
-        # Peer Comparison
-        if "peer_comparison" in company_data and company_data["peer_comparison"]:
-            formatted_data += "## PEER COMPARISON\n"
-            peers = company_data["peer_comparison"]
-            for peer in peers:
-                if "symbol" in peer:
-                    formatted_data += f"### {peer['symbol']}\n"
-                    if "company_name" in peer:
-                        formatted_data += f"Company: {peer['company_name']}\n"
-                    if "current_price" in peer:
-                        formatted_data += f"Price: ₹{peer['current_price']}\n"
-                    if "market_cap" in peer:
-                        formatted_data += f"Market Cap: ₹{format_in_crores(peer['market_cap'])} Cr\n"
-                    if "pe_ratio" in peer:
-                        formatted_data += f"P/E Ratio: {peer['pe_ratio']}\n"
-                    formatted_data += "\n"
+            formatted_data += """
+==== RECENT TRADING ACTIVITY ===="""
+            
+            for day in recent_days:
+                date = day.get('Date', '')
+                formatted_date = date if isinstance(date, str) else date.strftime('%Y-%m-%d')
+                formatted_data += f"""
+{formatted_date}: Open ₹{day.get('Open', 0):.2f}, High ₹{day.get('High', 0):.2f}, Low ₹{day.get('Low', 0):.2f}, Close ₹{day.get('Close', 0):.2f}, Volume {format_volume(day.get('Volume', 0))}"""
+
+        # Add news if available
+        if company_data.get('news') and len(company_data.get('news', [])) > 0:
+            news = company_data.get('news', [])[:3]  # Get top 3 news items
+            
+            formatted_data += """
+==== RECENT NEWS ===="""
+            
+            for item in news:
+                date = item.get('date', '')
+                formatted_date = date if isinstance(date, str) else date.strftime('%Y-%m-%d')
+                formatted_data += f"""
+- {item.get('title', 'N/A')} ({formatted_date})
+  {item.get('summary', 'No summary available')}"""
+
+        return formatted_data
     except Exception as e:
-        logger.error(f"Error formatting company data: {str(e)}")
-        # Return a simplified version if there's an error
-        return "# COMPANY DATA FOR ANALYSIS\n\nError processing detailed company data. Basic information available:\n" + \
-               f"Symbol: {company_data.get('symbol', 'Unknown')}\n" + \
-               f"Company: {company_data.get('company_name', 'Unknown Company')}\n"
-    
-    return formatted_data
+        logger.error(f"Error formatting company data for prompt: {str(e)}")
+        return f"Company: {company_data.get('symbol', 'N/A')}\nPrice: ₹{company_data.get('currentPrice', 0)}"
 
 # Format large numbers in crores
 def format_in_crores(value: float) -> str:

@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { marketDataApi, aiAnalysisApi } from '../../services/fastApiService';
+import axios from 'axios';
 import CompanyAiAnalysis from './CompanyAiAnalysis';
-import ErrorDisplay from '../common/ErrorDisplay';
 import './CompanyAnalysisPage.css';
-import '../common/ErrorDisplay.css';
 
 const CompanyAnalysisPage = ({ symbol }) => {
   const [companyData, setCompanyData] = useState(null);
@@ -19,34 +17,23 @@ const CompanyAnalysisPage = ({ symbol }) => {
       setError(null);
       
       try {
-        // Fetch stock price data
-        const priceData = await marketDataApi.getStockPrice(symbol);
+        // Fetch detailed company data with accurate NSE prices
+        const response = await axios.get(`/api/indian-stocks/${symbol}?period=${timeframe}`);
         
-        // Fetch daily historical data
-        const historyData = await marketDataApi.getDailyData(symbol, timeframe === '1y' ? 'full' : 'compact');
+        if (response.data.error) {
+          throw new Error(response.data.error);
+        }
         
-        // Fetch company overview
-        const overviewData = await marketDataApi.getCompanyOverview(symbol);
+        setCompanyData(response.data);
         
-        // Combine all data
-        const combinedData = {
-          ...priceData,
-          ...overviewData,
-          company: overviewData,
-          history: historyData
-        };
-        
-        setCompanyData(combinedData);
-        
-        if (historyData && historyData.length > 0) {
-          setHistoricalData(historyData);
+        if (response.data.history && response.data.history.length > 0) {
+          setHistoricalData(response.data.history);
         }
         
         setLoading(false);
       } catch (err) {
-        console.error('Error fetching company data:', err);
-        setError(err);
-      } finally {
+        console.error(`Error fetching data for ${symbol}:`, err);
+        setError(`Failed to load data for ${symbol}. ${err.message}`);
         setLoading(false);
       }
     };
@@ -114,13 +101,10 @@ const CompanyAnalysisPage = ({ symbol }) => {
 
   if (error) {
     return (
-      <div className="company-analysis-container">
-        <ErrorDisplay 
-          error={error} 
-          onRetry={() => fetchCompanyData(symbol, timeframe)}
-          className="company-error"
-        />
-        <button className="back-button" onClick={() => window.history.back()}>Go Back</button>
+      <div className="company-analysis-error">
+        <h3>Error</h3>
+        <p>{error}</p>
+        <button onClick={() => window.history.back()}>Go Back</button>
       </div>
     );
   }
