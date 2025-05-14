@@ -10,17 +10,24 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 @router.get("/latest")
-async def get_latest_news(topics: Optional[str] = None, limit: int = 10):
+async def get_latest_news(topics: Optional[str] = None, market: Optional[str] = None, limit: int = 10):
     """
     Get latest financial news
+    
+    Parameters:
+    - topics: Optional topic to filter news by
+    - market: Optional market (e.g., 'india', 'global') to filter news by
+    - limit: Maximum number of news items to return
     """
     try:
-        news_data = await fetch_news(topics, limit)
+        # If market is specified, use it as a topic
+        search_topic = market if market else topics
+        news_data = await fetch_news(search_topic, limit)
         return {"news": news_data}
     except Exception as e:
         logger.error(f"Error fetching latest news: {str(e)}")
         # Return mock data as fallback
-        return {"news": get_mock_news(limit)}
+        return {"news": get_mock_news(limit, search_topic)}
 
 @router.get("/company/{symbol}")
 async def get_company_news(symbol: str, limit: int = 5):
@@ -33,7 +40,7 @@ async def get_company_news(symbol: str, limit: int = 5):
     except Exception as e:
         logger.error(f"Error fetching news for {symbol}: {str(e)}")
         # Return mock data as fallback
-        return {"news": get_mock_news(limit, symbol)}
+        return {"news": get_mock_news(limit, search_topic)}
 
 async def fetch_news(topics: Optional[str] = None, limit: int = 10):
     """
@@ -71,8 +78,68 @@ async def fetch_news(topics: Optional[str] = None, limit: int = 10):
 def get_mock_news(limit: int = 10, topics: Optional[str] = None):
     """
     Generate mock news data for fallback
+    
+    Parameters:
+    - limit: Maximum number of news items to return
+    - topics: Optional topic or market to filter news by
     """
     today = datetime.now().strftime("%Y%m%dT%H%M%S")
+    
+    # Market-specific news
+    market_news = {
+        "india": [
+            {
+                "title": "Sensex Climbs 500 Points as IT Stocks Rally",
+                "url": "https://example.com/sensex-rally",
+                "time_published": today,
+                "summary": "The BSE Sensex climbed over 500 points today led by strong performance in IT and banking stocks.",
+                "source": "Economic Times",
+                "banner_image": "https://placehold.co/600x400/png?text=Sensex+Rally"
+            },
+            {
+                "title": "RBI Holds Key Interest Rates Steady",
+                "url": "https://example.com/rbi-rates",
+                "time_published": today,
+                "summary": "The Reserve Bank of India maintained key interest rates in its latest monetary policy meeting.",
+                "source": "Business Standard",
+                "banner_image": "https://placehold.co/600x400/png?text=RBI+Rates"
+            },
+            {
+                "title": "Indian Rupee Strengthens Against US Dollar",
+                "url": "https://example.com/rupee-dollar",
+                "time_published": today,
+                "summary": "The Indian Rupee gained strength against the US Dollar in today's trading session.",
+                "source": "Mint",
+                "banner_image": "https://placehold.co/600x400/png?text=Rupee+Dollar"
+            }
+        ],
+        "global": [
+            {
+                "title": "Wall Street Rallies on Tech Earnings",
+                "url": "https://example.com/wall-street",
+                "time_published": today,
+                "summary": "Wall Street indices closed higher following strong earnings reports from major tech companies.",
+                "source": "Bloomberg",
+                "banner_image": "https://placehold.co/600x400/png?text=Wall+Street"
+            },
+            {
+                "title": "Fed Signals Potential Rate Cut",
+                "url": "https://example.com/fed-rates",
+                "time_published": today,
+                "summary": "The Federal Reserve has signaled a potential interest rate cut in the coming months.",
+                "source": "CNBC",
+                "banner_image": "https://placehold.co/600x400/png?text=Fed+Rates"
+            },
+            {
+                "title": "Oil Prices Drop on Supply Concerns",
+                "url": "https://example.com/oil-prices",
+                "time_published": today,
+                "summary": "Global oil prices dropped amid concerns about oversupply in the market.",
+                "source": "Reuters",
+                "banner_image": "https://placehold.co/600x400/png?text=Oil+Prices"
+            }
+        ]
+    }
     
     # Base news items
     news_items = [
@@ -176,8 +243,17 @@ def get_mock_news(limit: int = 10, topics: Optional[str] = None):
         ]
     }
     
+    # If a specific market is requested, prioritize its news
+    if topics:
+        key = topics.lower()
+        if key in market_news:
+            result = market_news[key] + news_items
+        elif key in company_news:
+            result = company_news[key] + news_items
+        else:
+            result = news_items
     # If a specific company is requested, prioritize its news
-    if topics and topics in company_news:
+    elif topics and topics in company_news:
         result = company_news[topics] + news_items
     else:
         result = news_items

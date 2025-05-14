@@ -3,7 +3,15 @@
   publish = "dist"
   environment = { NODE_VERSION = "18", VITE_SUPABASE_URL = "https://ydakwyplcqoshxcdllah.supabase.co", VITE_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlkYWt3eXBsY3Fvc2h4Y2RsbGFoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDcyMTAwNTMsImV4cCI6MjA2Mjc4NjA1M30.J0c0YqSsR9XbtbYLVOq6oqQwYQ3G7j65Q0stEtS4W2s" }
 
-# All API traffic routed to FastAPI backend
+# News API redirects
+[[redirects]]
+  from = "/api/news/*"
+  to = "https://fininsight.onrender.com/api/v1/news/:splat"
+  status = 200
+  force = true
+  headers = {X-From = "Netlify", X-Proxy-Type = "FastAPI"}
+
+# All other API traffic routed to Node.js backend
 [[redirects]]
   from = "/api/*"
   to = "https://fininsight.onrender.com/api/:splat"
@@ -14,7 +22,7 @@
 # Specific redirect for stocks/peers endpoint
 [[redirects]]
   from = "/api/stocks/:symbol/peers"
-  to = "https://fin-path-insight-fastapi.onrender.com/api/v1/market-data/stock/:symbol/peers"
+  to = "https://fininsight.onrender.com/api/v1/market-data/stock/:symbol/peers"
   status = 200
   force = true
   headers = {X-From = "Netlify", X-Proxy-Type = "FastAPI"}

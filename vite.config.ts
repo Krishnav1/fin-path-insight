@@ -9,7 +9,7 @@ export default defineConfig(({ mode }) => {
   // Load env file based on mode (development or production)
   const env = loadEnv(mode, process.cwd(), '');
   const apiBaseUrl = env.VITE_API_BASE_URL || 'https://fininsight.onrender.com';
-  const fastApiUrl = env.VITE_FASTAPI_URL || 'https://fin-path-insight-fastapi.onrender.com';
+  const fastApiUrl = env.VITE_FASTAPI_URL || 'https://fininsight.onrender.com';
   const enableFallbacks = env.VITE_ENABLE_FALLBACK_APIS === 'true';
   const enableErrorMonitoring = env.VITE_ENABLE_ERROR_MONITORING === 'true';
   
