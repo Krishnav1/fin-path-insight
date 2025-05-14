@@ -11,6 +11,7 @@ httpcore<0.18.0
 python-jose==3.3.0
 passlib==1.7.4
 bcrypt==4.0.1
+supabase==2.0.3
 
 # Data processing
 python-multipart==0.0.6
@@ -18,9 +19,15 @@ PyPDF2==3.0.1
 openpyxl==3.1.2
 pandas==2.1.1
 
+# Financial data and visualization
+yfinance==0.2.36
+pandas-ta==0.3.14b0
+plotly==5.18.0
+
 # AI services
 pinecone-client==2.2.4
 google-generativeai==0.3.1
+newsapi-python==0.2.7
 
 # Utilities
 asyncio==3.4.3

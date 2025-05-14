@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.routes import market_data, ai_analysis, document_processing, fingenie, supabase_data
+from app.api.routes import market_data, ai_analysis, document_processing, fingenie, supabase_data, news, analysis
 
 app = FastAPI(
     title="FinPath Insight API",
@@ -18,7 +18,7 @@ ENVIRONMENT = os.getenv("NODE_ENV", "development")
 if ENVIRONMENT == "production":
     # Production origins
     allowed_origins = [
-        "https://fin-path-insight.netlify.app",  # Main production site
+        "https://fin-insight.netlify.app/",  # Main production site
         "https://fininsight.onrender.com",       # Render deployment
         "https://finpath-insight.vercel.app"    # Vercel deployment (if used)
     ]
@@ -46,6 +46,8 @@ app.include_router(ai_analysis.router, prefix="/api/ai-analysis", tags=["AI Anal
 app.include_router(document_processing.router, prefix="/api/documents", tags=["Document Processing"])
 app.include_router(fingenie.router, prefix="/api/fingenie", tags=["FinGenie"])
 app.include_router(supabase_data.router, prefix="/api/supabase", tags=["Supabase Data"])
+app.include_router(news.router, prefix="/api/news", tags=["News"])
+app.include_router(analysis.router, prefix="/api/analysis", tags=["Financial Analysis"])
 
 @app.get("/")
 async def root():

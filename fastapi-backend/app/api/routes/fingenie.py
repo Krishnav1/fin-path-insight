@@ -3,9 +3,11 @@ from typing import List, Dict, Any, Optional
 import logging
 from datetime import datetime
 from app.models.schemas import ChatMessage, ChatResponse
-from app.utils.gemini_client import generate_text_response, generate_embedding
+from app.utils.gemini_client import generate_text_response, generate_embedding, generate_financial_analysis
 from app.utils.pinecone_client import query_similar_vectors
-from app.utils.alpha_vantage_client import fetch_stock_data
+from app.utils.fmp_client import fetch_stock_data, fetch_technical_indicators, fetch_company_fundamentals, fetch_analyst_ratings
+from app.utils.newsapi_client import fetch_news, search_news_semantic
+from app.utils.supabase_cache import get_cached_data, set_cached_data
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -131,17 +133,68 @@ async def get_financial_data(message: str) -> str:
         if not stock_symbols:
             return ""
         
+        # Create cache key
+        cache_key = f"fingenie_financial_data_{'-'.join(stock_symbols)}"
+        
+        # Try to get from cache first
+        cached_data = await get_cached_data(cache_key)
+        if cached_data:
+            logger.info(f"Using cached financial data for {stock_symbols}")
+            return cached_data
+        
         # Fetch data for each symbol
         data = []
         for symbol in stock_symbols:
+            # Get basic stock data
             stock_data = await fetch_stock_data(symbol)
+            
             if stock_data:
-                data.append(f"{symbol}: ₹{stock_data.get('price', 'N/A')} ({'+' if stock_data.get('change_percent', 0) > 0 else ''}{stock_data.get('change_percent', 'N/A')}%)")
+                # Format price with currency symbol (₹ for Indian stocks, $ for US stocks)
+                currency_symbol = "₹" if ".NS" in symbol or ".BSE" in symbol else "$"
+                change_pct_raw = stock_data.get("changesPercentage") or stock_data.get("change_percent")
+                try:
+                    change_pct = float(str(change_pct_raw).strip("%"))
+                    sign = "+" if change_pct > 0 else ""
+                    pct_display = f"{sign}{change_pct:.2f}%"
+                except (ValueError, TypeError):
+                    pct_display = change_pct_raw or "N/A"
+
+                price_info = (
+                    f"{symbol}: {currency_symbol}{stock_data.get('price', 'N/A')} "
+                    f"({pct_display})"
+                )
+                data.append(price_info)
+                
+                # Get technical indicators
+                try:
+                    rsi_data = await fetch_technical_indicators(symbol, "rsi", 14)
+                    if rsi_data and len(rsi_data) > 0:
+                        rsi_value = rsi_data[0].get("rsi", "N/A") if isinstance(rsi_data[0].get("rsi"), (int, float)) else "N/A"
+                        data.append(f"  RSI (14): {rsi_value}")
+                except Exception as tech_err:
+                    logger.warning(f"Error fetching RSI for {symbol}: {str(tech_err)}")
+                
+                # Get fundamental metrics
+                try:
+                    fundamentals = await fetch_company_fundamentals(symbol)
+                    if fundamentals and "ratios" in fundamentals:
+                        ratios = fundamentals.get("ratios", {})
+                        pe_ratio = ratios.get("peRatio", "N/A")
+                        ev_ebitda = ratios.get("enterpriseValueToEBITDA", "N/A")
+                        data.append(f"  P/E Ratio: {pe_ratio}")
+                        data.append(f"  EV/EBITDA: {ev_ebitda}")
+                except Exception as fund_err:
+                    logger.warning(f"Error fetching fundamentals for {symbol}: {str(fund_err)}")
         
         if not data:
             return ""
         
-        return "Real-time stock data:\n" + "\n".join(data)
+        result = "Real-time financial data:\n" + "\n".join(data)
+        
+        # Cache the result
+        await set_cached_data(cache_key, result, 900)  # Cache for 15 minutes
+        
+        return result
     except Exception as e:
         logger.error(f"Error getting financial data: {str(e)}")
         return ""

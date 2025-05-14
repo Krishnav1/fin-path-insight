@@ -5,6 +5,8 @@ from ...core.config import settings
 import httpx
 import json
 from datetime import datetime
+from app.utils.newsapi_client import fetch_news, search_news_semantic, format_news_for_frontend
+from app.utils.supabase_cache import get_cached_data, set_cached_data
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -20,20 +22,37 @@ async def get_latest_news(topics: Optional[str] = None, market: Optional[str] = 
     - limit: Maximum number of news items to return
     """
     try:
+        # Create cache key
+        cache_key = f"news_latest_{topics}_{market}_{limit}"
+        
+        # Try to get from cache first
+        cached_data = await get_cached_data(cache_key)
+        if cached_data:
+            logger.info(f"Using cached news data for {topics}/{market}")
+            return cached_data
+        
         # If market is specified, use it as a topic
-        search_topic = market if market else topics
-        news_data = await fetch_news(search_topic, limit)
+        search_query = market if market else topics
+        category = "business"
+        
+        # Fetch news from NewsAPI
+        news_data = await fetch_news(search_query, category, limit)
         
         # Format response in the structure expected by the frontend
-        return {
+        response = {
             "status": "ok",
             "totalResults": len(news_data),
             "articles": format_news_for_frontend(news_data)
         }
+        
+        # Cache the response
+        await set_cached_data(cache_key, response, 1800)  # Cache for 30 minutes
+        
+        return response
     except Exception as e:
         logger.error(f"Error fetching latest news: {str(e)}")
         # Return mock data as fallback
-        mock_news = get_mock_news(limit, search_topic)
+        mock_news = get_mock_news(limit, topics if topics else market)
         return {
             "status": "ok",
             "totalResults": len(mock_news),
@@ -46,13 +65,32 @@ async def get_company_news(symbol: str, limit: int = 5):
     Get news for a specific company
     """
     try:
-        news_data = await fetch_news(f"{symbol}", limit)
+        # Create cache key
+        cache_key = f"news_company_{symbol}_{limit}"
+        
+        # Try to get from cache first
+        cached_data = await get_cached_data(cache_key)
+        if cached_data:
+            logger.info(f"Using cached news data for company {symbol}")
+            return cached_data
+        
+        # Get company name for better search results
+        company_name = symbol.split('.')[0] if '.' in symbol else symbol
+        
+        # Fetch news from NewsAPI
+        news_data = await fetch_news(company_name, "business", limit)
+        
         # Format response in the structure expected by the frontend
-        return {
+        response = {
             "status": "ok",
             "totalResults": len(news_data),
             "articles": format_news_for_frontend(news_data)
         }
+        
+        # Cache the response
+        await set_cached_data(cache_key, response, 1800)  # Cache for 30 minutes
+        
+        return response
     except Exception as e:
         logger.error(f"Error fetching news for {symbol}: {str(e)}")
         # Return mock data as fallback
@@ -63,38 +101,48 @@ async def get_company_news(symbol: str, limit: int = 5):
             "articles": format_news_for_frontend(mock_news)
         }
 
-async def fetch_news(topics: Optional[str] = None, limit: int = 10):
+@router.get("/semantic-search")
+async def semantic_search_news(query: str, limit: int = 5):
     """
-    Fetch news from Alpha Vantage API
-    """
-    url = f"https://www.alphavantage.co/query"
-    params = {
-        "function": "NEWS_SENTIMENT",
-        "apikey": settings.ALPHA_VANTAGE_API_KEY,
-        "limit": limit
-    }
+    Search news semantically using Pinecone
     
-    if topics:
-        params["topics"] = topics
-        
+    Parameters:
+    - query: Search query
+    - limit: Maximum number of results to return
+    """
     try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url, params=params)
-            
-            if response.status_code == 200:
-                data = response.json()
-                
-                if "feed" in data:
-                    return data.get("feed", [])
-                else:
-                    # API limit reached or other issue, return mock data
-                    return get_mock_news(limit, topics)
-            else:
-                # Return mock data if API fails
-                return get_mock_news(limit, topics)
+        # Create cache key
+        cache_key = f"news_semantic_{query}_{limit}"
+        
+        # Try to get from cache first
+        cached_data = await get_cached_data(cache_key)
+        if cached_data:
+            logger.info(f"Using cached semantic search results for '{query}'")
+            return cached_data
+        
+        # Search news semantically
+        news_data = await search_news_semantic(query, limit)
+        
+        # Format response in the structure expected by the frontend
+        response = {
+            "status": "ok",
+            "totalResults": len(news_data),
+            "articles": format_news_for_frontend(news_data)
+        }
+        
+        # Cache the response
+        await set_cached_data(cache_key, response, 3600)  # Cache for 1 hour
+        
+        return response
     except Exception as e:
-        logger.error(f"Error fetching news from Alpha Vantage: {str(e)}")
-        return get_mock_news(limit, topics)
+        logger.error(f"Error performing semantic search for '{query}': {str(e)}")
+        # Return mock data as fallback
+        mock_news = get_mock_news(limit, query)
+        return {
+            "status": "ok",
+            "totalResults": len(mock_news),
+            "articles": format_news_for_frontend(mock_news)
+        }
 
 def format_news_for_frontend(news_items):
     """

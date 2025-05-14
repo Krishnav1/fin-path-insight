@@ -3,6 +3,7 @@ import logging
 from typing import List, Dict, Any, Optional
 import google.generativeai as genai
 from app.core.config import settings
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -305,3 +306,160 @@ def format_volume(value: int) -> str:
     if lakhs >= 100:
         return f"{(lakhs / 100):.2f} Cr"
     return f"{lakhs:.2f} Lakh"
+
+
+async def generate_financial_analysis(symbol: str, financial_data: Dict[str, Any], news_data: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Generate structured financial analysis using Google Gemini
+    
+    Args:
+        symbol: Stock symbol
+        financial_data: Financial data including price, fundamentals, technicals
+        news_data: News data related to the symbol
+        
+    Returns:
+        Structured analysis with technical, fundamental, news impact, sentiment, and conclusion
+    """
+    try:
+        # Initialize Gemini if not already initialized
+        init_gemini()
+        
+        # Format the data for the prompt
+        formatted_data = f"""Please analyze the following financial data for {symbol} and provide a structured analysis:
+
+==== PRICE DATA ====
+Current Price: {financial_data.get('price', 'N/A')}
+Change: {financial_data.get('change', 'N/A')} ({financial_data.get('change_percent', 'N/A')}%)
+
+==== TECHNICAL INDICATORS ====
+RSI: {financial_data.get('technical', {}).get('rsi', 'N/A')}
+MACD: {financial_data.get('technical', {}).get('macd', 'N/A')}
+Signal: {financial_data.get('technical', {}).get('signal', 'N/A')}
+
+==== FUNDAMENTALS ====
+P/E Ratio: {financial_data.get('fundamentals', {}).get('ratios', {}).get('peRatio', 'N/A')}
+EV/EBITDA: {financial_data.get('fundamentals', {}).get('ratios', {}).get('enterpriseValueToEBITDA', 'N/A')}
+Dividend Yield: {financial_data.get('fundamentals', {}).get('ratios', {}).get('dividendYield', 'N/A')}%
+
+==== ANALYST RATINGS ====
+"""
+        
+        # Add analyst ratings if available
+        if financial_data.get('ratings'):
+            for rating in financial_data.get('ratings', [])[:3]:
+                formatted_data += f"{rating.get('analyst', 'Analyst')}: {rating.get('rating', 'N/A')} (Target: {rating.get('targetPrice', 'N/A')})\n"
+        
+        # Add news data
+        formatted_data += "\n==== RECENT NEWS ====\n"
+        for news in news_data[:3]:
+            formatted_data += f"- {news.get('title', 'N/A')} ({news.get('publishedAt', 'N/A')})\n"
+            formatted_data += f"  {news.get('description', 'N/A')}\n"
+        
+        # Create the system prompt
+        system_prompt = """You are a senior financial analyst providing insights on stocks. Analyze the given data and provide a structured response with the following sections:
+
+1. Technical Analysis: Interpret the technical indicators and price action (50 words max)
+2. Fundamental Analysis: Evaluate the company's financial health and valuation (50 words max)
+3. News Impact: Assess how recent news might affect the stock (50 words max)
+4. Sentiment: Summarize the overall market sentiment and analyst opinions (50 words max)
+5. Conclusion: Provide a balanced investment perspective (50 words max)
+
+Total content should be 250 words or less. End with a disclaimer and suggest 3 related questions the user might want to ask.
+"""
+        
+        # Generate response
+        response = await generate_text_response(
+            prompt=formatted_data,
+            system_prompt=system_prompt
+        )
+        
+        # Parse the structured response
+        sections = parse_structured_response(response)
+    except Exception as e:
+        logger.error(f"Error generating financial analysis: {str(e)}")
+        return {
+            "technical": "Unable to generate technical analysis at this time.",
+            "fundamental": "Unable to generate fundamental analysis at this time.",
+            "news_impact": "Unable to analyze news impact at this time.",
+            "sentiment": "Unable to determine market sentiment at this time.",
+            "conclusion": "Analysis unavailable. Please try again later.",
+            "disclaimer": "This is not financial advice. Always do your own research.",
+            "related_questions": [
+                "What are the recent earnings results?",
+                "How does this compare to industry peers?",
+                "What is the long-term outlook for this stock?"
+            ]
+        }
+
+def parse_structured_response(response: str) -> Dict[str, Any]:
+    """
+    Parse the structured response from Gemini
+    
+    Args:
+        response: Raw response from Gemini
+        
+    Returns:
+        Dictionary with structured sections
+    """
+    sections = {
+        "technical": "",
+        "fundamental": "",
+        "news_impact": "",
+        "sentiment": "",
+        "conclusion": "",
+        "disclaimer": "",
+        "related_questions": []
+    }
+    
+    # Simple parsing logic - can be enhanced for better accuracy
+    current_section = None
+    related_questions = []
+    
+    for line in response.split('\n'):
+        line = line.strip()
+        
+        if not line:
+            continue
+        
+        # Check for section headers
+        if "technical analysis" in line.lower() or "technical:" in line.lower():
+            current_section = "technical"
+            sections[current_section] = ""
+        elif "fundamental analysis" in line.lower() or "fundamental:" in line.lower():
+            current_section = "fundamental"
+            sections[current_section] = ""
+        elif "news impact" in line.lower() or "news:" in line.lower():
+            current_section = "news_impact"
+            sections[current_section] = ""
+        elif "sentiment" in line.lower():
+            current_section = "sentiment"
+            sections[current_section] = ""
+        elif "conclusion" in line.lower():
+            current_section = "conclusion"
+            sections[current_section] = ""
+        elif "disclaimer" in line.lower():
+            current_section = "disclaimer"
+            sections[current_section] = ""
+        elif line.startswith("?") or line.startswith("-") or "question" in line.lower():
+            # This might be a related question
+            question = line.replace("?", "").replace("-", "").strip()
+            if question and len(question) > 10:
+                related_questions.append(question + "?")
+        elif current_section:
+            # Add content to current section
+            if sections[current_section]:
+                sections[current_section] += " " + line
+            else:
+                sections[current_section] = line
+    
+    # Clean up the sections
+    for key in sections:
+        if key != "related_questions" and sections[key]:
+            # Remove section headers from content
+            for header in ["Technical Analysis:", "Fundamental Analysis:", "News Impact:", "Sentiment:", "Conclusion:", "Disclaimer:"]:
+                sections[key] = sections[key].replace(header, "").strip()
+    
+    # Add related questions
+    sections["related_questions"] = related_questions[:3]  # Limit to 3 questions
+    
+    return sections

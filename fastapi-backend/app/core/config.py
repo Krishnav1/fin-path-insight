@@ -21,8 +21,11 @@ class Settings(BaseSettings):
     PINECONE_INDEX_NAME: str = "fingenie-finance-vectors"
     PINECONE_CLOUD: str = "aws"
     
-    # Alpha Vantage API Settings
+    # Alpha Vantage API Settings (Legacy)
     ALPHA_VANTAGE_API_KEY: Optional[str] = None
+    
+    # Financial Modeling Prep (FMP) API Settings
+    FMP_API_KEY: Optional[str] = None
     
     # News API Settings
     NEWS_API_KEY: Optional[str] = None
@@ -38,6 +41,7 @@ class Settings(BaseSettings):
     # Supabase Settings
     SUPABASE_URL: Optional[str] = None
     SUPABASE_ANON_KEY: Optional[str] = None
+    SUPABASE_TTL_CACHE: int = 3600  # Default TTL for cache in seconds (1 hour)
     
     class Config:
         env_file = ".env"
@@ -55,21 +59,26 @@ try:
     settings.PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME", "fingenie-finance-vectors")
     settings.PINECONE_CLOUD = os.getenv("PINECONE_CLOUD", "aws")
     settings.ALPHA_VANTAGE_API_KEY = os.getenv("ALPHA_VANTAGE_API_KEY")
+    settings.FMP_API_KEY = os.getenv("FMP_API_KEY")
     settings.NEWS_API_KEY = os.getenv("NEWS_API_KEY")
     settings.PORT = os.getenv("PORT")
     settings.NODE_ENV = os.getenv("NODE_ENV")
     settings.SUPABASE_URL = os.getenv("SUPABASE_URL")
     settings.SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
+    settings.SUPABASE_TTL_CACHE = int(os.getenv("SUPABASE_TTL_CACHE", "3600"))
     
     # Log successful loading
     logger.info(f"Settings loaded successfully. API_V1_STR: {settings.API_V1_STR}")
     logger.info(f"Environment: {settings.NODE_ENV}")
-    logger.info(f"Alpha Vantage API Key: {'Set' if settings.ALPHA_VANTAGE_API_KEY else 'Not set'}")
+    logger.info(f"FMP API Key: {'Set' if settings.FMP_API_KEY else 'Not set'}")
+    logger.info(f"News API Key: {'Set' if settings.NEWS_API_KEY else 'Not set'}")
+    logger.info(f"Alpha Vantage API Key (Legacy): {'Set' if settings.ALPHA_VANTAGE_API_KEY else 'Not set'}")
     logger.info(f"Supabase URL: {'Set' if settings.SUPABASE_URL else 'Not set'}")
     
     # Print for debugging during deployment
     print(f"Settings loaded successfully. Environment: {settings.NODE_ENV}")
-    print(f"Alpha Vantage API Key: {'Set' if settings.ALPHA_VANTAGE_API_KEY else 'Not set'}")
+    print(f"FMP API Key: {'Set' if settings.FMP_API_KEY else 'Not set'}")
+    print(f"News API Key: {'Set' if settings.NEWS_API_KEY else 'Not set'}")
     print(f"Supabase URL: {'Set' if settings.SUPABASE_URL else 'Not set'}")
     
 except Exception as e:
