@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException
 from typing import List, Dict, Any, Optional
 import logging
 from ...core.config import settings
-import aiohttp
+import httpx
 import json
 from datetime import datetime
 
@@ -37,7 +37,7 @@ async def get_company_news(symbol: str, limit: int = 5):
 
 async def fetch_news(topics: Optional[str] = None, limit: int = 10):
     """
-    Fetch news from Alpha Vantage
+    Fetch news from Alpha Vantage API
     """
     url = f"https://www.alphavantage.co/query"
     params = {
@@ -49,10 +49,13 @@ async def fetch_news(topics: Optional[str] = None, limit: int = 10):
     if topics:
         params["topics"] = topics
         
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url, params=params) as response:
-            if response.status == 200:
-                data = await response.json()
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, params=params)
+            
+            if response.status_code == 200:
+                data = response.json()
+                
                 if "feed" in data:
                     return data.get("feed", [])
                 else:
@@ -61,8 +64,11 @@ async def fetch_news(topics: Optional[str] = None, limit: int = 10):
             else:
                 # Return mock data if API fails
                 return get_mock_news(limit, topics)
+    except Exception as e:
+        logger.error(f"Error fetching news from Alpha Vantage: {str(e)}")
+        return get_mock_news(limit, topics)
 
-def get_mock_news(limit: int = 10, topic: Optional[str] = None):
+def get_mock_news(limit: int = 10, topics: Optional[str] = None):
     """
     Generate mock news data for fallback
     """
