@@ -1,12 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { TrendingUp, TrendingDown, RefreshCw } from 'lucide-react';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import ErrorDisplay from '@/components/common/ErrorDisplay';
+import * as apiService from '@/services/apiService';
+import { ERROR_TYPES } from '@/utils/errorHandler';
 import './IndianMarketPage.css';
+
+// Define error object interface
+interface ErrorObject {
+  type: string;
+  message: string;
+  context?: string;
+}
 
 // Define types for better type safety
 interface MarketSegment {
@@ -58,7 +67,8 @@ const IndianMarketPage: React.FC = () => {
   const [marketStatus, setMarketStatus] = useState<MarketStatus | null>(null);
   const [topStocks, setTopStocks] = useState<TopStocksData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<any>(null);
+  const [lastUpdated, setLastUpdated] = useState<string>('');
 
   // Format timestamp for display
   const formatTimestamp = (timestamp: string | undefined) => {
@@ -89,21 +99,30 @@ const IndianMarketPage: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      // Fetch market status and top stocks in parallel
-      const [statusResponse, topStocksResponse] = await Promise.all([
-        axios.get<MarketStatus>('http://localhost:3003/api/indian-market/status'),
-        axios.get<TopStocksData>('http://localhost:3003/api/indian-market/top-stocks')
+      // Fetch market status and top stocks in parallel using our apiService
+      const [marketStatusData, topStocksData] = await Promise.all([
+        apiService.getMarketOverview('india'),
+        apiService.getLatestNews('india')
       ]);
 
-      setMarketStatus(statusResponse.data);
-      setTopStocks(topStocksResponse.data);
+      setMarketStatus(marketStatusData);
+      setTopStocks(topStocksData);
+      setLastUpdated(new Date().toISOString());
     } catch (err: any) {
       console.error('Error fetching Indian market data:', err);
-      const errorMessage = err.response?.data?.message || err.message || 
-                          'Failed to fetch market data. Is the backend running on port 3002?';
-      setError(errorMessage);
-      setMarketStatus(null);
-      setTopStocks(null);
+      
+      // Use our error handler to get a standardized error object
+      const errorObj = {
+        type: err.type || ERROR_TYPES.UNKNOWN,
+        message: err.message || 'Failed to fetch market data',
+        context: 'IndianMarketPage.fetchData'
+      };
+      
+      setError(errorObj);
+      
+      // Keep old data if available, only clear if we have nothing
+      if (!marketStatus) setMarketStatus(null);
+      if (!topStocks) setTopStocks(null);
     } finally {
       setLoading(false);
     }
@@ -143,9 +162,11 @@ const IndianMarketPage: React.FC = () => {
         </div>
 
         {error && (
-          <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md text-red-600 dark:text-red-400">
-            <p>{error}</p>
-          </div>
+          <ErrorDisplay 
+            error={error} 
+            onRetry={handleRefresh} 
+            className="mb-6" 
+          />
         )}
 
         {loading && !error ? (
@@ -183,7 +204,7 @@ const IndianMarketPage: React.FC = () => {
                         Status: {marketStatus.indicativenifty50.status || 'Unknown'}
                       </div>
                       <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                        As of: {marketStatus.indicativenifty50.dateTime || 'Unknown time'}
+                        As of: {marketStatus.indicativenifty50.dateTime || formatTimestamp(lastUpdated) || 'Unknown time'}
                       </div>
                     </div>
                   )}

@@ -3,7 +3,6 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
-import mongoose from 'mongoose';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { createProxyMiddleware } from 'http-proxy-middleware';
@@ -20,6 +19,7 @@ import fingenieRoutes from './routes/fingenieRoutes.js';
 import knowledgeBaseRoutes from './routes/knowledgeBaseRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import aiAnalysisRoutes from './routes/aiAnalysisRoutes.js';
+import supabaseRoutes from './routes/supabaseRoutes.js';
 
 // Import cron scheduler
 import { initializeCronJobs } from './utils/cronScheduler.js';
@@ -27,20 +27,19 @@ import { initializeCronJobs } from './utils/cronScheduler.js';
 // Config
 dotenv.config({ path: '../.env' }); // Ensure this path is correct for your .env file location
 
-// Debug: Check if MONGODB_URI is loaded from .env
-// console.log('Attempting to load MONGODB_URI from .env file specified in path.');
-// console.log('Loaded MONGODB_URI:', process.env.MONGODB_URI);
-// console.log('Loaded JWT_SECRET:', process.env.JWT_SECRET); // Also check JWT_SECRET
+// Check if Supabase environment variables are loaded
+if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
+  console.warn('Supabase environment variables not found. Using default values.');
+  process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'https://ydakwyplcqoshxcdllah.supabase.co';
+  process.env.SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlkYWt3eXBsY3Fvc2h4Y2RsbGFoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDcyMTAwNTMsImV4cCI6MjA2Mjc4NjA1M30.J0c0YqSsR9XbtbYLVOq6oqQwYQ3G7j65Q0stEtS4W2s';
+}
 
 const app = express();
 const PORT = process.env.PORT || 3002;
 
-// Get MongoDB URI from environment variables with fallback
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/fin-path-insight';
-
 // Log which environment we're in
 console.log(`Running in ${process.env.NODE_ENV || 'development'} mode`);
-console.log('Attempting to connect to MongoDB...');
+console.log(`Supabase URL: ${process.env.SUPABASE_URL}`);
 
 // Middleware
 // For development, disable Helmet's Content Security Policy completely
@@ -103,6 +102,10 @@ console.log('Admin routes enabled');
 app.use('/api/ai-analysis', aiAnalysisRoutes);
 console.log('AI Analysis routes enabled');
 
+// Use Supabase routes
+app.use('/api/supabase', supabaseRoutes);
+console.log('Supabase routes enabled');
+
 // FastAPI proxy routes
 // Apply the proxy middleware to each FastAPI route
 fastApiRoutes.forEach(route => {
@@ -159,37 +162,57 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Connect to MongoDB and start server
-mongoose
-  .connect(MONGODB_URI)
-  .then(() => {
-    console.log('Connected to MongoDB successfully');
-    
-    // Initialize cron jobs
-    initializeCronJobs();
-    console.log('Cron jobs initialized');
-    
-    app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
+// Check Supabase connection on startup
+const checkSupabaseConnection = async () => {
+  try {
+    const response = await fetch(`${process.env.SUPABASE_URL}/rest/v1/health_check?select=*&limit=1`, {
+      headers: {
+        'apikey': process.env.SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${process.env.SUPABASE_ANON_KEY}`
+      }
     });
-  })
-  .catch((err) => {
-    console.error('MongoDB connection error:', err);
-    console.log('Connection details (without credentials):');
-    // Log connection details without exposing credentials
-    const redactedURI = MONGODB_URI.replace(/\/\/[^:]+:[^@]+@/, '//***:***@');
-    console.log(`- URI: ${redactedURI}`);
-    console.log('- Error code:', err.code);
-    console.log('- Error name:', err.name);
     
-    if (err.message && err.message.includes('IP whitelist')) {
-      console.log('\nPOSSIBLE SOLUTION: Add your IP address to MongoDB Atlas whitelist');
-      console.log('1. Go to MongoDB Atlas > Security > Network Access');
-      console.log('2. Click "+ ADD IP ADDRESS"');
-      console.log('3. Click "ALLOW ACCESS FROM ANYWHERE" for testing');
-      console.log('4. Wait for the change to be applied (1-2 minutes)');
-      console.log('5. Restart this server');
+    if (response.ok) {
+      console.log('✅ Connected to Supabase successfully');
+      return true;
+    } else {
+      console.error('❌ Failed to connect to Supabase:', response.statusText);
+      return false;
+    }
+  } catch (error) {
+    console.error('❌ Supabase connection error:', error.message);
+    return false;
+  }
+};
+
+// Function to start the server
+const startServer = () => {
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+    console.log(`API available at http://localhost:${PORT}/api`);
+    console.log(`Health check available at http://localhost:${PORT}/health`);
+    
+    // Initialize cron jobs after server starts
+    if (process.env.NODE_ENV === 'production') {
+      initializeCronJobs();
+      console.log('Cron jobs initialized for production environment');
+    } else {
+      console.log('Cron jobs not initialized in development environment');
     }
   });
+};
 
-export default app; 
+// Check Supabase connection and start server
+checkSupabaseConnection()
+  .then(connected => {
+    if (!connected) {
+      console.warn('Starting server without Supabase connection. Some features may not work.');
+    }
+    startServer();
+  })
+  .catch(err => {
+    console.error('Unhandled error in server startup:', err);
+    startServer();
+  });
+
+export default app;

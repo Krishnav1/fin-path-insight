@@ -1,9 +1,19 @@
 @echo off
 echo ===== FinPath Insight Deployment Script =====
+echo ===== Production Deployment to Netlify =====
 echo.
 
 echo Step 1: Testing API connections...
-node test-api-connections.mjs
+echo Setting up environment for production testing...
+
+set NODE_ENV=production
+set VITE_API_BASE_URL=https://fininsight.onrender.com
+set VITE_FASTAPI_URL=https://fin-path-insight-fastapi.onrender.com
+set VITE_ENABLE_FALLBACK_APIS=true
+set VITE_ENABLE_ERROR_MONITORING=true
+
+echo Running API connection tests...
+node test-api-connections.js
 
 if %ERRORLEVEL% NEQ 0 (
   echo Error: API connection tests failed!
@@ -44,6 +54,22 @@ if /i "%push_choice%"=="Y" (
 
 echo.
 echo Step 3: Building the project for production...
+
+echo Setting up production environment variables...
+echo Ensuring .env.production is properly configured...
+
+if not exist .env.production (
+  echo Creating .env.production file...
+  echo # API Configuration > .env.production
+  echo VITE_API_BASE_URL=https://fininsight.onrender.com >> .env.production
+  echo VITE_API_ENVIRONMENT=production >> .env.production
+  echo VITE_FASTAPI_URL=https://fin-path-insight-fastapi.onrender.com >> .env.production
+  echo # Feature Flags >> .env.production
+  echo VITE_ENABLE_FALLBACK_APIS=true >> .env.production
+  echo VITE_ENABLE_ERROR_MONITORING=true >> .env.production
+)
+
+echo Running production build...
 call npm run build
 
 if %ERRORLEVEL% NEQ 0 (
@@ -67,14 +93,38 @@ if %ERRORLEVEL% NEQ 0 (
 )
 
 echo.
-echo Step 4: Deploying to Netlify...
+echo Step 5: Verifying netlify.toml configuration...
+if not exist netlify.toml (
+  echo ERROR: netlify.toml is missing! Cannot deploy without proper configuration.
+  pause
+  exit /b 1
+)
+
+echo Checking netlify.toml content...
+findstr /C:"from = \"/api/\*\"" netlify.toml >nul
+if %ERRORLEVEL% NEQ 0 (
+  echo WARNING: netlify.toml may not have proper API redirects configured.
+  echo Please verify the netlify.toml file before continuing.
+  pause
+)
+
+echo.
+echo Step 6: Deploying to Netlify...
 echo.
 echo You'll need a Netlify account to continue.
 echo If you're not logged in, you'll be prompted to do so.
 echo.
+echo IMPORTANT: Make sure your site is already created on Netlify.
+echo If this is your first deployment, you'll need to link to an existing site.
+echo.
 pause
 
-netlify deploy --prod --dir=dist
+echo Checking Netlify login status...
+netlify status
+
+echo.
+echo Starting deployment to Netlify production...
+netlify deploy --prod --dir=dist --message="Production deployment from script"
 
 if %ERRORLEVEL% NEQ 0 (
   echo Deployment failed! Please check the error message above.
@@ -84,5 +134,15 @@ if %ERRORLEVEL% NEQ 0 (
 
 echo.
 echo Deployment complete! Your site is now live on Netlify.
+echo.
+echo IMPORTANT POST-DEPLOYMENT STEPS:
+echo 1. Verify your site is working correctly by visiting it
+echo 2. Test the API connections on the live site
+echo 3. Check that both Node.js and FastAPI backends are accessible
+echo.
+echo If you encounter any issues, check the following:
+echo - Netlify environment variables (should match .env.production)
+echo - API redirects in netlify.toml
+echo - CORS settings on both backends
 echo.
 pause

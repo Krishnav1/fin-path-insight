@@ -12,7 +12,7 @@ git commit -m "%commit_message%"
 
 echo.
 echo Step 3: Pushing to GitHub...
-git push origin main
+git push krishna main
 
 if %ERRORLEVEL% NEQ 0 (
   echo.

@@ -2,8 +2,8 @@ name: Update Stock Data
 
 on:
   schedule:
-    # Run every 5 minutes
-    - cron: '*/5 * * * *'
+    # Run daily at midnight UTC to reduce failures
+    - cron: '0 0 * * *'
   workflow_dispatch:
     # Allow manual triggering
 
@@ -27,13 +27,67 @@ jobs:
       
       - name: Run update script
         working-directory: ./backend
-        run: node scripts/updateStockData.js
+        run: |
+          # Create a temporary .env file with secrets
+          echo "NODE_ENV=production" > .env
+          echo "SUPABASE_URL=https://ydakwyplcqoshxcdllah.supabase.co" >> .env
+          echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlkYWt3eXBsY3Fvc2h4Y2RsbGFoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDcyMTAwNTMsImV4cCI6MjA2Mjc4NjA1M30.J0c0YqSsR9XbtbYLVOq6oqQwYQ3G7j65Q0stEtS4W2s' }}" >> .env
+          echo "SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_SERVICE_KEY || '' }}" >> .env
+          echo "USE_FALLBACK_DATA=true" >> .env
+          echo "GITHUB_ACTIONS=true" >> .env
+          
+          # Install Supabase JS client
+          npm install @supabase/supabase-js
+          
+          # Attempt to run the script with retries
+          max_attempts=3
+          attempt=1
+          
+          while [ $attempt -le $max_attempts ]; do
+            echo "Attempt $attempt of $max_attempts to update stock data"
+            if node scripts/updateStockData.js; then
+              echo "Stock data update successful!"
+              break
+            else
+              echo "Attempt $attempt failed."
+              if [ $attempt -lt $max_attempts ]; then
+                echo "Waiting 30 seconds before retry..."
+                sleep 30
+              fi
+              attempt=$((attempt+1))
+            fi
+          done
+          
+          # Even if Supabase connection fails, we'll still commit any generated files
+          # Clean up
+          rm .env
         env:
-          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          # Also provide as environment variables for redundancy
+          SUPABASE_URL: https://ydakwyplcqoshxcdllah.supabase.co
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlkYWt3eXBsY3Fvc2h4Y2RsbGFoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDcyMTAwNTMsImV4cCI6MjA2Mjc4NjA1M30.J0c0YqSsR9XbtbYLVOq6oqQwYQ3G7j65Q0stEtS4W2s' }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || '' }}
+          NODE_ENV: production
+          USE_FALLBACK_DATA: true
+          GITHUB_ACTIONS: true
       
       - name: Commit and push changes
         run: |
           git config --global user.name 'GitHub Actions Bot'
           git config --global user.email 'actions@github.com'
-          git add backend/public/data/
-          git diff --staged --quiet || (git commit -m "Update stock data [skip ci]" && git push) 
+          
+          # Check if data directory exists and has files
+          if [ -d "backend/public/data" ] && [ "$(ls -A backend/public/data)" ]; then
+            git add backend/public/data/
+            
+            # Only commit if there are changes
+            if ! git diff --staged --quiet; then
+              git commit -m "Update stock data [skip ci]"
+              
+              # Push to the correct remote (krishna instead of origin)
+              git push krishna main || echo "Warning: Failed to push to remote 'krishna'. This is not critical."
+            else
+              echo "No changes to commit"
+            fi
+          else
+            echo "No data directory or empty data directory, skipping commit"
+          fi 

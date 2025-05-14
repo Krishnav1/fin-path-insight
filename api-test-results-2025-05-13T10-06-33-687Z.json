@@ -1,0 +1,116 @@
+{
+  "success": 0,
+  "failed": 8,
+  "skipped": 1,
+  "fallbackUsed": 0,
+  "details": [
+    {
+      "name": "Node.js Backend Health Check",
+      "url": "https://fininsight.onrender.com/health",
+      "status": "Failed",
+      "success": false,
+      "error": "All retry attempts failed",
+      "category": "health",
+      "critical": true,
+      "isFallback": false,
+      "timestamp": "2025-05-13T10:05:30.765Z"
+    },
+    {
+      "name": "FastAPI Backend Health Check",
+      "url": "https://fin-path-insight-fastapi.onrender.com/health",
+      "status": "Failed",
+      "success": false,
+      "error": "All retry attempts failed",
+      "category": "health",
+      "critical": true,
+      "isFallback": false,
+      "timestamp": "2025-05-13T10:05:36.868Z"
+    },
+    {
+      "name": "Node.js Stock API",
+      "url": "https://fininsight.onrender.com/api/stocks/market-overview",
+      "status": "Failed",
+      "success": false,
+      "error": "All retry attempts failed",
+      "category": "stocks",
+      "critical": true,
+      "isFallback": false,
+      "timestamp": "2025-05-13T10:05:50.283Z",
+      "fallbackTried": true,
+      "fallbackFailed": true
+    },
+    {
+      "name": "Node.js Indian Stocks API",
+      "url": "https://fininsight.onrender.com/api/indian-stocks/market-overview",
+      "status": "Failed",
+      "success": false,
+      "error": "All retry attempts failed",
+      "category": "stocks",
+      "critical": false,
+      "isFallback": false,
+      "timestamp": "2025-05-13T10:05:58.720Z",
+      "fallbackTried": true,
+      "fallbackFailed": true
+    },
+    {
+      "name": "Node.js News API",
+      "url": "https://fininsight.onrender.com/api/news/latest",
+      "status": "Failed",
+      "success": false,
+      "error": "All retry attempts failed",
+      "category": "news",
+      "critical": false,
+      "isFallback": false,
+      "timestamp": "2025-05-13T10:06:07.819Z"
+    },
+    {
+      "name": "FastAPI Market Data",
+      "url": "https://fin-path-insight-fastapi.onrender.com/api/market-data/overview",
+      "status": "Failed",
+      "success": false,
+      "error": "All retry attempts failed",
+      "category": "market",
+      "critical": true,
+      "isFallback": false,
+      "timestamp": "2025-05-13T10:06:13.117Z",
+      "fallbackTried": true,
+      "fallbackFailed": true
+    },
+    {
+      "name": "FastAPI Indian Market Data",
+      "url": "https://fin-path-insight-fastapi.onrender.com/api/market-data/indian-market/overview",
+      "status": "Failed",
+      "success": false,
+      "error": "All retry attempts failed",
+      "category": "market",
+      "critical": false,
+      "isFallback": false,
+      "timestamp": "2025-05-13T10:06:21.376Z",
+      "fallbackTried": true,
+      "fallbackFailed": true
+    },
+    {
+      "name": "FastAPI Stock Data (RELIANCE.NS)",
+      "url": "https://fin-path-insight-fastapi.onrender.com/api/market-data/stock/RELIANCE.NS",
+      "status": "Failed",
+      "success": false,
+      "error": "All retry attempts failed",
+      "category": "stocks",
+      "critical": false,
+      "isFallback": false,
+      "timestamp": "2025-05-13T10:06:29.651Z"
+    },
+    {
+      "name": "Local Server Check",
+      "url": "http://localhost:8080/health",
+      "status": "Skipped",
+      "success": null,
+      "error": "ECONNREFUSED",
+      "category": "local",
+      "critical": false,
+      "optional": true,
+      "isFallback": false,
+      "timestamp": "2025-05-13T10:06:33.687Z"
+    }
+  ]
+}
