@@ -2,9 +2,9 @@ import axios from 'axios';
 import { setupAxiosInterceptors, handleApiError } from '../utils/errorHandler';
 
 // Get API configuration from environment variables
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
-const FASTAPI_URL = import.meta.env.VITE_FASTAPI_URL || 'https://fin-path-insight-fastapi.onrender.com';
-const API_ENVIRONMENT = import.meta.env.VITE_API_ENVIRONMENT || 'development';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://fininsight.onrender.com';
+const FASTAPI_URL = import.meta.env.VITE_FASTAPI_URL || 'https://fininsight.onrender.com';
+const API_ENVIRONMENT = import.meta.env.VITE_API_ENVIRONMENT || 'production';
 const ENABLE_FALLBACK = import.meta.env.VITE_ENABLE_FALLBACK_APIS === 'true';
 
 // Fallback URLs if the main one fails
@@ -12,7 +12,6 @@ const FALLBACK_URLS = [
   FASTAPI_URL,
   API_BASE_URL,
   'https://fininsight.onrender.com',
-  'https://fin-path-insight-fastapi.onrender.com'
 ].filter((url, index, self) => url && self.indexOf(url) === index); // Remove duplicates and empty values
 
 console.log(`Using API base URL: ${API_BASE_URL} in ${API_ENVIRONMENT} environment`);
@@ -224,6 +223,22 @@ export const marketDataApi = {
       return response.data;
     } catch (error) {
       const processedError = handleApiError(error, 'Error fetching index movers');
+      throw processedError;
+    }
+  },
+
+  // Get stock peers
+  getStockPeers: async (symbol, limit = 5) => {
+    const endpoint = `/api/stocks/${symbol}/peers`;
+    try {
+      const response = await retryRequest(async (client) => {
+        return await client.get(endpoint, {
+          params: { limit },
+        });
+      }, endpoint);
+      return response.data;
+    } catch (error) {
+      const processedError = handleApiError(error, 'Error fetching stock peers');
       throw processedError;
     }
   },

@@ -177,8 +177,8 @@ def get_mock_news(limit: int = 10, topics: Optional[str] = None):
     }
     
     # If a specific company is requested, prioritize its news
-    if topic and topic in company_news:
-        result = company_news[topic] + news_items
+    if topics and topics in company_news:
+        result = company_news[topics] + news_items
     else:
         result = news_items
         

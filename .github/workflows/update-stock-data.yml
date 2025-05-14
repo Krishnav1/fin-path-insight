@@ -25,20 +25,34 @@ jobs:
         working-directory: ./backend
         run: npm install
       
-      - name: Run update script
+      - name: Install Supabase client
+        working-directory: ./backend
+        run: npm install @supabase/supabase-js
+      
+      # Using a dedicated step for writing each secret to the .env file
+      # This approach avoids the context access warnings
+      - name: Write SUPABASE_URL to .env
+        working-directory: ./backend
+        run: echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" > .env
+      
+      - name: Write SUPABASE_ANON_KEY to .env
+        working-directory: ./backend
+        run: echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" >> .env
+      
+      - name: Write SUPABASE_SERVICE_KEY to .env
+        working-directory: ./backend
+        run: echo "SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_SERVICE_KEY }}" >> .env
+      
+      - name: Write additional config to .env
         working-directory: ./backend
         run: |
-          # Create a temporary .env file with secrets
-          echo "NODE_ENV=production" > .env
-          echo "SUPABASE_URL=https://ydakwyplcqoshxcdllah.supabase.co" >> .env
-          echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" >> .env
-          echo "SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_SERVICE_KEY }}" >> .env
+          echo "NODE_ENV=production" >> .env
           echo "USE_FALLBACK_DATA=true" >> .env
           echo "GITHUB_ACTIONS=true" >> .env
-          
-          # Install Supabase JS client
-          npm install @supabase/supabase-js
-          
+      
+      - name: Run update script with retries
+        working-directory: ./backend
+        run: |
           # Attempt to run the script with retries
           max_attempts=3
           attempt=1
@@ -57,18 +71,10 @@ jobs:
               attempt=$((attempt+1))
             fi
           done
-          
-          # Even if Supabase connection fails, we'll still commit any generated files
-          # Clean up
-          rm .env
-        env:
-          # Also provide as environment variables for redundancy
-          SUPABASE_URL: https://ydakwyplcqoshxcdllah.supabase.co
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }} 
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          NODE_ENV: production
-          USE_FALLBACK_DATA: true
-          GITHUB_ACTIONS: true
+      
+      - name: Clean up .env file
+        working-directory: ./backend
+        run: rm -f .env
       
       - name: Commit and push changes
         run: |
@@ -83,11 +89,11 @@ jobs:
             if ! git diff --staged --quiet; then
               git commit -m "Update stock data [skip ci]"
               
-              # Push to GitHub (using GITHUB_TOKEN for authentication)
-              git push https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:main || echo "Warning: Failed to push. This is not critical."
+              # Push to GitHub using built-in token
+              git push
             else
               echo "No changes to commit"
             fi
           else
             echo "No data directory or empty data directory, skipping commit"
-          fi 
+          fi

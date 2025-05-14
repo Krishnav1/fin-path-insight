@@ -11,6 +11,14 @@
   force = true
   headers = {X-From = "Netlify", X-Proxy-Type = "FastAPI"}
 
+# Specific redirect for stocks/peers endpoint
+[[redirects]]
+  from = "/api/stocks/:symbol/peers"
+  to = "https://fin-path-insight-fastapi.onrender.com/api/v1/market-data/stock/:symbol/peers"
+  status = 200
+  force = true
+  headers = {X-From = "Netlify", X-Proxy-Type = "FastAPI"}
+
 # FastAPI proxy for specific endpoints
 [[redirects]]
   from = "/fastapi/*"
