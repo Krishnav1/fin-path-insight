@@ -1,4 +1,4 @@
-#!/bin/bash
+git#!/bin/bash
 # Root start.sh - Starts the FastAPI application
 
 echo "Starting FastAPI application..."
