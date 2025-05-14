@@ -1,22 +1,27 @@
 # FinPath Insight
 
-A comprehensive financial market analysis platform with FastAPI backend, React frontend, and Supabase database integration.
+A comprehensive financial market analysis platform with FastAPI backend, React frontend, and Supabase database integration. Enhanced with Financial Modeling Prep (FMP) data, NewsAPI integration, and AI-powered analysis using Google Gemini.
 
 ## Features
 
-1. **Market Data**: Real-time and historical stock data for Indian and global markets
-2. **AI Analysis**: Professional-grade company analysis reports using Google Gemini
-3. **FinGenie Chatbot**: AI-powered financial assistant for answering investment questions
-4. **Document Processing**: Extract and analyze data from financial documents
-5. **User Authentication**: Secure login and personalized watchlists
+1. **Market Data**: Real-time and historical stock data for Indian and global markets using FMP and yfinance
+2. **AI Analysis**: Professional-grade company analysis reports using Google Gemini with structured insights
+3. **FinGenie Chatbot**: AI-powered financial assistant for answering investment questions with enhanced capabilities
+4. **News Integration**: Real-time financial news from NewsAPI with semantic search capabilities
+5. **Interactive Charts**: Visualizations including KLINE charts, valuation comparisons, and sentiment analysis
+6. **Document Processing**: Extract and analyze data from financial documents
+7. **User Authentication**: Secure login and personalized watchlists
 
 ## Tech Stack
 
 1. **Frontend**: React with TypeScript, Tailwind CSS, and shadcn/ui components
 2. **Backend**: FastAPI with Python for AI and data processing
-3. **Database**: Supabase for structured data storage
+3. **Database**: Supabase for structured data storage and caching
 4. **AI Integration**: Google Gemini Pro for analysis and chat
-5. **Deployment**: Netlify (frontend) and Render (backend)
+5. **Data Sources**: Financial Modeling Prep (FMP), yfinance, and NewsAPI
+6. **Vector Database**: Pinecone for semantic search capabilities
+7. **Visualization**: Plotly for interactive financial charts
+8. **Deployment**: Netlify (frontend) and Render (backend)
 
 ## Project Structure
 
@@ -54,9 +59,17 @@ fin-path-insight/
 
 2. Set up environment variables:
    ```bash
-   cp .env.example .env
+   # For backend
+   cd fastapi-backend
+   cp .env.template .env
    # Edit .env with your API keys and configuration
    ```
+
+   Required API keys:
+   - GEMINI_API_KEY (Google AI Studio)
+   - PINECONE_API_KEY (Pinecone)
+   - FMP_API_KEY (Financial Modeling Prep)
+   - NEWS_API_KEY (NewsAPI)
 
 3. Install frontend dependencies:
    ```bash
@@ -89,13 +102,24 @@ fin-path-insight/
 
 ## API Testing
 
-Test the following endpoints to ensure proper integration:
+Run the test script to verify all API endpoints are working correctly:
 
-1. Stock Data: `/api/supabase/stocks/RELIANCE`
-2. Market Overview: `/api/supabase/market-overview/india`
-3. News: `/api/supabase/news?market=india`
-4. Company News: `/api/supabase/company-news/RELIANCE`
-5. Health Check: `/api/supabase/health`
+```bash
+cd fastapi-backend
+python test_api.py
+```
+
+Key endpoints to test:
+
+1. Stock Data: `/api/market-data/stock/RELIANCE.NS`
+2. Market Overview: `/api/market-data/indian-market/overview`
+3. News: `/api/news/latest?market=india`
+4. Company News: `/api/news/company/RELIANCE.NS`
+5. Semantic News Search: `/api/news/semantic-search?query=technology`
+6. Financial Analysis: `/api/analysis/stock/RELIANCE.NS`
+7. Technical Analysis: `/api/analysis/technical/RELIANCE.NS`
+8. Charts: `/api/analysis/charts/RELIANCE.NS`
+9. FinGenie Chat: `/api/fingenie/chat` (POST)
 
 ## Deployment
 
