@@ -67,7 +67,7 @@ function splitTextIntoChunks(text, chunkSize = 800, overlap = 100) {
     let end = Math.min(i + chunkSize, text.length);
     
     if (end < text.length) {
-      const sentenceEnd = text.substring(i, end).search(/[.!?][\\s\\n]/g);
+      const sentenceEnd = text.substring(i, end).search(/[.!?][\s\n]/g);
       if (sentenceEnd !== -1) {
         end = i + sentenceEnd + 2;
       }

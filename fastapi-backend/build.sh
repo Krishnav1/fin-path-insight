@@ -3,15 +3,18 @@
 
 echo "Starting build process for FinPath Insight FastAPI backend..."
 
-# Install Python dependencies with verbose output
+# Ensure pip is up to date
 pip install --upgrade pip
-pip install -r requirements.txt
 
-# Verify installations
+# Install dependencies with verbose output
+echo "Installing dependencies..."
+pip install -v -r requirements.txt
+
+# Verify critical installations
 echo "Verifying installations..."
-pip list | grep uvicorn
-pip list | grep fastapi
-pip list | grep supabase
-pip list | grep httpx
+pip list
+echo "Checking for uvicorn..."
+which python
+pip show uvicorn
 
 echo "Build completed successfully!"
