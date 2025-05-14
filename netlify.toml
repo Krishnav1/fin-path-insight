@@ -6,7 +6,7 @@
 # All API traffic routed to FastAPI backend
 [[redirects]]
   from = "/api/*"
-  to = "https://fininsight.onrender.com/:splat"
+  to = "https://fininsight.onrender.com/api/:splat"
   status = 200
   force = true
   headers = {X-From = "Netlify", X-Proxy-Type = "FastAPI"}
