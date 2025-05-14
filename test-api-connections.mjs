@@ -14,29 +14,63 @@ import fs from 'fs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Get environment variables
+const FASTAPI_URL = process.env.VITE_FASTAPI_URL || 'https://fininsight.onrender.com';
+const NETLIFY_URL = process.env.NETLIFY_URL || 'https://fin-insight.netlify.app';
+
+console.log(`Using FastAPI URL: ${FASTAPI_URL}`);
+console.log(`Using Netlify URL: ${NETLIFY_URL}`);
+
 // API endpoints to test
 const endpoints = [
+  // Basic connectivity tests
   {
     name: 'FastAPI Root',
-    url: 'https://fin-path-insight-fastapi.onrender.com/',
+    url: `${FASTAPI_URL}/`,
     method: 'GET',
-    fallback: 'https://fininsight.onrender.com/'
+    category: 'health'
   },
   {
     name: 'FastAPI Docs',
-    url: 'https://fin-path-insight-fastapi.onrender.com/docs',
+    url: `${FASTAPI_URL}/docs`,
     method: 'GET',
-    fallback: 'https://fininsight.onrender.com/docs'
+    category: 'health'
+  },
+  
+  // API endpoints through Netlify redirects
+  {
+    name: 'Global News API',
+    url: `${NETLIFY_URL}/fastapi/news/market/global`,
+    method: 'GET',
+    category: 'news',
+    fallback: `${FASTAPI_URL}/api/v1/news/latest?market=global`
   },
   {
-    name: 'Render.com Status',
-    url: 'https://status.render.com/',
-    method: 'GET'
+    name: 'India News API',
+    url: `${NETLIFY_URL}/fastapi/news/market/india`,
+    method: 'GET',
+    category: 'news',
+    fallback: `${FASTAPI_URL}/api/v1/news/latest?market=india`
+  },
+  {
+    name: 'Latest News API',
+    url: `${NETLIFY_URL}/api/news/latest`,
+    method: 'GET',
+    category: 'news',
+    fallback: `${FASTAPI_URL}/api/v1/news/latest`
+  },
+  {
+    name: 'Indian Market Overview',
+    url: `${NETLIFY_URL}/api/market-data/indian-market/overview`,
+    method: 'GET',
+    category: 'market',
+    fallback: `${FASTAPI_URL}/api/v1/market-data/indian-market/overview`
   },
   {
     name: 'External API (Alpha Vantage)',
     url: 'https://www.alphavantage.co/',
-    method: 'GET'
+    method: 'GET',
+    category: 'external'
   }
 ];
 

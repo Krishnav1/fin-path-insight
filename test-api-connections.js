@@ -37,91 +37,88 @@ console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 
 // API endpoints to test
 const endpoints = [
-  // Health checks
-  {
-    name: 'Node.js Backend Health Check',
-    url: `${NODE_API_URL}/health`,
-    method: 'GET',
-    category: 'health',
-    critical: true,
-    fallback: null
-  },
-  {
-    name: 'FastAPI Backend Health Check',
-    url: `${FASTAPI_URL}/health`,
-    method: 'GET',
-    category: 'health',
-    critical: true,
-    fallback: null
-  },
-  {
-    name: 'Supabase Health Check',
-    url: `${NODE_API_URL}/api/supabase/health`,
-    method: 'GET',
-    category: 'health',
-    critical: true,
-    fallback: null
-  },
-  
-  // Node.js backend endpoints
-  {
-    name: 'Node.js Stock API',
-    url: `${NODE_API_URL}/api/stocks/market-overview`,
-    method: 'GET',
-    category: 'stocks',
-    critical: true,
-    fallback: `${FASTAPI_URL}/api/market-data/overview`
-  },
-  {
-    name: 'Node.js Indian Stocks API',
-    url: `${NODE_API_URL}/api/indian-stocks/market-overview`,
-    method: 'GET',
-    category: 'stocks',
-    critical: false,
-    fallback: `${FASTAPI_URL}/api/market-data/indian-market/overview`
-  },
-  {
-    name: 'Netlify API Proxy (Node.js)',
-    url: `${NETLIFY_URL}/api/stocks/market-overview`,
-    method: 'GET',
-    category: 'netlify',
-    critical: true,
-    fallback: null,
-    optional: process.env.NODE_ENV !== 'production' // Only required in production
-  },
-  {
-    name: 'Node.js News API',
-    url: `${NODE_API_URL}/api/news/latest`,
-    method: 'GET',
-    category: 'news',
-    critical: false,
-    fallback: null
-  },
+  // Supabase direct connection is tested separately
   
   // FastAPI endpoints
   {
-    name: 'FastAPI Market Data',
-    url: `${FASTAPI_URL}/api/market-data/overview`,
+    name: 'FastAPI Root',
+    url: `${FASTAPI_URL}/`,
     method: 'GET',
-    category: 'market',
-    critical: true,
-    fallback: `${NODE_API_URL}/api/stocks/market-overview`
-  },
-  {
-    name: 'FastAPI Indian Market Data',
-    url: `${FASTAPI_URL}/api/market-data/indian-market/overview`,
-    method: 'GET',
-    category: 'market',
+    category: 'health',
     critical: false,
-    fallback: `${NODE_API_URL}/api/indian-stocks/market-overview`
+    fallback: null
   },
   {
-    name: 'FastAPI Stock Data (RELIANCE.NS)',
-    url: `${FASTAPI_URL}/api/market-data/stock/RELIANCE.NS`,
+    name: 'FastAPI Docs',
+    url: `${FASTAPI_URL}/docs`,
+    method: 'GET',
+    category: 'health',
+    critical: false,
+    fallback: null
+  },
+  
+  // News API endpoints
+  {
+    name: 'Global News API',
+    url: `${NETLIFY_URL}/fastapi/news/market/global`,
+    method: 'GET',
+    category: 'news',
+    critical: false,
+    fallback: `${FASTAPI_URL}/api/v1/news/latest?market=global`
+  },
+  {
+    name: 'India News API',
+    url: `${NETLIFY_URL}/fastapi/news/market/india`,
+    method: 'GET',
+    category: 'news',
+    critical: false,
+    fallback: `${FASTAPI_URL}/api/v1/news/latest?market=india`
+  },
+  {
+    name: 'Latest News API',
+    url: `${NETLIFY_URL}/api/news/latest`,
+    method: 'GET',
+    category: 'news',
+    critical: false,
+    fallback: `${FASTAPI_URL}/api/v1/news/latest`
+  },
+  
+  // Market Data endpoints
+  {
+    name: 'Stock Peers API',
+    url: `${NETLIFY_URL}/api/stocks/peers`,
     method: 'GET',
     category: 'stocks',
     critical: false,
-    fallback: null
+    fallback: `${FASTAPI_URL}/api/v1/market-data/peers`
+  },
+  {
+    name: 'Indian Market Overview',
+    url: `${NETLIFY_URL}/api/market-data/indian-market/overview`,
+    method: 'GET',
+    category: 'market',
+    critical: false,
+    fallback: `${FASTAPI_URL}/api/v1/market-data/indian-market/overview`
+  },
+  
+  // AI Analysis endpoint
+  {
+    name: 'AI Analysis API',
+    url: `${NETLIFY_URL}/api/ai-analysis/company`,
+    method: 'GET',
+    category: 'ai',
+    critical: false,
+    fallback: `${FASTAPI_URL}/api/v1/ai-analysis/company`
+  },
+  
+  // FinGenie chat endpoint
+  {
+    name: 'FinGenie Chat API',
+    url: `${NETLIFY_URL}/fastapi/fingenie/chat`,
+    method: 'GET',
+    category: 'chat',
+    critical: false,
+    fallback: `${FASTAPI_URL}/api/v1/fingenie/chat`
   },
   
   // Try local server if running
@@ -433,18 +430,7 @@ async function testAllEndpoints() {
     console.log('\nThese failures may impact core application functionality!');
   }
   
-  // Detailed results by category
-  console.log('\nResults by Category:');
-  const categories = [...new Set(results.details.map(r => r.category))];
-  categories.forEach(category => {
-    const categoryResults = results.details.filter(r => r.category === category);
-    const categorySuccess = categoryResults.filter(r => r.success === true).length;
-    const categoryTotal = categoryResults.filter(r => r.success !== null).length;
-    const categoryRate = categoryTotal > 0 ? Math.round((categorySuccess / categoryTotal) * 100) : 0;
-    console.log(`  - ${category}: ${categorySuccess}/${categoryTotal} successful (${categoryRate}%)`);
-  });
-  
-  // Provide recommendations
+  // Provide recommendations based on results
   console.log('\n==============================');
   console.log('RECOMMENDATIONS');
   console.log('==============================');
@@ -452,10 +438,9 @@ async function testAllEndpoints() {
   if (criticalFailures.length > 0) {
     console.log('1. Check if the Render.com and FastAPI services are running');
     console.log('2. Verify your network connection');
-    console.log('3. Check if your MongoDB connection is working');
+    console.log('3. Check if your Supabase connection is working');
     console.log('4. Ensure VITE_ENABLE_FALLBACK_APIS=true is set in your environment');
-    console.log('5. Try running the app with the local backend server:');
-    console.log('   - cd backend && npm start');
+    console.log('5. Verify the Netlify redirects in netlify.toml are correctly configured');
   } else if (results.fallbackUsed > 0) {
     console.log('Some primary endpoints failed but fallbacks worked:');
     results.details.filter(r => r.fallbackUsed).forEach(r => {
@@ -466,8 +451,7 @@ async function testAllEndpoints() {
     console.log('Some non-critical endpoints failed, but the application should still function.');
     console.log('Consider enabling fallback APIs if specific features are not working.');
   } else {
-    console.log('All API connections are working correctly! 🎉');
-    console.log('Your application should work without any issues.');
+    console.log('All API connections are working perfectly! Your application should function optimally.');
   }
   
   return results;

@@ -92,8 +92,8 @@ export const marketDataApi = {
 
   // Get stock peers
   getStockPeers: async (symbol, limit = 5) => {
-    const endpoint = `/api/stocks/${symbol}/peers`;
-    return makeRequest('get', endpoint, null, { limit });
+    const endpoint = '/api/stocks/peers';
+    return makeRequest('get', endpoint, null, { symbol, limit });
   },
 };
 
@@ -148,13 +148,13 @@ export const documentApi = {
 export const finGenieApi = {
   // Send chat message
   sendChatMessage: async (userId, message) => {
-    const endpoint = '/api/fingenie/chat';
+    const endpoint = '/fastapi/fingenie/chat';
     return makeRequest('post', endpoint, { user_id: userId, message });
   },
 
   // Clear conversation
   clearConversation: async (userId) => {
-    const endpoint = `/api/fingenie/conversations/${userId}`;
+    const endpoint = `/fastapi/fingenie/conversations/${userId}`;
     return makeRequest('delete', endpoint);
   },
 };

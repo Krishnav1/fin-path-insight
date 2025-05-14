@@ -1,39 +1,77 @@
 [build]
   command = "npm run build"
   publish = "dist"
-  environment = { NODE_VERSION = "18", VITE_SUPABASE_URL = "https://ydakwyplcqoshxcdllah.supabase.co", VITE_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlkYWt3eXBsY3Fvc2h4Y2RsbGFoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDcyMTAwNTMsImV4cCI6MjA2Mjc4NjA1M30.J0c0YqSsR9XbtbYLVOq6oqQwYQ3G7j65Q0stEtS4W2s" }
+  environment = { NODE_VERSION = "18", VITE_SUPABASE_URL = "https://ydakwyplcqoshxcdllah.supabase.co", VITE_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlkYWt3eXBsY3Fvc2h4Y2RsbGFoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDcyMTAwNTMsImV4cCI6MjA2Mjc4NjA1M30.J0c0YqSsR9XbtbYLVOq6oqQwYQ3G7j65Q0stEtS4W2s", VITE_API_BASE_URL = "https://fininsight.onrender.com", VITE_FASTAPI_URL = "https://fininsight.onrender.com", VITE_ENABLE_FALLBACK_APIS = "true", VITE_ENABLE_ERROR_MONITORING = "true" }
 
-# News API redirects
+# News API endpoints
 [[redirects]]
-  from = "/api/news/*"
-  to = "https://fininsight.onrender.com/api/v1/news/:splat"
+  from = "/fastapi/news/market/global"
+  to = "https://fininsight.onrender.com/api/v1/news/latest?market=global"
   status = 200
   force = true
-  headers = {X-From = "Netlify", X-Proxy-Type = "FastAPI"}
+  headers = {X-From = "Netlify"}
 
-# All other API traffic routed to Node.js backend
+[[redirects]]
+  from = "/fastapi/news/market/india"
+  to = "https://fininsight.onrender.com/api/v1/news/latest?market=india"
+  status = 200
+  force = true
+  headers = {X-From = "Netlify"}
+
+[[redirects]]
+  from = "/api/news/latest"
+  to = "https://fininsight.onrender.com/api/v1/news/latest"
+  status = 200
+  force = true
+  headers = {X-From = "Netlify"}
+
+# Company news
+[[redirects]]
+  from = "/api/news/company/*"
+  to = "https://fininsight.onrender.com/api/v1/news/company/:splat"
+  status = 200
+  force = true
+  headers = {X-From = "Netlify"}
+
+# Stock peers endpoint
+[[redirects]]
+  from = "/api/stocks/peers"
+  to = "https://fininsight.onrender.com/api/v1/market-data/peers"
+  status = 200
+  force = true
+  headers = {X-From = "Netlify"}
+
+# FinGenie chat endpoint
+[[redirects]]
+  from = "/fastapi/fingenie/chat"
+  to = "https://fininsight.onrender.com/api/v1/fingenie/chat"
+  status = 200
+  force = true
+  headers = {X-From = "Netlify"}
+
+# AI Analysis endpoint
+[[redirects]]
+  from = "/api/ai-analysis/company"
+  to = "https://fininsight.onrender.com/api/v1/ai-analysis/company"
+  status = 200
+  force = true
+  headers = {X-From = "Netlify"}
+
+# Indian market overview
+[[redirects]]
+  from = "/api/market-data/indian-market/overview"
+  to = "https://fininsight.onrender.com/api/v1/market-data/indian-market/overview"
+  status = 200
+  force = true
+  headers = {X-From = "Netlify"}
+
+# All other API traffic routed to backend
 [[redirects]]
   from = "/api/*"
-  to = "https://fininsight.onrender.com/api/:splat"
+  to = "https://fininsight.onrender.com/api/v1/:splat"
   status = 200
   force = true
-  headers = {X-From = "Netlify", X-Proxy-Type = "FastAPI"}
-
-# Specific redirect for stocks/peers endpoint
-[[redirects]]
-  from = "/api/stocks/:symbol/peers"
-  to = "https://fininsight.onrender.com/api/v1/market-data/stock/:symbol/peers"
-  status = 200
-  force = true
-  headers = {X-From = "Netlify", X-Proxy-Type = "FastAPI"}
-
-# FastAPI proxy for specific endpoints
-[[redirects]]
-  from = "/fastapi/*"
-  to = "https://fininsight.onrender.com/:splat"
-  status = 200
-  force = true
-  headers = {X-From = "Netlify", X-Proxy-Type = "FastAPI"}
+  headers = {X-From = "Netlify"}
 
 # Cache static assets
 [[headers]]
