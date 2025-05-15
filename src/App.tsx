@@ -23,7 +23,7 @@ import Settings from "./pages/Settings";
 import News from "./pages/News";
 import NewsDetail from "./pages/NewsDetail";
 import Learn from "./pages/Learn";
-import FinPath from "./pages/FinPath";
+import FinPath from "./pages/finpath/index";
 import FinWell from "./pages/FinWell";
 import Tools from "./pages/Tools";
 import CompanyAnalysis from "./pages/CompanyAnalysis";
@@ -34,6 +34,20 @@ import AdminPanel from "./pages/AdminPanel";
 import StockDetails from "./components/StockDetails";
 import CryptoDetails from "./components/CryptoDetails";
 import IndianMarketPage from "./components/IndianMarket/IndianMarketPage";
+
+// New Pages
+import AboutPage from "./pages/about/index";
+import ContactPage from "./pages/contact/index";
+import PricingPage from "./pages/pricing/index";
+import FAQPage from "./pages/faq/index";
+import TermsPage from "./pages/terms/index";
+import PrivacyPage from "./pages/privacy/index";
+
+// Tool Pages
+import StockScreenerPage from "./pages/tools/stock-screener/index";
+import PortfolioAnalyzerPage from "./pages/tools/portfolio-analyzer/index";
+import TechnicalAnalysisPage from "./pages/tools/technical-analysis/index";
+import FinGenieToolPage from "./pages/tools/fingenie/index";
 
 const queryClient = new QueryClient();
 
@@ -56,6 +70,14 @@ const App = () => (
                   <Route path="/markets" element={<MarketOverview />} />
                   <Route path="/indian-market" element={<IndianMarketPage />} />
                   
+                  {/* New static pages */}
+                  <Route path="/about" element={<AboutPage />} />
+                  <Route path="/contact" element={<ContactPage />} />
+                  <Route path="/pricing" element={<PricingPage />} />
+                  <Route path="/faq" element={<FAQPage />} />
+                  <Route path="/terms" element={<TermsPage />} />
+                  <Route path="/privacy" element={<PrivacyPage />} />
+                  
                   {/* Market Categories now handled by query parameters */}
                   
                   <Route path="/news" element={<News />} />
@@ -69,6 +91,12 @@ const App = () => (
                   <Route path="/stocks/:symbol" element={<StockDetails />} />
                   <Route path="/crypto/:coinId" element={<CryptoDetails />} />
                   <Route path="/etfs/:symbol" element={<StockDetails />} />
+                  
+                  {/* Tool routes */}
+                  <Route path="/tools/stock-screener" element={<StockScreenerPage />} />
+                  <Route path="/tools/portfolio-analyzer" element={<PortfolioAnalyzerPage />} />
+                  <Route path="/tools/technical-analysis" element={<TechnicalAnalysisPage />} />
+                  <Route path="/tools/fingenie" element={<FinGenieToolPage />} />
                   
                   {/* Protected routes */}
                   <Route path="/dashboard" element={
@@ -91,11 +119,6 @@ const App = () => (
                   
                   {/* FinPath routes - all protected */}
                   <Route path="/finpath" element={
-                    <ProtectedRoute>
-                      <FinPath />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/finpath/:section" element={
                     <ProtectedRoute>
                       <FinPath />
                     </ProtectedRoute>
