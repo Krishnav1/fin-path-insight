@@ -3,10 +3,19 @@ import json
 import logging
 import httpx
 import asyncio
+import random
 import yfinance as yf
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime, timedelta
 from app.core.config import settings
+
+# Rate limiting configuration
+YAHOO_RATE_LIMIT_WINDOW = 60  # 60 seconds window
+YAHOO_MAX_REQUESTS = 5  # Maximum 5 requests per window
+yahoo_request_timestamps = []  # Track request timestamps
+
+# Batch processing configuration
+BATCH_SIZE = 2  # Process indices in batches of 2
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +24,105 @@ BASE_URL = "https://financialmodelingprep.com/api/v3"
 
 # Cache for storing API responses to avoid redundant calls
 api_cache = {}
+
+async def check_rate_limit() -> Tuple[bool, float]:
+    """
+    Check if we're within rate limits for Yahoo Finance API
+    
+    Returns:
+        Tuple of (can_proceed, wait_time)
+    """
+    global yahoo_request_timestamps
+    
+    # Clean up old timestamps
+    current_time = datetime.now().timestamp()
+    yahoo_request_timestamps = [ts for ts in yahoo_request_timestamps 
+                               if current_time - ts < YAHOO_RATE_LIMIT_WINDOW]
+    
+    # Check if we've hit the limit
+    if len(yahoo_request_timestamps) >= YAHOO_MAX_REQUESTS:
+        oldest_timestamp = min(yahoo_request_timestamps)
+        wait_time = YAHOO_RATE_LIMIT_WINDOW - (current_time - oldest_timestamp)
+        return False, max(0, wait_time)
+    
+    return True, 0.0
+
+async def perform_yahoo_request(func, *args, **kwargs):
+    """
+    Perform a Yahoo Finance request with rate limiting and exponential backoff
+    
+    Args:
+        func: The Yahoo Finance function to call
+        *args: Arguments to pass to the function
+        **kwargs: Keyword arguments to pass to the function
+        
+    Returns:
+        The result of the function call
+    """
+    max_retries = 5
+    base_delay = 2  # Base delay in seconds
+    
+    for attempt in range(max_retries):
+        # Check rate limit
+        can_proceed, wait_time = await check_rate_limit()
+        
+        if not can_proceed:
+            logger.warning(f"Rate limit reached, waiting {wait_time:.2f} seconds")
+            await asyncio.sleep(wait_time + 0.5)  # Add a small buffer
+        
+        try:
+            # Record this request
+            yahoo_request_timestamps.append(datetime.now().timestamp())
+            
+            # Execute the function
+            result = func(*args, **kwargs)
+            return result
+        
+        except Exception as e:
+            # If it's a rate limit error (429)
+            if "429" in str(e) or "Too Many Requests" in str(e):
+                # Calculate backoff with jitter
+                delay = (base_delay * (2 ** attempt)) + (random.random() * 0.5)
+                logger.warning(f"Yahoo Finance rate limit hit, retrying in {delay:.2f} seconds (attempt {attempt+1}/{max_retries})")
+                await asyncio.sleep(delay)
+            else:
+                # For other errors, retry with a small delay
+                if attempt < max_retries - 1:  # Don't log on the last attempt
+                    logger.warning(f"Error in Yahoo Finance request: {str(e)}, retrying in 1 second (attempt {attempt+1}/{max_retries})")
+                    await asyncio.sleep(1)
+                else:
+                    # Last attempt failed
+                    logger.error(f"Failed after {max_retries} attempts: {str(e)}")
+                    raise
+    
+    # If we get here, all retries failed
+    raise Exception(f"Failed after {max_retries} attempts due to rate limiting")
+
+async def batch_process(items, process_func, batch_size=BATCH_SIZE):
+    """
+    Process items in batches with delays between batches
+    
+    Args:
+        items: List of items to process
+        process_func: Async function to process each item
+        batch_size: Number of items to process in each batch
+        
+    Returns:
+        List of results
+    """
+    results = []
+    
+    # Process in batches
+    for i in range(0, len(items), batch_size):
+        batch = items[i:i+batch_size]
+        batch_results = await asyncio.gather(*[process_func(item) for item in batch])
+        results.extend(batch_results)
+        
+        # Add delay between batches to avoid rate limiting
+        if i + batch_size < len(items):
+            await asyncio.sleep(2)  # 2 second delay between batches
+    
+    return results
 
 async def fetch_stock_data(symbol: str) -> Dict[str, Any]:
     """
@@ -392,15 +500,15 @@ async def fetch_indian_market_overview() -> Dict[str, Any]:
     """
     cache_key = "indian_market_overview"
     
-    # Check if data is in cache and not expired (30 minutes - increased to reduce API calls)
+    # Check if data is in cache and not expired (60 minutes - increased to reduce API calls)
     if cache_key in api_cache:
         cache_time, cache_data = api_cache[cache_key]
-        if datetime.now() - cache_time < timedelta(minutes=30):
+        if datetime.now() - cache_time < timedelta(minutes=60):
             logger.info("Using cached Indian market overview data")
             return cache_data
     
     try:
-        # Define the Indian market indices to fetch - reduced list to avoid rate limiting
+        # Define the Indian market indices to fetch
         indian_indices = [
             {"symbol": "^NSEI", "name": "NIFTY 50"},
             {"symbol": "^NSEBANK", "name": "NIFTY BANK"},
@@ -408,10 +516,8 @@ async def fetch_indian_market_overview() -> Dict[str, Any]:
             {"symbol": "^INDIAVIX", "name": "INDIA VIX"}
         ]
         
-        indices_data = []
-        
-        # Add delay between requests to avoid rate limiting
-        for index in indian_indices:
+        # Helper function to process a single index
+        async def process_index(index):
             try:
                 # First try to get data from FMP API if available
                 if settings.FMP_API_KEY:
@@ -426,25 +532,22 @@ async def fetch_indian_market_overview() -> Dict[str, Any]:
                                 data = response.json()
                                 if data and len(data) > 0:
                                     quote = data[0]
-                                    indices_data.append({
+                                    return {
                                         "name": index["name"],
                                         "value": quote.get("price", 0),
                                         "change": quote.get("change", 0),
                                         "change_percent": quote.get("changesPercentage", 0),
                                         "timestamp": datetime.now().isoformat()
-                                    })
-                                    continue  # Skip yfinance if FMP worked
+                                    }
                     except Exception as fmp_error:
                         logger.warning(f"FMP API failed for {index['name']}, falling back to yfinance: {str(fmp_error)}")
                 
                 # Fallback to yfinance with rate limiting protection
-                await asyncio.sleep(1)  # Add delay between requests
-                
-                ticker = yf.Ticker(index["symbol"])
-                ticker_info = ticker.info
+                ticker_info = await perform_yahoo_request(lambda: yf.Ticker(index["symbol"]).info)
                 
                 # Get historical data to calculate change
-                hist = ticker.history(period="2d")
+                hist = await perform_yahoo_request(lambda: yf.Ticker(index["symbol"]).history(period="2d"))
+                
                 if len(hist) >= 2:
                     prev_close = hist["Close"].iloc[-2]
                     current = hist["Close"].iloc[-1]
@@ -456,16 +559,16 @@ async def fetch_indian_market_overview() -> Dict[str, Any]:
                     change = current - prev_close
                     change_percent = ticker_info.get("regularMarketChangePercent", 0) * 100
                 
-                indices_data.append({
+                return {
                     "name": index["name"],
                     "value": current,
                     "change": change,
                     "change_percent": change_percent,
                     "timestamp": datetime.now().isoformat()
-                })
+                }
             except Exception as e:
                 logger.error(f"Error fetching data for {index['name']}: {str(e)}")
-                # Add fallback data if API call fails
+                # Return fallback data if API call fails
                 fallback_data = {
                     "NIFTY 50": {"value": 22345.60, "change": 123.45, "change_percent": 0.55},
                     "NIFTY BANK": {"value": 48765.30, "change": -156.70, "change_percent": -0.32},
@@ -473,15 +576,17 @@ async def fetch_indian_market_overview() -> Dict[str, Any]:
                     "INDIA VIX": {"value": 14.25, "change": -0.75, "change_percent": -5.00}
                 }
                 
-                if index["name"] in fallback_data:
-                    data = fallback_data[index["name"]]
-                    indices_data.append({
-                        "name": index["name"],
-                        "value": data["value"],
-                        "change": data["change"],
-                        "change_percent": data["change_percent"],
-                        "timestamp": datetime.now().isoformat()
-                    })
+                data = fallback_data.get(index["name"], {"value": 0, "change": 0, "change_percent": 0})
+                return {
+                    "name": index["name"],
+                    "value": data["value"],
+                    "change": data["change"],
+                    "change_percent": data["change_percent"],
+                    "timestamp": datetime.now().isoformat()
+                }
+        
+        # Process indices in batches to avoid rate limiting
+        indices_data = await batch_process(indian_indices, process_index, batch_size=2)
         
         # Use static market breadth data to avoid API rate limits
         breadth = {
@@ -490,46 +595,12 @@ async def fetch_indian_market_overview() -> Dict[str, Any]:
             "unchanged": 5
         }
         
-        # Only if we have no indices data, try to get some basic data
-        if not indices_data:
-            # Fallback to static data
-            indices_data = [
-                {
-                    "name": "NIFTY 50",
-                    "value": 22345.60,
-                    "change": 123.45,
-                    "change_percent": 0.55,
-                    "timestamp": datetime.now().isoformat()
-                },
-                {
-                    "name": "NIFTY BANK",
-                    "value": 48765.30,
-                    "change": -156.70,
-                    "change_percent": -0.32,
-                    "timestamp": datetime.now().isoformat()
-                },
-                {
-                    "name": "NIFTY IT",
-                    "value": 37890.25,
-                    "change": 345.60,
-                    "change_percent": 0.92,
-                    "timestamp": datetime.now().isoformat()
-                },
-                {
-                    "name": "INDIA VIX",
-                    "value": 14.25,
-                    "change": -0.75,
-                    "change_percent": -5.00,
-                    "timestamp": datetime.now().isoformat()
-                }
-            ]
-        
         result = {
             "indices": indices_data,
             "breadth": breadth
         }
         
-        # Cache the result
+        # Cache the result for longer to reduce API calls
         api_cache[cache_key] = (datetime.now(), result)
         
         return result
