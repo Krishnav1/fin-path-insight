@@ -19,29 +19,24 @@ COMMENT ON COLUMN public.cache.created_at IS 'Timestamp when the cache entry was
 -- Grant permissions (if needed)
 ALTER TABLE public.cache ENABLE ROW LEVEL SECURITY;
 
--- Allow anonymous access for read/write
-CREATE POLICY "Allow anonymous read access" 
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS "Allow anonymous read access" ON public.cache;
+DROP POLICY IF EXISTS "Allow anonymous insert access" ON public.cache;
+DROP POLICY IF EXISTS "Allow anonymous update access" ON public.cache;
+DROP POLICY IF EXISTS "Allow anonymous delete access" ON public.cache;
+DROP POLICY IF EXISTS "Allow service role full access" ON public.cache;
+
+-- Create a single policy for all operations
+CREATE POLICY "Allow public access to cache" 
   ON public.cache
-  FOR SELECT
-  TO anon 
+  FOR ALL
   USING (true);
 
-CREATE POLICY "Allow anonymous insert access" 
+-- Ensure the service role has full access
+CREATE POLICY "Allow service role full access" 
   ON public.cache
-  FOR INSERT
-  TO anon 
-  WITH CHECK (true);
-
-CREATE POLICY "Allow anonymous update access" 
-  ON public.cache
-  FOR UPDATE
-  TO anon 
-  USING (true);
-
-CREATE POLICY "Allow anonymous delete access" 
-  ON public.cache
-  FOR DELETE
-  TO anon 
+  FOR ALL
+  TO service_role
   USING (true);
 
 -- Create index on created_at for faster expiration checks

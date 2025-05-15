@@ -25,7 +25,7 @@ def init_supabase() -> Optional[Client]:
             return None
         
         # Clean the anon key to remove any newlines or whitespace
-        clean_anon_key = settings.SUPABASE_ANON_KEY.strip()
+        clean_anon_key = settings.SUPABASE_ANON_KEY.strip().replace('\n', '')
         
         supabase_client = create_client(settings.SUPABASE_URL, clean_anon_key)
         logger.info("Supabase client initialized successfully")
