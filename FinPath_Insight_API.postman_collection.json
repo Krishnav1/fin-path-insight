@@ -1,0 +1,350 @@
+{
+  "info": {
+    "_postman_id": "a5b3c7d9-e1f2-4a6b-8c9d-0e1f2a3b4c5d",
+    "name": "FinPath Insight API",
+    "description": "A comprehensive collection for testing the FinPath Insight API endpoints",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health Checks",
+      "description": "Endpoints for checking API health and readiness",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "health"]
+            },
+            "description": "Check overall API health status"
+          },
+          "response": []
+        },
+        {
+          "name": "Readiness Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/health/ready",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "health", "ready"]
+            },
+            "description": "Check if API is ready to serve requests"
+          },
+          "response": []
+        },
+        {
+          "name": "Liveness Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/health/live",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "health", "live"]
+            },
+            "description": "Check if API is alive"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Market Data",
+      "description": "Endpoints for fetching market data",
+      "item": [
+        {
+          "name": "Stock Data",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/market-data/stock/RELIANCE.NS",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "market-data", "stock", "RELIANCE.NS"]
+            },
+            "description": "Get stock data for a specific symbol"
+          },
+          "response": []
+        },
+        {
+          "name": "Indian Market Overview",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/market-data/indian-market/overview",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "market-data", "indian-market", "overview"]
+            },
+            "description": "Get overview of Indian market"
+          },
+          "response": []
+        },
+        {
+          "name": "Index Movers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/market-data/indian-market/index-movers/NIFTY50",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "market-data", "indian-market", "index-movers", "NIFTY50"]
+            },
+            "description": "Get top movers for a specific index"
+          },
+          "response": []
+        },
+        {
+          "name": "Market Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/market-data/market/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "market-data", "market", "status"]
+            },
+            "description": "Check if market is open or closed"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Supabase Data",
+      "description": "Endpoints for accessing cached data from Supabase",
+      "item": [
+        {
+          "name": "Supabase Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/supabase/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "supabase", "health"]
+            },
+            "description": "Check Supabase connection health"
+          },
+          "response": []
+        },
+        {
+          "name": "Supabase Stocks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/supabase/stocks/RELIANCE.NS",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "supabase", "stocks", "RELIANCE.NS"]
+            },
+            "description": "Get cached stock data from Supabase"
+          },
+          "response": []
+        },
+        {
+          "name": "Supabase Market Overview",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/supabase/market-overview/india",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "supabase", "market-overview", "india"]
+            },
+            "description": "Get cached market overview from Supabase"
+          },
+          "response": []
+        },
+        {
+          "name": "Supabase News",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/supabase/news",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "supabase", "news"]
+            },
+            "description": "Get cached news from Supabase"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "News",
+      "description": "Endpoints for fetching financial news",
+      "item": [
+        {
+          "name": "Latest News",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/news/latest",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "news", "latest"]
+            },
+            "description": "Get latest financial news"
+          },
+          "response": []
+        },
+        {
+          "name": "Company News",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/news/company/RELIANCE.NS",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "news", "company", "RELIANCE.NS"]
+            },
+            "description": "Get news for a specific company"
+          },
+          "response": []
+        },
+        {
+          "name": "Semantic News Search",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/news/semantic-search?query=market",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "news", "semantic-search"],
+              "query": [
+                {
+                  "key": "query",
+                  "value": "market"
+                }
+              ]
+            },
+            "description": "Search news semantically"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Analysis",
+      "description": "Endpoints for financial analysis",
+      "item": [
+        {
+          "name": "Stock Analysis",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/analysis/stock/RELIANCE.NS",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "analysis", "stock", "RELIANCE.NS"]
+            },
+            "description": "Get comprehensive stock analysis"
+          },
+          "response": []
+        },
+        {
+          "name": "Technical Analysis",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/analysis/technical/RELIANCE.NS",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "analysis", "technical", "RELIANCE.NS"]
+            },
+            "description": "Get technical analysis for a stock"
+          },
+          "response": []
+        },
+        {
+          "name": "Fundamental Analysis",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/analysis/fundamental/RELIANCE.NS",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "analysis", "fundamental", "RELIANCE.NS"]
+            },
+            "description": "Get fundamental analysis for a stock"
+          },
+          "response": []
+        },
+        {
+          "name": "Charts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/analysis/charts/RELIANCE.NS",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "analysis", "charts", "RELIANCE.NS"]
+            },
+            "description": "Get chart data for a stock"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "AI",
+      "description": "AI-powered endpoints",
+      "item": [
+        {
+          "name": "FinGenie Chat",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"userId\": \"test-user\",\n    \"message\": \"What's the price forecast for Reliance Industries?\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/fingenie/chat",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "fingenie", "chat"]
+            },
+            "description": "Chat with FinGenie AI assistant"
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [""]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [""]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8000",
+      "type": "string"
+    }
+  ]
+}

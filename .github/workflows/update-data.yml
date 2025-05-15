@@ -1,0 +1,50 @@
+name: Update Financial Data
+
+on:
+  schedule:
+    # Run every 5 minutes
+    - cron: '*/5 * * * *'
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: backend/package.json
+      
+      - name: Install dependencies
+        run: |
+          cd backend
+          npm install
+      
+      - name: Run data update script
+        run: |
+          cd backend
+          node scripts/update-data.js
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          
+      - name: Commit and push if data changed
+        run: |
+          git config --global user.name 'GitHub Actions Bot'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          
+          git add backend/public/data
+          
+          # Check if there are changes to commit
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          
+          git commit -m "Update financial data (automated)"
+          git push 

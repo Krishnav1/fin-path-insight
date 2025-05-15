@@ -1,0 +1,52 @@
+{
+  "timestamp": "2025-05-14T20:18:12.371Z",
+  "tests": [
+    {
+      "name": "FastAPI Backend Health",
+      "endpoint": "https://fininsight.onrender.com/",
+      "status": "PASSED",
+      "statusCode": 200
+    },
+    {
+      "name": "Supabase Connection",
+      "endpoint": "https://fininsight.onrender.com/api/supabase/health",
+      "status": "FAILED",
+      "error": "Request failed with status code 404"
+    },
+    {
+      "name": "Stock Data API",
+      "endpoint": "https://fininsight.onrender.com/api/supabase/stocks/RELIANCE",
+      "status": "FAILED",
+      "error": "Request failed with status code 404"
+    },
+    {
+      "name": "Market Overview API",
+      "endpoint": "https://fininsight.onrender.com/api/supabase/market-overview/india",
+      "status": "FAILED",
+      "error": "Request failed with status code 404"
+    },
+    {
+      "name": "News API",
+      "endpoint": "https://fininsight.onrender.com/api/supabase/news?market=india",
+      "status": "FAILED",
+      "error": "Request failed with status code 404"
+    },
+    {
+      "name": "Company News API",
+      "endpoint": "https://fininsight.onrender.com/api/supabase/company-news/RELIANCE",
+      "status": "FAILED",
+      "error": "Request failed with status code 404"
+    },
+    {
+      "name": "Frontend Proxy to Backend",
+      "endpoint": "https://fin-path-insight.netlify.app/api/supabase/health",
+      "status": "FAILED",
+      "error": "Request failed with status code 404"
+    }
+  ],
+  "summary": {
+    "total": 7,
+    "passed": 1,
+    "failed": 6
+  }
+}

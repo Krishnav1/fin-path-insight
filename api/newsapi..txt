@@ -1,0 +1,6 @@
+name - Krishna
+id - kv6925207@gmail.com
+pass - Krishnav1234
+ api  - 0216e0f2ba984823b471f6cff9027ece
+
+gnews api - d1a125c36ee3afe64ef1e23700589209

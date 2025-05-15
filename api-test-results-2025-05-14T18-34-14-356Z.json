@@ -1,0 +1,138 @@
+{
+  "total": 12,
+  "successful": 4,
+  "failed": 7,
+  "fallbacksUsed": 1,
+  "details": [
+    {
+      "name": "Direct Supabase Connection",
+      "success": true,
+      "status": 200,
+      "responseTime": 1977,
+      "data": "Data retrieved successfully",
+      "critical": true,
+      "category": "supabase"
+    },
+    {
+      "name": "Node.js Backend Health Check",
+      "url": "https://fininsight.onrender.com/health",
+      "status": "Failed",
+      "success": false,
+      "error": "All retry attempts failed",
+      "category": "health",
+      "critical": true,
+      "isFallback": false,
+      "timestamp": "2025-05-14T18:33:27.079Z"
+    },
+    {
+      "name": "FastAPI Backend Health Check",
+      "url": "https://fininsight.onrender.com/health",
+      "status": "Failed",
+      "success": false,
+      "error": "All retry attempts failed",
+      "category": "health",
+      "critical": true,
+      "isFallback": false,
+      "timestamp": "2025-05-14T18:33:32.926Z"
+    },
+    {
+      "name": "Supabase Health Check",
+      "url": "https://fininsight.onrender.com/api/supabase/health",
+      "status": "Failed",
+      "success": false,
+      "error": "All retry attempts failed",
+      "category": "health",
+      "critical": true,
+      "isFallback": false,
+      "timestamp": "2025-05-14T18:33:38.769Z"
+    },
+    {
+      "name": "Node.js Stock API",
+      "url": "https://fininsight.onrender.com/api/stocks/market-overview",
+      "status": "Failed",
+      "success": false,
+      "error": "All retry attempts failed",
+      "category": "stocks",
+      "critical": true,
+      "isFallback": false,
+      "timestamp": "2025-05-14T18:33:44.166Z",
+      "fallbackTried": true,
+      "fallbackFailed": true
+    },
+    {
+      "name": "Node.js Indian Stocks API",
+      "url": "https://fininsight.onrender.com/api/market-data/indian-market/overview",
+      "status": 200,
+      "success": true,
+      "responseTime": 429,
+      "responseData": "{\"indices\":[{\"name\":\"NIFTY 50\",\"value\":22345.6,\"change\":123.45,\"change_percent\":0.55,\"timestamp\":\"20...",
+      "category": "stocks",
+      "critical": false,
+      "isFallback": true,
+      "timestamp": "2025-05-14T18:33:53.427Z",
+      "primaryFailed": true,
+      "fallbackUsed": true
+    },
+    {
+      "name": "Netlify API Proxy (Node.js)",
+      "url": "https://fin-path-insight.netlify.app/api/stocks/market-overview",
+      "status": "Failed",
+      "success": false,
+      "error": "All retry attempts failed",
+      "category": "netlify",
+      "critical": true,
+      "isFallback": false,
+      "timestamp": "2025-05-14T18:33:58.616Z"
+    },
+    {
+      "name": "Node.js News API",
+      "url": "https://fininsight.onrender.com/api/news/latest",
+      "status": 200,
+      "success": true,
+      "responseTime": 709,
+      "responseData": "{\"news\":[{\"title\":\"Market Update: Major Indices Show Mixed Results\",\"url\":\"https://example.com/marke...",
+      "category": "news",
+      "critical": false,
+      "isFallback": false,
+      "timestamp": "2025-05-14T18:33:59.326Z"
+    },
+    {
+      "name": "FastAPI Market Data",
+      "url": "https://fininsight.onrender.com/api/market-data/overview",
+      "status": "Failed",
+      "success": false,
+      "error": "All retry attempts failed",
+      "category": "market",
+      "critical": true,
+      "isFallback": false,
+      "timestamp": "2025-05-14T18:34:04.732Z",
+      "fallbackTried": true,
+      "fallbackFailed": true
+    },
+    {
+      "name": "FastAPI Indian Market Data",
+      "url": "https://fininsight.onrender.com/api/market-data/indian-market/overview",
+      "status": 200,
+      "success": true,
+      "responseTime": 463,
+      "responseData": "{\"indices\":[{\"name\":\"NIFTY 50\",\"value\":22345.6,\"change\":123.45,\"change_percent\":0.55,\"timestamp\":\"20...",
+      "category": "market",
+      "critical": false,
+      "isFallback": false,
+      "timestamp": "2025-05-14T18:34:08.050Z"
+    },
+    {
+      "name": "FastAPI Stock Data (RELIANCE.NS)",
+      "url": "https://fininsight.onrender.com/api/market-data/stock/RELIANCE.NS",
+      "status": "Failed",
+      "success": false,
+      "error": "All retry attempts failed",
+      "category": "stocks",
+      "critical": false,
+      "isFallback": false,
+      "timestamp": "2025-05-14T18:34:14.355Z"
+    }
+  ],
+  "timestamp": "2025-05-14T18:33:19.037Z",
+  "environment": "production"
+}

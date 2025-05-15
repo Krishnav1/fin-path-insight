@@ -1,0 +1,99 @@
+name: Update Stock Data
+
+on:
+  schedule:
+    # Run daily at midnight UTC to reduce failures
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+    # Allow manual triggering
+
+jobs:
+  update-stock-data:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        working-directory: ./backend
+        run: npm install
+      
+      - name: Install Supabase client
+        working-directory: ./backend
+        run: npm install @supabase/supabase-js
+      
+      # Using a dedicated step for writing each secret to the .env file
+      # This approach avoids the context access warnings
+      - name: Write SUPABASE_URL to .env
+        working-directory: ./backend
+        run: echo "SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}" > .env
+      
+      - name: Write SUPABASE_ANON_KEY to .env
+        working-directory: ./backend
+        run: echo "SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}" >> .env
+      
+      - name: Write SUPABASE_SERVICE_KEY to .env
+        working-directory: ./backend
+        run: echo "SUPABASE_SERVICE_KEY=${{ secrets.VITE_SUPABASE_SERVICE_KEY }}" >> .env
+      
+      - name: Write additional config to .env
+        working-directory: ./backend
+        run: |
+          echo "NODE_ENV=production" >> .env
+          echo "USE_FALLBACK_DATA=true" >> .env
+          echo "GITHUB_ACTIONS=true" >> .env
+      
+      - name: Run update script with retries
+        working-directory: ./backend
+        run: |
+          # Attempt to run the script with retries
+          max_attempts=3
+          attempt=1
+          
+          while [ $attempt -le $max_attempts ]; do
+            echo "Attempt $attempt of $max_attempts to update stock data"
+            if node scripts/updateStockData.js; then
+              echo "Stock data update successful!"
+              break
+            else
+              echo "Attempt $attempt failed."
+              if [ $attempt -lt $max_attempts ]; then
+                echo "Waiting 30 seconds before retry..."
+                sleep 30
+              fi
+              attempt=$((attempt+1))
+            fi
+          done
+      
+      - name: Clean up .env file
+        working-directory: ./backend
+        run: rm -f .env
+      
+      - name: Commit and push changes
+        run: |
+          git config --global user.name 'GitHub Actions Bot'
+          git config --global user.email 'actions@github.com'
+          
+          # Check if data directory exists and has files
+          if [ -d "backend/public/data" ] && [ "$(ls -A backend/public/data)" ]; then
+            git add backend/public/data/
+            
+            # Only commit if there are changes
+            if ! git diff --staged --quiet; then
+              git commit -m "Update stock data [skip ci]"
+              
+              # Push to GitHub using built-in token
+              git push
+            else
+              echo "No changes to commit"
+            fi
+          else
+            echo "No data directory or empty data directory, skipping commit"
+          fi
