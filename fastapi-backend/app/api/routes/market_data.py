@@ -1,6 +1,8 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends, status
+from fastapi.responses import JSONResponse
 from typing import List, Dict, Any, Optional
 from app.models.schemas import StockPrice, MarketOverview, IndexMovers
+from app.models.validators import StockSymbolValidator, MarketValidator, PaginationValidator
 from app.utils.alpha_vantage_client import (
     fetch_stock_data, 
     fetch_intraday_data, 
@@ -9,24 +11,59 @@ from app.utils.alpha_vantage_client import (
     fetch_market_status
 )
 from app.utils.fmp_client import fetch_indian_market_overview
+from app.utils.supabase_cache import get_cached_data, set_cached_data
 import logging
+import time
+import asyncio
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 @router.get("/stock/{symbol}", response_model=StockPrice)
-async def get_stock_price(symbol: str):
+async def get_stock_price(symbol: str, validator: StockSymbolValidator = Depends()):
     """
     Get current stock price and basic information
     """
     try:
+        # Use the validated symbol from the validator
+        symbol = validator.symbol
+        
+        # Try to get from cache first
+        cache_key = f"stock_price_{symbol}"
+        cached_data = await get_cached_data(cache_key)
+        
+        if cached_data:
+            logger.info(f"Returning cached stock price for {symbol}")
+            return cached_data
+        
+        # Fetch fresh data if not in cache
         data = await fetch_stock_data(symbol)
+        
         if not data:
-            raise HTTPException(status_code=404, detail=f"Stock data for {symbol} not found")
+            logger.warning(f"Stock data for {symbol} not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, 
+                detail=f"Stock data for {symbol} not found"
+            )
+        
+        # Cache the result
+        await set_cached_data(cache_key, data)
+        
         return data
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
     except Exception as e:
         logger.error(f"Error fetching stock price for {symbol}: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "detail": f"Error fetching stock price: {str(e)}",
+                "timestamp": datetime.now().isoformat(),
+                "path": f"/api/market-data/stock/{symbol}"
+            }
+        )
 
 @router.get("/stock/{symbol}/intraday")
 async def get_intraday_data(symbol: str, interval: str = Query("5min", description="Time interval (1min, 5min, 15min, 30min, 60min)")):
@@ -88,49 +125,82 @@ async def get_indian_market_overview():
     Get Indian market overview with key indices and market breadth
     """
     try:
+        # Try to get from cache first
+        cache_key = "indian_market_overview"
+        cached_data = await get_cached_data(cache_key)
+        
+        if cached_data:
+            logger.info("Returning cached Indian market overview")
+            return cached_data
+        
         # Fetch real Indian market data using our FMP client
         market_data = await fetch_indian_market_overview()
+        
+        # Cache the result
+        await set_cached_data(cache_key, market_data)
         
         # Return the data
         return market_data
     except Exception as e:
         logger.error(f"Error fetching Indian market overview: {str(e)}")
-        # Fallback to mock data if real data fetching fails
+        
+        # Check if we have a cached version even if it's expired
+        try:
+            # Use a direct query to get the cached data even if expired
+            from app.db.supabase import supabase
+            filters = {"key": f"eq.{cache_key}"}
+            cache_data = await supabase.select("cache", "*", filters, 1)
+            
+            if cache_data and len(cache_data) > 0:
+                logger.info("Returning expired cached Indian market overview due to fetch error")
+                return cache_data[0]["value"]
+        except Exception as cache_error:
+            logger.error(f"Error getting expired cache: {str(cache_error)}")
+        
+        # Fallback to mock data if real data fetching fails and no cache is available
+        logger.info("Using fallback mock data for Indian market overview")
         indices = [
             {
                 "name": "NIFTY 50",
                 "value": 22345.60,
                 "change": 123.45,
                 "change_percent": 0.55,
-                "timestamp": "2025-05-13T09:30:00"
+                "timestamp": datetime.now().isoformat()
             },
             {
                 "name": "NIFTY BANK",
                 "value": 48765.30,
                 "change": -156.70,
                 "change_percent": -0.32,
-                "timestamp": "2025-05-13T09:30:00"
+                "timestamp": datetime.now().isoformat()
+            },
+            {
+                "name": "SENSEX",
+                "value": 73456.20,
+                "change": 234.50,
+                "change_percent": 0.43,
+                "timestamp": datetime.now().isoformat()
             },
             {
                 "name": "NIFTY IT",
                 "value": 37890.25,
                 "change": 345.60,
                 "change_percent": 0.92,
-                "timestamp": "2025-05-13T09:30:00"
+                "timestamp": datetime.now().isoformat()
             },
             {
                 "name": "NIFTY NEXT 50",
                 "value": 54321.10,
                 "change": 234.50,
                 "change_percent": 0.43,
-                "timestamp": "2025-05-13T09:30:00"
+                "timestamp": datetime.now().isoformat()
             },
             {
                 "name": "INDIA VIX",
                 "value": 14.25,
                 "change": -0.75,
                 "change_percent": -5.00,
-                "timestamp": "2025-05-13T09:30:00"
+                "timestamp": datetime.now().isoformat()
             }
         ]
         
@@ -140,10 +210,18 @@ async def get_indian_market_overview():
             "unchanged": 123
         }
         
-        return {
+        fallback_data = {
             "indices": indices,
             "breadth": breadth
         }
+        
+        # Try to cache the fallback data to prevent repeated fallbacks
+        try:
+            await set_cached_data(cache_key, fallback_data, ttl=300)  # Short TTL for fallback data
+        except Exception as cache_error:
+            logger.error(f"Error caching fallback data: {str(cache_error)}")
+        
+        return fallback_data
 
 @router.get("/indian-market/index-movers/{index_symbol}", response_model=IndexMovers)
 async def get_index_movers(

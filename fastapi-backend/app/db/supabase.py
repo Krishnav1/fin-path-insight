@@ -6,7 +6,8 @@ Provides database access using Supabase with robust error handling
 import os
 import json
 import logging
-from typing import Dict, List, Any, Optional
+import re
+from typing import Dict, List, Any, Optional, Union
 import httpx
 from dotenv import load_dotenv
 from app.core.config import settings
@@ -28,6 +29,12 @@ class SupabaseClient:
         self.url = url or settings.SUPABASE_URL
         raw_key = key or settings.SUPABASE_ANON_KEY
         
+        # Validate URL format
+        if not self._validate_url(self.url):
+            error_msg = f"Invalid Supabase URL format: {self.url}. URL must start with http:// or https://"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+        
         # Clean the key to prevent header issues
         self.key = self._clean_key(raw_key)
         
@@ -40,6 +47,22 @@ class SupabaseClient:
         }
         
         logger.info(f"Initialized Supabase client with URL: {self.url}")
+    
+    def _validate_url(self, url: str) -> bool:
+        """
+        Validate that a URL has the correct format with protocol
+        
+        Args:
+            url: URL to validate
+            
+        Returns:
+            True if valid, False otherwise
+        """
+        if not url:
+            return False
+        
+        url_pattern = re.compile(r'^https?://.*')
+        return bool(url_pattern.match(url))
     
     def _clean_key(self, key: str) -> str:
         """
@@ -219,6 +242,24 @@ class SupabaseClient:
             logger.error(f"Unexpected error during SQL query execution: {str(e)}")
             return []
 
+def create_supabase_client(url: str, key: str) -> SupabaseClient:
+    """
+    Create a new Supabase client with the provided credentials
+    
+    Args:
+        url: Supabase URL
+        key: Supabase API key
+        
+    Returns:
+        SupabaseClient instance
+    """
+    try:
+        client = SupabaseClient(url=url, key=key)
+        return client
+    except Exception as e:
+        logger.error(f"Failed to create Supabase client: {str(e)}")
+        raise
+
 # Create a singleton instance with proper error handling
 try:
     supabase = SupabaseClient()
@@ -226,7 +267,8 @@ try:
 except Exception as e:
     logger.error(f"Failed to initialize Supabase client: {str(e)}")
     # Create a dummy client that will log errors but not crash the app
+    # Using a placeholder URL with protocol to avoid validation errors
     supabase = SupabaseClient(url="https://example.com", key="dummy_key")
 
-# Export the client
-__all__ = ["supabase"]
+# Export the client and factory function
+__all__ = ["supabase", "create_supabase_client"]

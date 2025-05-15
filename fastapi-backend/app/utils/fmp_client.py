@@ -497,146 +497,221 @@ async def fetch_indian_market_overview() -> Dict[str, Any]:
     
     Returns:
         Dictionary with Indian market indices and breadth data
+    
+    Raises:
+        Exception: If there is an error fetching data after all retries
     """
-    cache_key = "indian_market_overview"
+    # Define the Indian indices to fetch - using standard symbols for better compatibility
+    indian_indices = [
+        {"symbol": "^NSEI", "name": "NIFTY 50", "fallback_symbol": "NSEI"},
+        {"symbol": "^NSEBANK", "name": "NIFTY BANK", "fallback_symbol": "NSEBANK"},
+        {"symbol": "^CNXIT", "name": "NIFTY IT", "fallback_symbol": "CNXIT"},
+        {"symbol": "^NSMIDCP", "name": "NIFTY MIDCAP", "fallback_symbol": "NSMIDCP"},
+        {"symbol": "^INDIAVIX", "name": "INDIA VIX", "fallback_symbol": "INDIAVIX"},
+        {"symbol": "^BSESN", "name": "SENSEX", "fallback_symbol": "BSESN"}
+    ]
     
-    # Check if data is in cache and not expired (60 minutes - increased to reduce API calls)
-    if cache_key in api_cache:
-        cache_time, cache_data = api_cache[cache_key]
-        if datetime.now() - cache_time < timedelta(minutes=60):
-            logger.info("Using cached Indian market overview data")
-            return cache_data
+    logger.info(f"Fetching data for {len(indian_indices)} Indian market indices")
     
-    try:
-        # Define the Indian market indices to fetch
-        indian_indices = [
-            {"symbol": "^NSEI", "name": "NIFTY 50"},
-            {"symbol": "^NSEBANK", "name": "NIFTY BANK"},
-            {"symbol": "^CNXIT", "name": "NIFTY IT"},
-            {"symbol": "^INDIAVIX", "name": "INDIA VIX"}
-        ]
+    # Helper function to process a single index with multiple retries and data sources
+    async def process_index(index):
+        max_retries = 3
+        retry_delay = 2  # Initial delay in seconds
         
-        # Helper function to process a single index
-        async def process_index(index):
+        for attempt in range(max_retries):
             try:
-                # First try to get data from FMP API if available
+                # Try different data sources in order of preference
+                
+                # 1. First try FMP API if API key is available
                 if settings.FMP_API_KEY:
                     try:
-                        # For Indian indices, we need to map to FMP symbols
-                        fmp_symbol = index["symbol"].replace("^", "")
+                        # Map to FMP symbols (remove ^ prefix)
+                        fmp_symbol = index["fallback_symbol"]
                         params = {"apikey": settings.FMP_API_KEY}
-                        async with httpx.AsyncClient() as client:
+                        
+                        async with httpx.AsyncClient(timeout=10.0) as client:
                             response = await client.get(f"{BASE_URL}/quote/{fmp_symbol}", params=params)
                             
                             if response.status_code == 200:
                                 data = response.json()
                                 if data and len(data) > 0:
                                     quote = data[0]
+                                    logger.info(f"Successfully fetched {index['name']} data from FMP API")
                                     return {
                                         "name": index["name"],
-                                        "value": quote.get("price", 0),
-                                        "change": quote.get("change", 0),
-                                        "change_percent": quote.get("changesPercentage", 0),
-                                        "timestamp": datetime.now().isoformat()
+                                        "value": float(quote.get("price", 0)),
+                                        "change": float(quote.get("change", 0)),
+                                        "change_percent": float(quote.get("changesPercentage", 0)),
+                                        "timestamp": datetime.now(timezone.utc).isoformat()
                                     }
+                            elif response.status_code == 429:
+                                logger.warning(f"Rate limit hit for FMP API, will retry after delay")
+                                await asyncio.sleep(retry_delay * (2 ** attempt) + random.random())
+                                continue
                     except Exception as fmp_error:
-                        logger.warning(f"FMP API failed for {index['name']}, falling back to yfinance: {str(fmp_error)}")
+                        logger.warning(f"FMP API failed for {index['name']}, attempt {attempt+1}/{max_retries}: {str(fmp_error)}")
                 
-                # Fallback to yfinance with rate limiting protection
-                ticker_info = await perform_yahoo_request(lambda: yf.Ticker(index["symbol"]).info)
+                # 2. Try yfinance with rate limiting protection
+                try:
+                    logger.info(f"Trying yfinance for {index['name']}")
+                    
+                    # Get ticker info with rate limiting
+                    ticker_info = await perform_yahoo_request(lambda: yf.Ticker(index["symbol"]).info)
+                    
+                    # Get historical data to calculate change
+                    hist = await perform_yahoo_request(lambda: yf.Ticker(index["symbol"]).history(period="2d"))
+                    
+                    # Calculate current value and change
+                    if len(hist) >= 2 and "Close" in hist.columns:
+                        prev_close = float(hist["Close"].iloc[-2])
+                        current = float(hist["Close"].iloc[-1])
+                        change = current - prev_close
+                        change_percent = (change / prev_close) * 100 if prev_close > 0 else 0
+                    else:
+                        current = float(ticker_info.get("regularMarketPrice", 0))
+                        prev_close = float(ticker_info.get("previousClose", 0))
+                        change = current - prev_close
+                        change_percent = float(ticker_info.get("regularMarketChangePercent", 0)) * 100
+                    
+                    logger.info(f"Successfully fetched {index['name']} data from yfinance")
+                    return {
+                        "name": index["name"],
+                        "value": current,
+                        "change": change,
+                        "change_percent": change_percent,
+                        "timestamp": datetime.now(timezone.utc).isoformat()
+                    }
+                except Exception as yf_error:
+                    logger.warning(f"yfinance failed for {index['name']}, attempt {attempt+1}/{max_retries}: {str(yf_error)}")
                 
-                # Get historical data to calculate change
-                hist = await perform_yahoo_request(lambda: yf.Ticker(index["symbol"]).history(period="2d"))
+                # If we get here, both methods failed, wait and retry
+                retry_delay_with_jitter = retry_delay * (2 ** attempt) + random.random()
+                logger.warning(f"All data sources failed for {index['name']}, retrying in {retry_delay_with_jitter:.2f}s")
+                await asyncio.sleep(retry_delay_with_jitter)
                 
-                if len(hist) >= 2:
-                    prev_close = hist["Close"].iloc[-2]
-                    current = hist["Close"].iloc[-1]
-                    change = current - prev_close
-                    change_percent = (change / prev_close) * 100 if prev_close > 0 else 0
-                else:
-                    current = ticker_info.get("regularMarketPrice", 0)
-                    prev_close = ticker_info.get("previousClose", 0)
-                    change = current - prev_close
-                    change_percent = ticker_info.get("regularMarketChangePercent", 0) * 100
-                
-                return {
-                    "name": index["name"],
-                    "value": current,
-                    "change": change,
-                    "change_percent": change_percent,
-                    "timestamp": datetime.now().isoformat()
-                }
             except Exception as e:
-                logger.error(f"Error fetching data for {index['name']}: {str(e)}")
-                # Return fallback data if API call fails
-                fallback_data = {
-                    "NIFTY 50": {"value": 22345.60, "change": 123.45, "change_percent": 0.55},
-                    "NIFTY BANK": {"value": 48765.30, "change": -156.70, "change_percent": -0.32},
-                    "NIFTY IT": {"value": 37890.25, "change": 345.60, "change_percent": 0.92},
-                    "INDIA VIX": {"value": 14.25, "change": -0.75, "change_percent": -5.00}
-                }
+                # Unexpected error, log and retry
+                logger.error(f"Unexpected error processing {index['name']}, attempt {attempt+1}/{max_retries}: {str(e)}")
+                await asyncio.sleep(retry_delay * (2 ** attempt) + random.random())
+        
+        # If we get here, all retries failed
+        logger.error(f"All retries failed for {index['name']}, raising exception")
+        raise Exception(f"Failed to fetch data for {index['name']} after {max_retries} attempts")
+        
+        try:
+            # Process indices in batches to avoid rate limiting
+            indices_data = await batch_process(indian_indices, process_index, batch_size=2)
+            
+            # Fetch market breadth data from NSE website
+            breadth = await fetch_market_breadth()
+            
+            result = {
+                "indices": indices_data,
+                "breadth": breadth
+            }
+            
+            logger.info(f"Successfully fetched Indian market overview with {len(indices_data)} indices")
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error in fetch_indian_market_overview: {str(e)}")
+            # Re-raise the exception to be handled by the caller
+            # This allows the route to use its caching strategy
+            raise
+
+async def fetch_market_breadth() -> Dict[str, int]:
+    """
+    Fetch market breadth data (advances, declines, unchanged)
+    
+    Returns:
+        Dictionary with market breadth data
+    """
+    try:
+        # Try to fetch real market breadth data from NSE website
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            # NSE API endpoint for market breadth
+            response = await client.get("https://www.nseindia.com/api/market-data-pre-open?key=ALL")
+            
+            if response.status_code == 200:
+                data = response.json()
+                advances = 0
+                declines = 0
+                unchanged = 0
                 
-                data = fallback_data.get(index["name"], {"value": 0, "change": 0, "change_percent": 0})
-                return {
-                    "name": index["name"],
-                    "value": data["value"],
-                    "change": data["change"],
-                    "change_percent": data["change_percent"],
-                    "timestamp": datetime.now().isoformat()
-                }
+                # Parse the response to get market breadth
+                if "data" in data and isinstance(data["data"], list):
+                    for item in data["data"]:
+                        if "metadata" in item and "pChange" in item["metadata"]:
+                            change = float(item["metadata"]["pChange"])
+                            if change > 0:
+                                advances += 1
+                            elif change < 0:
+                                declines += 1
+                            else:
+                                unchanged += 1
+                
+                if advances > 0 or declines > 0 or unchanged > 0:
+                    logger.info(f"Successfully fetched market breadth: A:{advances}, D:{declines}, U:{unchanged}")
+                    return {
+                        "advances": advances,
+                        "declines": declines,
+                        "unchanged": unchanged
+                    }
         
-        # Process indices in batches to avoid rate limiting
-        indices_data = await batch_process(indian_indices, process_index, batch_size=2)
-        
-        # Use static market breadth data to avoid API rate limits
-        breadth = {
-            "advances": 25,
-            "declines": 20,
-            "unchanged": 5
-        }
-        
-        result = {
-            "indices": indices_data,
-            "breadth": breadth
-        }
-        
-        # Cache the result for longer to reduce API calls
-        api_cache[cache_key] = (datetime.now(), result)
-        
-        return result
+        # If NSE website fails, try alternative source (BSE)
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get("https://api.bseindia.com/BseIndiaAPI/api/MktRGainerLoserData/w")
+            
+            if response.status_code == 200:
+                data = response.json()
+                if "Table" in data and isinstance(data["Table"], list):
+                    advances = sum(1 for item in data["Table"] if item.get("chg", 0) > 0)
+                    declines = sum(1 for item in data["Table"] if item.get("chg", 0) < 0)
+                    unchanged = sum(1 for item in data["Table"] if item.get("chg", 0) == 0)
+                    
+                    logger.info(f"Successfully fetched market breadth from BSE: A:{advances}, D:{declines}, U:{unchanged}")
+                    return {
+                        "advances": advances,
+                        "declines": declines,
+                        "unchanged": unchanged
+                    }
+    
     except Exception as e:
-        logger.error(f"Error fetching Indian market overview: {str(e)}")
-        # Return fallback data if everything fails
+        logger.warning(f"Error fetching market breadth: {str(e)}")
+    
+    # If all attempts fail, use estimated values based on index performance
+    # This is better than hardcoded values
+    try:
+        # Get the NIFTY 50 performance to estimate market breadth
+        ticker_info = await perform_yahoo_request(lambda: yf.Ticker("^NSEI").info)
+        change_percent = ticker_info.get("regularMarketChangePercent", 0)
+        
+        # Estimate breadth based on index performance
+        if change_percent > 1.5:  # Strong positive day
+            advances, declines = 40, 10
+        elif change_percent > 0.5:  # Positive day
+            advances, declines = 35, 15
+        elif change_percent > -0.5:  # Flat day
+            advances, declines = 25, 25
+        elif change_percent > -1.5:  # Negative day
+            advances, declines = 15, 35
+        else:  # Strong negative day
+            advances, declines = 10, 40
+        
+        unchanged = 50 - advances - declines
+        
+        logger.info(f"Using estimated market breadth based on index performance: A:{advances}, D:{declines}, U:{unchanged}")
         return {
-            "indices": [
-                {
-                    "name": "NIFTY 50",
-                    "value": 22345.60,
-                    "change": 123.45,
-                    "change_percent": 0.55,
-                    "timestamp": datetime.now().isoformat()
-                },
-                {
-                    "name": "NIFTY BANK",
-                    "value": 48765.30,
-                    "change": -156.70,
-                    "change_percent": -0.32,
-                    "timestamp": datetime.now().isoformat()
-                },
-                {
-                    "name": "NIFTY IT",
-                    "value": 37890.25,
-                    "change": 345.60,
-                    "change_percent": 0.92,
-                    "timestamp": datetime.now().isoformat()
-                },
-                {
-                    "name": "INDIA VIX",
-                    "value": 14.25,
-                    "change": -0.75,
-                    "change_percent": -5.00,
-                    "timestamp": datetime.now().isoformat()
-                }
-            ],
-            "breadth": {"advances": 25, "declines": 20, "unchanged": 5}
+            "advances": advances,
+            "declines": declines,
+            "unchanged": unchanged
         }
+    except Exception as e:
+        logger.error(f"Error estimating market breadth: {str(e)}")
+    
+    # Last resort fallback
+    return {
+        "advances": 25,
+        "declines": 20,
+        "unchanged": 5
+    }
