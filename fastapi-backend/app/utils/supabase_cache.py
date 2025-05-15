@@ -90,7 +90,9 @@ async def get_cached_data(key: str) -> Optional[Dict[str, Any]]:
                 created_at = datetime.fromisoformat(cache_item["created_at"].replace("Z", "+00:00"))
                 ttl = settings.SUPABASE_TTL_CACHE
                 
-                if datetime.now() - created_at < timedelta(seconds=ttl):
+                # Use datetime.now(timezone.utc) to get an aware datetime for comparison
+                from datetime import timezone
+                if datetime.now(timezone.utc) - created_at < timedelta(seconds=ttl):
                     # Cache is still valid
                     return cache_item["value"]
                 else:
@@ -189,7 +191,8 @@ async def clear_expired_cache() -> bool:
             response = client.table("cache").select("*").execute()
             
             if response.data:
-                now = datetime.now()
+                from datetime import timezone
+                now = datetime.now(timezone.utc)
                 ttl = settings.SUPABASE_TTL_CACHE
                 
                 for cache_item in response.data:
