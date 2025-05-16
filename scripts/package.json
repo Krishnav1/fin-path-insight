@@ -1,0 +1,6 @@
+{
+  "name": "fin-path-insight-scripts",
+  "version": "1.0.0",
+  "description": "Helper scripts for FinPath Insight",
+  "type": "module"
+}

@@ -1,0 +1,12 @@
+{
+  "name": "getinvestmentreport-function",
+  "version": "1.0.0",
+  "description": "Netlify function to generate investment reports using yfinance, EODHD, and Gemini 1.5 Pro",
+  "main": "getInvestmentReport.js",
+  "dependencies": {
+    "@google/generative-ai": "^0.1.3",
+    "@supabase/supabase-js": "^2.39.7",
+    "node-fetch": "^2.6.7",
+    "yahoo-finance2": "^2.9.1"
+  }
+}

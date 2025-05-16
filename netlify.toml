@@ -1,15 +1,23 @@
 [build]
-  command = "npm run build"
+  command = "npm install && npm run postinstall && npm run netlify-build"
   publish = "dist"
-  environment = { NODE_VERSION = "18" }
+  environment = { NODE_VERSION = "18.18.0" }
 
-# Proxy API requests to the FastAPI backend
-[[redirects]]
-  from = "/api/*"
-  to = "https://fininsight.onrender.com/api/:splat"
-  status = 200
-  force = true
-  headers = {Access-Control-Allow-Origin = "*"}
+[functions]
+  node_bundler = "esbuild"
+  external_node_modules = ["@google/generative-ai"]
+
+[functions.fingenieChat]
+  timeout = 30
+
+[functions.getInvestmentReport]
+  timeout = 30
+
+[functions.finGenieOracle]
+  timeout = 30
+
+# API requests will be handled by Netlify Functions
+# No proxy redirect needed as we're using /.netlify/functions/* paths directly
 
 # Handle client-side routing
 [[redirects]]

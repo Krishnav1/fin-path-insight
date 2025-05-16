@@ -15,6 +15,10 @@ import FinGenie from "@/components/FinGenie";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
+import CompleteProfile from "./pages/CompleteProfile";
+import AuthCallback from "./pages/Auth/Callback";
 import MarketOverview from "./pages/MarketOverview";
 import NotFound from "./pages/NotFound";
 import Dashboard from "./pages/Dashboard";
@@ -67,6 +71,10 @@ const App = () => (
                   <Route path="/" element={<Index />} />
                   <Route path="/login" element={<Login />} />
                   <Route path="/signup" element={<Signup />} />
+                  <Route path="/forgot-password" element={<ForgotPassword />} />
+                  <Route path="/reset-password" element={<ResetPassword />} />
+                  <Route path="/auth/callback" element={<AuthCallback />} />
+                  <Route path="/complete-profile" element={<CompleteProfile />} />
                   <Route path="/markets" element={<MarketOverview />} />
                   <Route path="/indian-market" element={<IndianMarketPage />} />
                   

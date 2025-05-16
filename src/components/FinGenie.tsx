@@ -82,21 +82,28 @@ export default function FinGenie() {
     }, 100);
     
     try {
-      // Send the message to our backend API
-      const response = await axios.post('/fastapi/fingenie/chat', {
-        userId: userId,
-        message: userMessage.content
-      }, {
+      // Send the message to our Netlify function
+      const response = await fetch('/.netlify/functions/fingenieChat', {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json'
-        }
+        },
+        body: JSON.stringify({
+          userId: userId,
+          message: userMessage.content
+        })
       });
       
       let responseContent = FALLBACK_RESPONSE;
       
       // Check if we have a valid response
-      if (response.data && response.data.message) {
-        responseContent = response.data.message;
+      if (response.ok) {
+        const data = await response.json();
+        if (data && data.reply) {
+          responseContent = data.reply;
+        }
+      } else {
+        console.error('Error communicating with FinGenie API:', await response.text());
       }
       
       // Create the AI response message

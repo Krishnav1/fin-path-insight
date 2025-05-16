@@ -1,136 +1,400 @@
 import { createContext, useContext, useEffect, useState } from 'react'
-// import { User } from '@supabase/supabase-js'
-// import { supabase } from '@/lib/supabase'
-
-// User type definition
-export type User = {
-  id: string;
-  email: string;
-  username?: string;
-  avatarUrl?: string;
-};
+import { User, Session, AuthError } from '@supabase/supabase-js'
+import { supabase, Profile } from '@/lib/supabase'
+import { useToast } from '@/components/ui/use-toast'
 
 type AuthContextType = {
   user: User | null
+  profile: Profile | null
+  session: Session | null
   loading: boolean
-  signIn: (email: string, password: string) => Promise<void>
-  signUp: (email: string, password: string) => Promise<void>
+  signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>
+  signUp: (email: string, password: string, firstName: string, lastName: string) => Promise<{ error: AuthError | null }>
+  signInWithOAuth: (provider: 'google' | 'github') => Promise<void>
   signOut: () => Promise<void>
-  updateUserProfile: (data: { username?: string; avatar_url?: string }) => Promise<void>
+  resetPassword: (email: string) => Promise<{ error: AuthError | null }>
+  updateProfile: (data: Partial<Profile>) => Promise<{ error: Error | null }>
+  verifyOTP: (phone: string, token: string) => Promise<boolean>
+  sendMobileOTP: (phone: string) => Promise<boolean>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-// Helper functions for localStorage
-const saveUserToStorage = (user: User) => {
-  localStorage.setItem('user', JSON.stringify(user));
-};
-
-const getUserFromStorage = (): User | null => {
-  const userStr = localStorage.getItem('user');
-  if (!userStr) return null;
-  try {
-    return JSON.parse(userStr);
-  } catch (e) {
-    console.error('Error parsing user from localStorage', e);
-    return null;
-  }
-};
-
-const removeUserFromStorage = () => {
-  localStorage.removeItem('user');
-};
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
+  const [profile, setProfile] = useState<Profile | null>(null)
+  const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
+  const { toast } = useToast()
 
-  // Load user from localStorage on initial render
+  // Listen for auth state changes
   useEffect(() => {
-    try {
-      const savedUser = getUserFromStorage();
-      if (savedUser) {
-        setUser(savedUser);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, currentSession) => {
+        setSession(currentSession)
+        setUser(currentSession?.user ?? null)
+
+        if (currentSession?.user) {
+          // Fetch user profile
+          await fetchUserProfile(currentSession.user.id)
+        } else {
+          setProfile(null)
+        }
+
+        setLoading(false)
       }
-    } catch (error) {
-      console.error('Error loading user from storage:', error);
-    } finally {
-      setLoading(false);
+    )
+
+    // Get initial session
+    const initializeAuth = async () => {
+      setLoading(true)
+      const { data: { session: initialSession } } = await supabase.auth.getSession()
+      
+      if (initialSession) {
+        setSession(initialSession)
+        setUser(initialSession.user)
+        await fetchUserProfile(initialSession.user.id)
+      }
+      
+      setLoading(false)
+    }
+
+    initializeAuth()
+
+    return () => {
+      subscription.unsubscribe()
     }
   }, [])
 
+  // Fetch user profile from Supabase
+  const fetchUserProfile = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single()
+
+      if (error) {
+        console.error('Error fetching user profile:', error)
+        return
+      }
+
+      setProfile(data as Profile)
+    } catch (error) {
+      console.error('Error fetching user profile:', error)
+    }
+  }
+
+  // Sign in with email and password
   const signIn = async (email: string, password: string) => {
-    // For demo purposes - in a real app you would validate against your API
-    // Simple validation
-    if (!email || !password) {
-      throw new Error('Email and password are required');
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+
+      if (error) {
+        toast({
+          title: 'Sign in failed',
+          description: error.message,
+          variant: 'destructive',
+        })
+        return { error }
+      }
+
+      toast({
+        title: 'Welcome back!',
+        description: 'You have successfully signed in.',
+      })
+
+      return { error: null }
+    } catch (err) {
+      console.error('Unexpected error during sign in:', err)
+      toast({
+        title: 'Sign in failed',
+        description: 'An unexpected error occurred. Please try again.',
+        variant: 'destructive',
+      })
+      return { error: err as AuthError }
     }
-    
-    if (password.length < 6) {
-      throw new Error('Password must be at least 6 characters');
-    }
-    
-    // Create a demo user - in real app this would come from your backend
-    const newUser = { 
-      id: '1', 
-      email,
-      username: email.split('@')[0],
-    };
-    
-    setUser(newUser);
-    saveUserToStorage(newUser);
-    return Promise.resolve();
   }
 
-  const signUp = async (email: string, password: string) => {
-    // For demo purposes - in a real app you would register with your API
-    if (!email || !password) {
-      throw new Error('Email and password are required');
+  // Sign up with email and password
+  const signUp = async (email: string, password: string, firstName: string, lastName: string) => {
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          data: {
+            first_name: firstName,
+            last_name: lastName,
+          }
+        }
+      })
+
+      if (error) {
+        toast({
+          title: 'Sign up failed',
+          description: error.message,
+          variant: 'destructive',
+        })
+        return { error }
+      }
+
+      toast({
+        title: 'Check your email',
+        description: 'We sent you a confirmation link to complete your registration.',
+      })
+
+      return { error: null }
+    } catch (err) {
+      console.error('Unexpected error during sign up:', err)
+      toast({
+        title: 'Sign up failed',
+        description: 'An unexpected error occurred. Please try again.',
+        variant: 'destructive',
+      })
+      return { error: err as AuthError }
     }
-    
-    if (password.length < 6) {
-      throw new Error('Password must be at least 6 characters');
-    }
-    
-    // Create a new user
-    const newUser = { 
-      id: '1', 
-      email,
-      username: email.split('@')[0],
-    };
-    
-    setUser(newUser);
-    saveUserToStorage(newUser);
-    return Promise.resolve();
   }
 
+  // Sign in with OAuth provider
+  const signInWithOAuth = async (provider: 'google' | 'github') => {
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        }
+      })
+
+      if (error) {
+        toast({
+          title: 'Sign in failed',
+          description: error.message,
+          variant: 'destructive',
+        })
+      }
+    } catch (err) {
+      console.error(`Error signing in with ${provider}:`, err)
+      toast({
+        title: 'Sign in failed',
+        description: 'An unexpected error occurred. Please try again.',
+        variant: 'destructive',
+      })
+    }
+  }
+
+  // Sign out
   const signOut = async () => {
-    setUser(null);
-    removeUserFromStorage();
-    return Promise.resolve();
+    try {
+      const { error } = await supabase.auth.signOut()
+      if (error) {
+        toast({
+          title: 'Sign out failed',
+          description: error.message,
+          variant: 'destructive',
+        })
+        return
+      }
+
+      setUser(null)
+      setProfile(null)
+      setSession(null)
+      
+      toast({
+        title: 'Signed out',
+        description: 'You have been successfully signed out.',
+      })
+    } catch (err) {
+      console.error('Error signing out:', err)
+      toast({
+        title: 'Sign out failed',
+        description: 'An unexpected error occurred. Please try again.',
+        variant: 'destructive',
+      })
+    }
   }
 
-  const updateUserProfile = async (data: { username?: string; avatar_url?: string }) => {
-    if (!user) throw new Error('No user logged in');
-    
-    const updatedUser = { 
-      ...user, 
-      username: data.username || user.username,
-      avatarUrl: data.avatar_url || user.avatarUrl
-    };
-    
-    setUser(updatedUser);
-    saveUserToStorage(updatedUser);
-    return Promise.resolve();
+  // Reset password
+  const resetPassword = async (email: string) => {
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      })
+
+      if (error) {
+        toast({
+          title: 'Password reset failed',
+          description: error.message,
+          variant: 'destructive',
+        })
+        return { error }
+      }
+
+      toast({
+        title: 'Check your email',
+        description: 'We sent you a password reset link.',
+      })
+
+      return { error: null }
+    } catch (err) {
+      console.error('Error resetting password:', err)
+      toast({
+        title: 'Password reset failed',
+        description: 'An unexpected error occurred. Please try again.',
+        variant: 'destructive',
+      })
+      return { error: err as AuthError }
+    }
+  }
+
+  // Update user profile
+  const updateProfile = async (data: Partial<Profile>) => {
+    try {
+      if (!user) {
+        throw new Error('No user logged in')
+      }
+
+      const { error } = await supabase
+        .from('profiles')
+        .update(data)
+        .eq('id', user.id)
+
+      if (error) {
+        toast({
+          title: 'Profile update failed',
+          description: error.message,
+          variant: 'destructive',
+        })
+        return { error }
+      }
+
+      // Refresh profile data
+      await fetchUserProfile(user.id)
+
+      toast({
+        title: 'Profile updated',
+        description: 'Your profile has been successfully updated.',
+      })
+
+      return { error: null }
+    } catch (err) {
+      console.error('Error updating profile:', err)
+      toast({
+        title: 'Profile update failed',
+        description: 'An unexpected error occurred. Please try again.',
+        variant: 'destructive',
+      })
+      return { error: err as Error }
+    }
+  }
+
+  // Send mobile OTP
+  const sendMobileOTP = async (phone: string) => {
+    try {
+      if (!user) {
+        throw new Error('No user logged in')
+      }
+
+      // Call RPC function to generate OTP
+      const { data, error } = await supabase
+        .rpc('generate_mobile_otp', { user_id: user.id })
+
+      if (error) {
+        console.error('Error generating OTP:', error)
+        toast({
+          title: 'OTP generation failed',
+          description: error.message,
+          variant: 'destructive',
+        })
+        return false
+      }
+
+      // In a real app, you would send this OTP via SMS
+      // For demo purposes, we'll just show it in a toast
+      toast({
+        title: 'OTP sent',
+        description: `Your OTP is: ${data}. In a real app, this would be sent via SMS.`,
+      })
+
+      return true
+    } catch (err) {
+      console.error('Error sending OTP:', err)
+      toast({
+        title: 'OTP sending failed',
+        description: 'An unexpected error occurred. Please try again.',
+        variant: 'destructive',
+      })
+      return false
+    }
+  }
+
+  // Verify mobile OTP
+  const verifyOTP = async (phone: string, token: string) => {
+    try {
+      if (!user) {
+        throw new Error('No user logged in')
+      }
+
+      // Call RPC function to verify OTP
+      const { data, error } = await supabase
+        .rpc('verify_mobile_otp', { user_id: user.id, otp: token })
+
+      if (error) {
+        console.error('Error verifying OTP:', error)
+        toast({
+          title: 'OTP verification failed',
+          description: error.message,
+          variant: 'destructive',
+        })
+        return false
+      }
+
+      if (data) {
+        toast({
+          title: 'OTP verified',
+          description: 'Your phone number has been verified.',
+        })
+        
+        // Update profile with verified phone
+        await updateProfile({ mobile_number: phone })
+        return true
+      } else {
+        toast({
+          title: 'Invalid OTP',
+          description: 'The OTP you entered is invalid or has expired.',
+          variant: 'destructive',
+        })
+        return false
+      }
+    } catch (err) {
+      console.error('Error verifying OTP:', err)
+      toast({
+        title: 'OTP verification failed',
+        description: 'An unexpected error occurred. Please try again.',
+        variant: 'destructive',
+      })
+      return false
+    }
   }
 
   const value = {
     user,
+    profile,
+    session,
     loading,
     signIn,
     signUp,
+    signInWithOAuth,
     signOut,
-    updateUserProfile,
+    resetPassword,
+    updateProfile,
+    sendMobileOTP,
+    verifyOTP
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

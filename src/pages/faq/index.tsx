@@ -55,13 +55,13 @@ export default function FAQPage() {
       questions: [
         {
           id: 'free-plan',
-          question: 'What's included in the free plan?',
-          answer: 'Our free plan includes access to basic market data, limited stock screening capabilities, basic portfolio tracking, financial calculators, learning resources, and limited queries with our AI assistant. It's designed to give you a solid foundation for your investment journey.'
+          question: 'What is included in the free plan?',
+          answer: 'Our free plan includes access to basic market data, limited stock screening capabilities, basic portfolio tracking, financial calculators, learning resources, and limited queries with our AI assistant. It  is designed to give you a solid foundation for your investment journey.'
         },
         {
           id: 'premium-plans',
           question: 'When will premium plans be available?',
-          answer: 'We're currently developing our premium offerings with advanced features and expect to launch them in Q3 2025. Premium plans will include real-time data, advanced analytics, unlimited AI queries, portfolio optimization tools, and much more.'
+          answer: 'We are currently developing our premium offerings with advanced features and expect to launch them in Q3 2025. Premium plans will include real-time data, advanced analytics, unlimited AI queries, portfolio optimization tools, and much more.'
         }
       ]
     },

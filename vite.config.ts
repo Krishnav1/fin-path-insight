@@ -1,29 +1,21 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
+import { fileURLToPath } from 'url';
 import { componentTagger } from "lovable-tagger";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   // Load env file based on mode
   const env = loadEnv(mode, process.cwd());
   
-  // Default to localhost:8000 if FASTAPI_URL is not defined
-  const fastApiUrl = env.FASTAPI_URL || 'http://localhost:8000';
-  
   return {
   server: {
     host: "::",
-    port: 8080,
-    proxy: {
-      // Proxy API requests to FastAPI backend
-      '/api': {
-        target: fastApiUrl,
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
-        secure: false,
-      }
-    }
+    port: 8080
   },
   plugins: [
     react(),

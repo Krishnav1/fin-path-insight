@@ -1,0 +1,16 @@
+{
+  "name": "fin-genie-oracle",
+  "version": "1.0.0",
+  "description": "Enhanced Fin Genie financial assistant using Gemini 1.5 Pro",
+  "main": "finGenieOracle.js",
+  "dependencies": {
+    "@google/generative-ai": "^0.2.0",
+    "axios": "^1.6.2"
+  },
+  "scripts": {
+    "postinstall": "pip install -r requirements.txt"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

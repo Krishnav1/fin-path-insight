@@ -1,0 +1,10 @@
+{
+  "name": "fingenie-chat-function",
+  "version": "1.0.0",
+  "description": "Netlify function for FinGenie chat using Gemini 1.5 Pro",
+  "main": "fingenieChat.js",
+  "dependencies": {
+    "@google/generative-ai": "^0.1.3",
+    "@supabase/supabase-js": "^2.39.7"
+  }
+}

@@ -47,9 +47,24 @@ export default function News() {
       setError(null);
       
       try {
-        // Make API call to get market news
-        const response = await axios.get(`/fastapi/news/market/${market || 'global'}`);
-        const apiNewsItems: NewsItem[] = response.data.articles || response.data;
+        // Use GNews API directly instead of FastAPI
+        const gnewsApiKey = import.meta.env.VITE_GNEWS_API_KEY || ''; // Get from environment variables
+        const query = market === 'global' ? 'finance OR economy OR stock market' : `${market} stock market OR economy`;
+        const response = await fetch(`https://gnews.io/api/v4/search?q=${encodeURIComponent(query)}&token=${gnewsApiKey}&lang=en&max=10`);
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch news: ${response.status} ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        const apiNewsItems: NewsItem[] = data.articles?.map(article => ({
+          title: article.title,
+          url: article.url,
+          source: article.source?.name || 'Unknown',
+          publishedAt: article.publishedAt,
+          snippet: article.description,
+          image: article.image
+        })) || [];
         
         // Add category field to each news item based on content analysis
         const categorizedNews = apiNewsItems.map(item => {
