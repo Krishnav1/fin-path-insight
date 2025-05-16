@@ -57,13 +57,20 @@ export default function FinGenieChat() {
       // Import API configuration
       const API = await import("@/config/api").then(module => module.default);
       
-      const response = await fetch(API.endpoints.fingenieChat, {
+      // Determine if this is an Oracle-style query (financial analysis, stock info, etc.)
+      const isOracleQuery = /stock|market|p\/e ratio|dividend|invest|finance|economy|etf|fund|crypto|bitcoin|portfolio|nasdaq|dow|s&p|price|trend/i.test(input);
+      
+      // Choose the appropriate endpoint based on query type
+      const endpoint = isOracleQuery ? API.endpoints.finGenieOracle : API.endpoints.fingenieChat;
+      
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
           message: input,
+          query: input, // For Oracle compatibility
           userId: user?.id || "anonymous",
         }),
       });

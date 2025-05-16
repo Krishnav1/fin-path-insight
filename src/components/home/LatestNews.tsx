@@ -126,28 +126,27 @@ export default function LatestNews() {
     const fetchNews = async () => {
       setLoading(true);
       setError(null);
+      
       try {
-        // Use the latest news API endpoint
+        // For now, we'll use mock data instead of the failing GNEWS API
+        // When you have a valid API key, you can uncomment the API call below
+        /*
         const response = await axios.get(`/api/news/latest?market=${market}`);
-        // Ensure response.data is an array before setting it
         if (Array.isArray(response.data)) {
           setNews(response.data);
-        } else if (response.data && typeof response.data === 'object') {
-          // If it's an object with data property that's an array
-          if (Array.isArray(response.data.data)) {
-            setNews(response.data.data);
-          } else {
-            console.error('API response is not an array:', response.data);
-            setNews(market === "global" ? mockGlobalNews : mockIndiaNews);
-          }
+        } else if (response.data && typeof response.data === 'object' && Array.isArray(response.data.data)) {
+          setNews(response.data.data);
         } else {
-          console.error('Invalid API response format:', response.data);
-          setNews(market === "global" ? mockGlobalNews : mockIndiaNews);
+          throw new Error('Invalid API response format');
         }
+        */
+        
+        // Use mock data based on selected market
+        setNews(market === "global" ? mockGlobalNews : mockIndiaNews);
+        
       } catch (err) {
         console.error('Error fetching latest news:', err);
-        setError('Failed to load latest news');
-        // Fallback to mock data if API fails
+        // Don't show error to user since we're using mock data
         setNews(market === "global" ? mockGlobalNews : mockIndiaNews);
       } finally {
         setLoading(false);

@@ -1,6 +1,12 @@
-import React, { useState, useEffect, useContext } from 'react';
-import { Box, TextField, Button, Typography, CircularProgress, Paper, Divider } from '@mui/material';
+import React, { useState } from 'react';
+import { Send, Loader2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
+import { toast } from 'sonner';
 import { useFinGenie } from '../contexts/FinGenieContext';
 
 const FinGenieOracle = () => {
@@ -8,7 +14,6 @@ const FinGenieOracle = () => {
   const [response, setResponse] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  // Using the FinGenieContext properly
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -48,72 +53,65 @@ const FinGenieOracle = () => {
   };
 
   return (
-    <Box sx={{ width: '100%', maxWidth: '800px', mx: 'auto', p: 2 }}>
-      <Typography variant="h5" gutterBottom>
-        Fin Genie Oracle
-      </Typography>
-      <Typography variant="body2" color="text.secondary" gutterBottom>
-        Ask any financial question - from stock analysis to market trends, definitions, and more.
-      </Typography>
+    <Card className="w-full max-w-4xl mx-auto shadow-lg border-primary/20">
+      <CardHeader className="bg-primary/5 border-b">
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-xl">Fin Genie Oracle</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Ask any financial question - from stock analysis to market trends, definitions, and more.
+            </p>
+          </div>
+          <Badge variant="outline" className="bg-primary/10">AI Powered</Badge>
+        </div>
+      </CardHeader>
       
-      <Box component="form" onSubmit={handleSubmit} sx={{ mt: 3 }}>
-        <TextField
-          fullWidth
-          label="Your financial query"
-          variant="outlined"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="E.g., 'What's the current state of AAPL stock?' or 'Explain P/E ratio'"
-          multiline
-          rows={2}
-          disabled={loading}
-        />
-        <Button 
-          type="submit" 
-          variant="contained" 
-          color="primary" 
-          sx={{ mt: 2 }}
-          disabled={loading || !query.trim()}
-        >
-          {loading ? <CircularProgress size={24} /> : 'Ask Fin Genie'}
-        </Button>
-      </Box>
-      
-      {error && (
-        <Paper sx={{ p: 2, mt: 3, bgcolor: '#FFEBEE' }}>
-          <Typography color="error">Error: {error}</Typography>
-        </Paper>
-      )}
-      
-      {response && !loading && (
-        <Paper sx={{ p: 3, mt: 3 }}>
-          <Typography variant="h6" gutterBottom>
-            Fin Genie's Analysis
-          </Typography>
-          <Divider sx={{ mb: 2 }} />
-          <Box sx={{ 
-            '& a': { color: 'primary.main' },
-            '& table': { borderCollapse: 'collapse', width: '100%', mb: 2 },
-            '& th, & td': { border: '1px solid #ddd', p: 1 },
-            '& th': { bgcolor: '#f5f5f5' }
-          }}>
-            <ReactMarkdown>{response.answer}</ReactMarkdown>
-          </Box>
-          
-          {response.dataFetched && (
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>
-              Data sources: yfinance and/or EODHD API
-            </Typography>
+      <CardContent className="p-0">
+        <ScrollArea className="h-[400px] p-4">
+          {error && (
+            <div className="p-3 my-3 bg-destructive/10 text-destructive rounded-md border border-destructive/20">
+              <p>Error: {error}</p>
+            </div>
           )}
           
-          {response.dataErrors && (
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-              Note: Some data could not be retrieved. Fin Genie has provided the best analysis with available information.
-            </Typography>
+          {response && !loading && (
+            <div className="p-4 my-3 bg-card rounded-lg border">
+              <h3 className="text-lg font-semibold mb-2">Fin Genie's Analysis</h3>
+              <div className="border-t pt-2 prose prose-sm dark:prose-invert max-w-none">
+                <ReactMarkdown>{response.answer}</ReactMarkdown>
+              </div>
+              
+              {response.dataFetched && (
+                <p className="text-xs text-muted-foreground mt-3">
+                  Data sources: yfinance and/or EODHD API
+                </p>
+              )}
+              
+              {response.dataErrors && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Note: Some data could not be retrieved. Fin Genie has provided the best analysis with available information.
+                </p>
+              )}
+            </div>
           )}
-        </Paper>
-      )}
-    </Box>
+        </ScrollArea>
+      </CardContent>
+      
+      <CardFooter className="border-t p-4">
+        <form onSubmit={handleSubmit} className="flex w-full gap-2">
+          <Input
+            placeholder="Ask about P/E ratios, stock analysis, market trends, or financial definitions..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            disabled={loading}
+            className="flex-1"
+          />
+          <Button type="submit" disabled={loading || !query.trim()}>
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+          </Button>
+        </form>
+      </CardFooter>
+    </Card>
   );
 };
 
