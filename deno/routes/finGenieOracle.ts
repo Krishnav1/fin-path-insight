@@ -1,5 +1,13 @@
 // FinGenie Oracle API for Deno Deploy
-import { GoogleGenerativeAI } from "npm:@google/generative-ai";
+import { GoogleGenerativeAI } from "https://esm.sh/@google/generative-ai@0.2.1";
+
+// Declare Deno namespace for TypeScript
+declare namespace Deno {
+  export interface Env {
+    get(key: string): string | undefined;
+  }
+  export const env: Env;
+}
 
 // Cache for storing responses to avoid hitting rate limits
 interface CachedResponse {
