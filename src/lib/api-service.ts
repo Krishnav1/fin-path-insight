@@ -5,7 +5,9 @@ const ALPHA_VANTAGE_API_KEY = '6LXHJ0IQFYHN4LOW'; // Alpha Vantage API key
 const FMP_API_KEY = 't9MOrZBPrRnGQ6vSynrboJZIM3IGy8nT'; // Financial Modeling Prep API key
 
 // Base URLs for different APIs
-const ALPHA_VANTAGE_BASE_URL = 'https://www.alphavantage.co/query';
+const ALPHA_VANTAGE_BASE_URL = 'https://www.alphavantage.co/query'; // No longer used, replaced with EODHD
+const EODHD_BASE_URL = 'https://eodhd.com/api';
+const EODHD_API_KEY = import.meta.env.VITE_EODHD_API_KEY || '6825d040e69a53.46529931';
 const FMP_BASE_URL = 'https://financialmodelingprep.com/api/v3';
 
 // Alternative API for some data sources (cryptocompare for crypto data)
@@ -63,9 +65,9 @@ export type ForexQuote = {
 const dataCache = new Map();
 
 /**
- * Get global quote for a stock symbol using Alpha Vantage
+ * Get global quote for a stock symbol using EODHD API
  */
-export async function getStockQuote(symbol: string): Promise<StockQuote | null> {
+export async function getAlphaVantageStockQuote(symbol: string): Promise<StockQuote | null> {
   try {
     const response = await axios.get(ALPHA_VANTAGE_BASE_URL, {
       params: {
@@ -78,7 +80,7 @@ export async function getStockQuote(symbol: string): Promise<StockQuote | null> 
     const data = response.data['Global Quote'];
     
     if (!data || Object.keys(data).length === 0) {
-      console.log(`No data found for symbol: ${symbol}`);
+      console.log(`No data found for ${symbol}, using fallback`);
       return getFallbackStockData(symbol);
     }
 
@@ -954,9 +956,11 @@ export async function getFMPStockData(symbol: string): Promise<any> {
         peRatio: data.pe,
         eps: data.eps,
         volume: data.volume,
-        lastUpdated: new Date().toISOString()
+        lastUpdated: data.timestamp,
       };
     }
+    
+    console.error(`Error: No data found for ${symbol}`);
     return null;
   } catch (error) {
     console.error(`Error fetching FMP stock data for ${symbol}:`, error);
@@ -964,8 +968,21 @@ export async function getFMPStockData(symbol: string): Promise<any> {
   }
 }
 
-// Enhanced function to get comprehensive Alpha Vantage data for a stock
-export async function getAlphaVantageComprehensiveData(symbol: string, isIndian: boolean = false): Promise<any> {
+// Get stock quote using EODHD API
+export async function getStockQuote(symbol: string): Promise<any> {
+  try {
+    const response = await axios.get(
+      `${EODHD_BASE_URL}/real-time/${symbol}?fmt=json&api_token=${EODHD_API_KEY}`
+    );
+    return response.data;
+  } catch (error) {
+    console.error(`Error fetching stock quote for ${symbol}:`, error);
+    return null;
+  }
+}
+
+// Enhanced function to get comprehensive stock data using EODHD API
+export async function getComprehensiveStockData(symbol: string, isIndian: boolean = false): Promise<any> {
   // Format symbol correctly for API
   const apiSymbol = isIndian && !symbol.includes('.NS') ? `${symbol}.NS` : symbol;
   
@@ -979,16 +996,16 @@ export async function getAlphaVantageComprehensiveData(symbol: string, isIndian:
   }
   
   try {
-    console.log(`Fetching comprehensive Alpha Vantage data for ${apiSymbol}...`);
+    console.log(`Fetching comprehensive EODHD data for ${apiSymbol}...`);
     
     // 1. Company Overview - contains fundamental data
     const overviewResponse = await axios.get(
-      `${ALPHA_VANTAGE_BASE_URL}?function=OVERVIEW&symbol=${apiSymbol}&apikey=${ALPHA_VANTAGE_API_KEY}`
+      `${EODHD_BASE_URL}/fundamentals/${apiSymbol}?api_token=${EODHD_API_KEY}`
     );
     
     // 2. Quote Data - for current price, change, etc.
     const quoteResponse = await axios.get(
-      `${ALPHA_VANTAGE_BASE_URL}?function=GLOBAL_QUOTE&symbol=${apiSymbol}&apikey=${ALPHA_VANTAGE_API_KEY}`
+      `${EODHD_BASE_URL}/real-time/${apiSymbol}?fmt=json&api_token=${EODHD_API_KEY}`
     );
     
     // Add small delay to avoid API rate limits
@@ -996,7 +1013,7 @@ export async function getAlphaVantageComprehensiveData(symbol: string, isIndian:
     
     // 3. Daily Time Series - for charts (last 100 data points)
     const timeSeriesResponse = await axios.get(
-      `${ALPHA_VANTAGE_BASE_URL}?function=TIME_SERIES_DAILY&symbol=${apiSymbol}&outputsize=compact&apikey=${ALPHA_VANTAGE_API_KEY}`
+      `${EODHD_BASE_URL}/eod/${apiSymbol}?period=d&fmt=json&order=d&limit=100&api_token=${EODHD_API_KEY}`
     );
     
     // Add small delay to avoid API rate limits
@@ -1004,11 +1021,20 @@ export async function getAlphaVantageComprehensiveData(symbol: string, isIndian:
     
     // 4. Income Statement - for financials
     const incomeResponse = await axios.get(
-      `${ALPHA_VANTAGE_BASE_URL}?function=INCOME_STATEMENT&symbol=${apiSymbol}&apikey=${ALPHA_VANTAGE_API_KEY}`
+      `${EODHD_BASE_URL}/fundamentals/${apiSymbol}?filter=Income_Statement&api_token=${EODHD_API_KEY}`
     );
     
+    // Define company info type
+    type CompanyInfo = {
+      foundedYear?: number;
+      ceo?: string;
+      headquarters?: string;
+      website?: string;
+      description?: string;
+    };
+    
     // 5. Company information - Add more company specific details for India
-    let companyInfo = {};
+    let companyInfo: CompanyInfo = {};
     let companyDescription = '';
     let ceoName = '';
     
@@ -1150,8 +1176,18 @@ export async function getAlphaVantageComprehensiveData(symbol: string, isIndian:
     const cleanSymbol = isIndian ? symbol.replace('.NS', '') : symbol;
     const displaySymbol = isIndian && !symbol.includes('.NS') ? symbol : cleanSymbol;
     
+    // Define chart data type
+    type ChartDataPoint = {
+      date: Date;
+      close: number;
+      open: number;
+      high: number;
+      low: number;
+      volume: number;
+    };
+    
     // Format chart data if available
-    let chartData = [];
+    let chartData: ChartDataPoint[] = [];
     if (Object.keys(timeSeries).length > 0) {
       chartData = Object.keys(timeSeries).map(date => ({
         date: new Date(date),
@@ -1163,187 +1199,41 @@ export async function getAlphaVantageComprehensiveData(symbol: string, isIndian:
       })).sort((a, b) => a.date.getTime() - b.date.getTime());
     }
     
-    // Format yearly financial data
-    const yearlyFinancials = [];
-    if (incomeStatement.length > 0) {
-      for (let i = 0; i < Math.min(4, incomeStatement.length); i++) {
-        const income = incomeStatement[i];
-        
-        const fiscalYear = income.fiscalDateEnding ? parseInt(income.fiscalDateEnding.split('-')[0]) : null;
-        if (!fiscalYear) continue;
-        
-        yearlyFinancials.push({
-          year: fiscalYear,
-          revenue: parseFloat(income.totalRevenue || '0'),
-          netIncome: parseFloat(income.netIncome || '0'),
-          eps: parseFloat(income.reportedEPS || '0'),
-          grossProfit: parseFloat(income.grossProfit || '0'),
-          operatingIncome: parseFloat(income.operatingIncome || '0'),
-          totalOperatingExpenses: parseFloat(income.totalOperatingExpenses || '0'),
-          ebitda: parseFloat(income.ebitda || '0')
-        });
-      }
-    }
-    
-    // Calculate financial ratios
-    let revenueGrowth = 0;
-    if (yearlyFinancials.length > 1 && yearlyFinancials[1].revenue !== 0) {
-      revenueGrowth = ((yearlyFinancials[0].revenue - yearlyFinancials[1].revenue) / yearlyFinancials[1].revenue) * 100;
-    }
-    
-    let profitMargin = 0;
-    if (yearlyFinancials.length > 0 && yearlyFinancials[0].revenue !== 0) {
-      profitMargin = (yearlyFinancials[0].netIncome / yearlyFinancials[0].revenue) * 100;
-    }
-    
-    // Calculate key business strengths based on financial data
-    const strengths = [];
-    const weaknesses = [];
-    
-    // Evaluate financial metrics to determine strengths and weaknesses
-    if (revenueGrowth > 10) {
-      strengths.push("Strong revenue growth");
-    } else if (revenueGrowth < 0) {
-      weaknesses.push("Declining revenue");
-    } else if (revenueGrowth < 5) {
-      weaknesses.push("Slow revenue growth");
-    }
-    
-    if (profitMargin > 15) {
-      strengths.push("High profit margin");
-    } else if (profitMargin < 0) {
-      weaknesses.push("Negative profit margin");
-    } else if (profitMargin < 8) {
-      weaknesses.push("Low profit margin");
-    }
-    
-    const peRatio = parseFloat(overview.PERatio || '0');
-    if (peRatio > 0 && peRatio < 15) {
-      strengths.push("Attractive valuation (low P/E)");
-    } else if (peRatio > 30) {
-      weaknesses.push("High valuation (high P/E)");
-    }
-    
-    // Fill strengths/weaknesses to have at least 3 items
-    const potentialStrengths = [
-      "Strong market position",
-      "Diversified product portfolio",
-      "Robust cash flow generation",
-      "Industry leadership",
-      "Strong brand recognition",
-      "Global presence"
-    ];
-    
-    const potentialWeaknesses = [
-      "Increasing competition",
-      "Regulatory challenges",
-      "Macroeconomic sensitivity",
-      "Foreign exchange exposure",
-      "High debt levels",
-      "Cyclical business model"
-    ];
-    
-    while (strengths.length < 3) {
-      const randomStrength = potentialStrengths[Math.floor(Math.random() * potentialStrengths.length)];
-      if (!strengths.includes(randomStrength)) {
-        strengths.push(randomStrength);
-      }
-    }
-    
-    while (weaknesses.length < 3) {
-      const randomWeakness = potentialWeaknesses[Math.floor(Math.random() * potentialWeaknesses.length)];
-      if (!weaknesses.includes(randomWeakness)) {
-        weaknesses.push(randomWeakness);
-      }
-    }
-    
-    // Get company news (using mock data since Alpha Vantage doesn't provide news)
-    const newsData = generateMockNews(apiSymbol);
-    
-    // Use company description from our database if available or from overview
-    const description = companyInfo.description || overview.Description || 
-      `${overview.Name || getSymbolName(apiSymbol)} operates in the ${overview.Sector || 'various'} sector, providing ${overview.Industry || 'various'} products and services.`;
-    
-    // Compile comprehensive data
-    const resultData = {
-      symbol: apiSymbol,
-      displaySymbol: displaySymbol,
-      name: overview.Name || getSymbolName(apiSymbol),
-      exchange: overview.Exchange || (isIndian ? 'NSE' : 'NYSE/NASDAQ'),
-      price: parseFloat(quote['05. price']) || 0,
-      change: parseFloat(quote['09. change']) || 0,
-      changePercent: parseFloat(quote['10. change percent'].replace('%', '')) || 0,
-      
-      // Company info (stable data)
-      foundedYear: companyInfo.foundedYear || 1990,
-      ceo: companyInfo.ceo || "Unknown",
-      headquarters: companyInfo.headquarters || "Unknown",
-      website: companyInfo.website || `https://www.${displaySymbol.toLowerCase()}.com`,
-      description,
-      
-      // Fundamental data
-      marketCap: parseFloat(overview.MarketCapitalization || '0'),
-      peRatio: parseFloat(overview.PERatio || '0'),
-      eps: parseFloat(overview.EPS || '0'),
-      dividendYield: parseFloat(overview.DividendYield || '0') * 100, // Convert to percentage
-      
-      // From financial statements
-      sector: overview.Sector || (isIndian ? 'Various' : 'Technology'),
-      industry: overview.Industry || (isIndian ? 'Various' : 'Software'),
-      
-      // Additional metrics
-      beta: parseFloat(overview.Beta || '0'),
-      high52Week: parseFloat(overview['52WeekHigh'] || '0'),
-      low52Week: parseFloat(overview['52WeekLow'] || '0'),
-      
-      // Calculated metrics
-      revenueGrowth,
-      profitMargin,
-      
-      // Business analysis
-      strengths,
-      weaknesses,
-      businessModel: `${overview.Name || getSymbolName(apiSymbol)} ${companyInfo.description || overview.Description || 'operates in the market providing products and services to its customers.'}`,
-      
-      // Volume data
-      volume: parseInt(quote['06. volume'] || '0'),
-      
-      // Chart and financial data arrays
-      chartData,
-      yearlyFinancials,
-      
-      // News data
-      news: newsData,
-      
-      // Timestamp
-      lastUpdated: new Date().toISOString()
+    // Define financial data type
+    type YearlyFinancial = {
+      year: number;
+      revenue: number;
+      netIncome: number;
+      eps: number;
+      grossProfit: number;
+      operatingIncome: number;
+      totalOperatingExpenses: number;
+      ebitda: number;
     };
-    
-    // Cache the data
-    dataCache.set(cacheKey, {
-      data: resultData,
-      timestamp: now
-    });
-    
-    return resultData;
-  } catch (error) {
-    console.error(`Error fetching comprehensive Alpha Vantage data for ${apiSymbol}:`, error);
-    
-    // Return fallback data if API call fails
-    const fallbackData = isIndian ? generateIndianStockFallbackData(symbol) : generateGlobalStockFallbackData(symbol);
-    
-    // Cache the fallback data too (but only for 5 minutes)
-    dataCache.set(cacheKey, {
-      data: fallbackData,
-      timestamp: now - (10 * 60 * 1000) // Set as if it was cached 10 minutes ago
-    });
-    
-    return fallbackData;
-  }
-}
+
+// Define fallback data types
+type FallbackFinancial = {
+  year: number;
+  revenue: number;
+  netIncome: number;
+  eps: number;
+  grossProfit: number;
+  operatingIncome: number;
+  totalOperatingExpenses: number;
+  ebitda: number;
+};
+
+type FallbackChartPoint = {
+  date: Date;
+  close: number;
+  open: number;
+  high: number;
+  low: number;
+  volume: number;
+};
 
 // Generate fallback data for Indian stocks when API fails
-function generateIndianStockFallbackData(symbol: string): any {
+export function generateIndianStockFallbackData(symbol: string): any {
   // Clean the symbol (remove .NS if present)
   const cleanSymbol = symbol.replace('.NS', '');
   
@@ -1816,12 +1706,17 @@ function generateGlobalStockFallbackData(symbol: string): any {
 
 // Update the getIndianStockData to use the comprehensive data function
 export async function getIndianStockData(symbol: string): Promise<any> {
-  return getAlphaVantageComprehensiveData(symbol, true);
+  return getComprehensiveStockData(symbol, true);
 }
 
-// Update the getGlobalStockData to use the comprehensive data function
+// Update the getUSStockData to use the comprehensive data function
+export async function getUSStockData(symbol: string): Promise<any> {
+  return getComprehensiveStockData(symbol, false);
+}
+
+// Rename getGlobalStockData to use the US stock data function
 export async function getGlobalStockData(symbol: string): Promise<any> {
-  return getAlphaVantageComprehensiveData(symbol, false);
+  return getUSStockData(symbol);
 }
 
 // Updated multi-source function that uses market-specific functions
@@ -1837,4 +1732,6 @@ export async function getMultiSourceStockData(symbol: string, market: string = '
   } else {
     return getGlobalStockData(cleanSymbol);
   }
-} 
+}
+
+// End of file

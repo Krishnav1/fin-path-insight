@@ -18,7 +18,7 @@ export async function fetchMarketData(type?: string): Promise<MarketDataType[]> 
   try {
     // Use the Deno API endpoint instead of direct database access
     const apiUrl = import.meta.env.PROD 
-      ? `https://finpath-api.deno.dev/api/market-data${type ? `?type=${type}` : ''}` 
+      ? `https://fininsight-api.deno.dev/api/market-data${type ? `?type=${type}` : ''}` 
       : `http://localhost:8000/api/market-data${type ? `?type=${type}` : ''}`;
     
     const response = await fetch(apiUrl);

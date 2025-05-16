@@ -5,7 +5,7 @@
 const getBaseApiUrl = () => {
   // For production, use the Deno Deploy URL
   if (import.meta.env.PROD) {
-    return 'https://finpath-api.deno.dev';
+    return 'https://fininsight-api.deno.dev';
   }
   
   // For development, use the local Deno server

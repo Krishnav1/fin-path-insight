@@ -8,13 +8,13 @@
   external_node_modules = ["@google/generative-ai"]
 
 [functions.fingenieChat]
-  timeout = 30
+  timeout = 60
 
 [functions.getInvestmentReport]
-  timeout = 30
+  timeout = 60
 
 [functions.finGenieOracle]
-  timeout = 30
+  timeout = 60
 
 # API requests can be handled by both Netlify Functions and Deno Deploy
 # Adding redirects for direct API calls to Deno Deploy
