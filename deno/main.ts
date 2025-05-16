@@ -65,7 +65,8 @@ async function handler(req: Request): Promise<Response> {
     }
   } catch (error) {
     console.error(`Error handling request to ${path}:`, error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown server error';
+    return new Response(JSON.stringify({ error: errorMessage }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

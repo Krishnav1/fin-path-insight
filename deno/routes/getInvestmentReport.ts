@@ -222,9 +222,15 @@ export async function getInvestmentReport(req: Request, corsHeaders: Record<stri
     );
   }
   
+  // Define body variable outside try block so it's accessible in catch
+  let requestBody: { ticker?: string; query?: string } = {};
+  
   try {
     // Parse request body
     const body = await req.json();
+    
+    // Store in outer variable for access in catch block
+    requestBody = body;
     
     // Extract ticker and query from request
     const { ticker: rawTicker, query: userQuery } = body;
@@ -263,11 +269,41 @@ export async function getInvestmentReport(req: Request, corsHeaders: Record<stri
     // Parse ticker into different formats
     const tickerInfo = parseTicker(rawTicker);
     
-    // Initialize aggregated data structure
+    // Define interfaces for type safety
+    interface RealTimePrice {
+      currentPrice?: number;
+      currentPriceFormatted?: string;
+      dayChange?: number;
+      dayChangePercent?: number;
+      previousClose?: number;
+      dayOpen?: number;
+      dayHigh?: number;
+      dayLow?: number;
+      currency?: string;
+    }
+    
+    interface Fundamentals {
+      marketCap?: number;
+      marketCapFormatted?: string;
+      beta?: number;
+      trailingPE?: number;
+      forwardPE?: number;
+      priceToSalesTrailing12Months?: number;
+      priceToBook?: number;
+      enterpriseToEbitda?: number;
+      fiftyTwoWeekHigh?: number;
+      fiftyTwoWeekHighFormatted?: string;
+      fiftyTwoWeekLow?: number;
+      fiftyTwoWeekLowFormatted?: string;
+      averageVolume?: number;
+      dividendYield?: number;
+    }
+    
+    // Initialize aggregated data structure with proper types
     let aggregatedData = {
       tickerInfo: tickerInfo,
-      realTimePrice: {},
-      fundamentals: {},
+      realTimePrice: {} as RealTimePrice,
+      fundamentals: {} as Fundamentals,
       technicals: {},
       news: [],
       analystRatings: {}
@@ -337,6 +373,29 @@ export async function getInvestmentReport(req: Request, corsHeaders: Record<stri
     if (aggregatedData?.fundamentals?.marketCap) {
       aggregatedData.fundamentals.marketCapFormatted = formatCurrency(
         aggregatedData.fundamentals.marketCap,
+        aggregatedData?.realTimePrice?.currency || 'USD'
+      );
+    }
+    
+    // Format current price with proper currency
+    if (aggregatedData?.realTimePrice?.currentPrice) {
+      aggregatedData.realTimePrice.currentPriceFormatted = formatCurrency(
+        aggregatedData.realTimePrice.currentPrice,
+        aggregatedData?.realTimePrice?.currency || 'USD'
+      );
+    }
+    
+    // Format 52-week high/low with proper currency
+    if (aggregatedData?.fundamentals?.fiftyTwoWeekHigh) {
+      aggregatedData.fundamentals.fiftyTwoWeekHighFormatted = formatCurrency(
+        aggregatedData.fundamentals.fiftyTwoWeekHigh,
+        aggregatedData?.realTimePrice?.currency || 'USD'
+      );
+    }
+    
+    if (aggregatedData?.fundamentals?.fiftyTwoWeekLow) {
+      aggregatedData.fundamentals.fiftyTwoWeekLowFormatted = formatCurrency(
+        aggregatedData.fundamentals.fiftyTwoWeekLow,
         aggregatedData?.realTimePrice?.currency || 'USD'
       );
     }
@@ -419,8 +478,8 @@ This report is for informational purposes only and does not constitute investmen
     return new Response(
       JSON.stringify({
         error: `Failed to generate investment report: ${errorMessage}`,
-        ticker: body?.ticker,
-        query: body?.query
+        ticker: requestBody?.ticker,
+        query: requestBody?.query
       }),
       {
         status: 500,

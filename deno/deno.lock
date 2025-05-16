@@ -1,0 +1,22 @@
+{
+  "version": "5",
+  "specifiers": {
+    "npm:@google/generative-ai@0.2.1": "0.2.1"
+  },
+  "npm": {
+    "@google/generative-ai@0.2.1": {
+      "integrity": "sha512-gNmMFadfwi7qf/6M9gImgyGJXY1jKQ/de8vGOqgJ0PPYgQ7WwzZDavbKrIuXS2zdqZZaYtxW3EFN6aG9x5wtFw=="
+    }
+  },
+  "remote": {
+    "https://deno.land/std@0.220.1/async/delay.ts": "8e1d18fe8b28ff95885e2bc54eccec1713f57f756053576d8228e6ca110793ad",
+    "https://deno.land/std@0.220.1/http/server.ts": "cc8ae0de927c3afc855466b89bf9a7a3196223f47f2723e218912c6ca3eb166c",
+    "https://deno.land/std@0.221.0/async/delay.ts": "8e1d18fe8b28ff95885e2bc54eccec1713f57f756053576d8228e6ca110793ad",
+    "https://deno.land/std@0.221.0/http/server.ts": "cc8ae0de927c3afc855466b89bf9a7a3196223f47f2723e218912c6ca3eb166c"
+  },
+  "workspace": {
+    "dependencies": [
+      "npm:@google/generative-ai@0.2.1"
+    ]
+  }
+}

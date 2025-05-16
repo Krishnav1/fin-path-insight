@@ -26,9 +26,15 @@ export async function finGenieOracle(req: Request, corsHeaders: Record<string, s
     );
   }
 
+  // Define requestBody outside try block so it's accessible in catch
+  let requestBody: { userId?: string; query?: string } = {};
+
   try {
     // Parse request body
     const body = await req.json();
+    
+    // Store in outer variable for access in catch block
+    requestBody = body;
     
     // Extract query from request
     const { query, userId = "anonymous" } = body;
@@ -148,7 +154,7 @@ Please try your specific query again in a few minutes.
         JSON.stringify({
           response: fallbackResponse,
           error: errorMsg,
-          userId: body?.userId || "anonymous",
+          userId: requestBody?.userId || "anonymous",
           fallback: true
         }),
         {
@@ -162,7 +168,7 @@ Please try your specific query again in a few minutes.
     return new Response(
       JSON.stringify({
         error: `Failed to process oracle request: ${errorMsg}`,
-        userId: body?.userId || "anonymous"
+        userId: requestBody?.userId || "anonymous"
       }),
       {
         status: statusCode,

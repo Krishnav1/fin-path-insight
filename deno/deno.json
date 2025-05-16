@@ -16,7 +16,6 @@
   },
   "compilerOptions": {
     "lib": ["deno.ns", "dom", "esnext"],
-    "allowJs": true,
     "checkJs": false
   },
   "lint": {
