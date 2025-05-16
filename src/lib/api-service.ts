@@ -61,8 +61,55 @@ export type ForexQuote = {
   timestamp: string;
 };
 
-// Add a simple cache to prevent constant data regeneration
-const dataCache = new Map();
+// Enhanced caching system with expiration
+interface CacheItem<T> {
+  data: T;
+  timestamp: number;
+  expiry: number;
+}
+
+class ApiCache {
+  private cache: Map<string, CacheItem<any>> = new Map();
+  private readonly DEFAULT_TTL = 5 * 60 * 1000; // 5 minutes default
+
+  get<T>(key: string): T | null {
+    const item = this.cache.get(key);
+    if (!item) return null;
+    
+    const now = Date.now();
+    if (now > item.expiry) {
+      this.cache.delete(key);
+      return null;
+    }
+    
+    return item.data as T;
+  }
+
+  set<T>(key: string, data: T, ttl: number = this.DEFAULT_TTL): void {
+    const timestamp = Date.now();
+    const expiry = timestamp + ttl;
+    this.cache.set(key, { data, timestamp, expiry });
+  }
+
+  clear(): void {
+    this.cache.clear();
+  }
+
+  // Clear expired items (can be called periodically)
+  clearExpired(): void {
+    const now = Date.now();
+    for (const [key, item] of this.cache.entries()) {
+      if (now > item.expiry) {
+        this.cache.delete(key);
+      }
+    }
+  }
+}
+
+const apiCache = new ApiCache();
+
+// Clear expired cache items every 10 minutes
+setInterval(() => apiCache.clearExpired(), 10 * 60 * 1000);
 
 /**
  * Get global quote for a stock symbol using EODHD API
@@ -969,7 +1016,7 @@ export async function getFMPStockData(symbol: string): Promise<any> {
 }
 
 // Get stock quote using EODHD API
-export async function getStockQuote(symbol: string): Promise<any> {
+async function getStockQuote(symbol: string): Promise<any> {
   try {
     const response = await axios.get(
       `${EODHD_BASE_URL}/real-time/${symbol}?fmt=json&api_token=${EODHD_API_KEY}`
@@ -981,6 +1028,30 @@ export async function getStockQuote(symbol: string): Promise<any> {
   }
 }
 
+// Forward declarations to avoid reference errors
+let generateIndianStockFallbackData: (symbol: string) => any;
+let generateGlobalStockFallbackData: (symbol: string) => any;
+
+// Function to get stock data from multiple sources with consistent interface
+export async function getMultiSourceStockData(symbol: string, market: string = 'global'): Promise<any> {
+  const isIndian = market === 'india';
+  
+  try {
+    // Use comprehensive stock data function which already handles both markets
+    return await getComprehensiveStockData(symbol, isIndian);
+  } catch (error) {
+    console.error(`Error fetching data for ${symbol}:`, error);
+    
+    // Fallback to appropriate market data
+    if (isIndian) {
+      const cleanSymbol = symbol.replace('.NS', '');
+      return generateIndianStockFallbackData(cleanSymbol);
+    } else {
+      return generateGlobalStockFallbackData(symbol);
+    }
+  }
+}
+
 // Enhanced function to get comprehensive stock data using EODHD API
 export async function getComprehensiveStockData(symbol: string, isIndian: boolean = false): Promise<any> {
   // Format symbol correctly for API
@@ -988,11 +1059,10 @@ export async function getComprehensiveStockData(symbol: string, isIndian: boolea
   
   // Check cache first (cache for 15 minutes)
   const cacheKey = `${apiSymbol}_data`;
-  const cachedData = dataCache.get(cacheKey);
-  const now = new Date().getTime();
-  if (cachedData && (now - cachedData.timestamp) < 15 * 60 * 1000) {
+  const cachedData = apiCache.get(cacheKey);
+  if (cachedData) {
     console.log(`Using cached data for ${apiSymbol}`);
-    return cachedData.data;
+    return cachedData;
   }
   
   try {
@@ -1157,11 +1227,8 @@ export async function getComprehensiveStockData(symbol: string, isIndian: boolea
         ...companyInfo
       };
       
-      // Cache the data
-      dataCache.set(cacheKey, {
-        data: enhancedMockData,
-        timestamp: now
-      });
+      // Cache the data for 15 minutes
+      apiCache.set(cacheKey, enhancedMockData, 15 * 60 * 1000);
       
       return enhancedMockData;
     }
@@ -1233,7 +1300,7 @@ type FallbackChartPoint = {
 };
 
 // Generate fallback data for Indian stocks when API fails
-export function generateIndianStockFallbackData(symbol: string): any {
+generateIndianStockFallbackData = function(symbol: string = ''): any {
   // Clean the symbol (remove .NS if present)
   const cleanSymbol = symbol.replace('.NS', '');
   
@@ -1319,7 +1386,7 @@ export function generateIndianStockFallbackData(symbol: string): any {
   }
   
   // Generate financial data for past years
-  const yearlyFinancials = [];
+  const yearlyFinancials: FallbackFinancial[] = [];
   const currentYear = new Date().getFullYear();
   const baseRevenue = marketCap * 0.25; // Revenue as percentage of market cap
   
@@ -1351,8 +1418,8 @@ export function generateIndianStockFallbackData(symbol: string): any {
     Math.random() * 10 + 5;
   
   // Business strengths/weaknesses
-  const strengths = [];
-  const weaknesses = [];
+  const strengths: string[] = [];
+  const weaknesses: string[] = [];
   
   // Add some common strengths/weaknesses
   const potentialStrengths = [
@@ -1396,7 +1463,7 @@ export function generateIndianStockFallbackData(symbol: string): any {
   const newsData = generateMockNews(`${cleanSymbol}.NS`);
   
   // Generate chart data
-  const chartData = [];
+  const chartData: FallbackChartPoint[] = [];
   let currentPrice = basePrice;
   const today = new Date();
   
@@ -1452,7 +1519,7 @@ export function generateIndianStockFallbackData(symbol: string): any {
     // Business analysis
     strengths,
     weaknesses,
-    businessModel: companyInfo.description,
+
     
     // Volume data
     volume,
@@ -1470,7 +1537,7 @@ export function generateIndianStockFallbackData(symbol: string): any {
 }
 
 // Generate fallback data for global stocks when API fails
-function generateGlobalStockFallbackData(symbol: string): any {
+generateGlobalStockFallbackData = function(symbol: string = ''): any {
   // Get company name
   const name = getSymbolName(symbol);
   
@@ -1553,7 +1620,7 @@ function generateGlobalStockFallbackData(symbol: string): any {
   }
   
   // Generate financial data for past years
-  const yearlyFinancials = [];
+  const yearlyFinancials: FallbackFinancial[] = [];
   const currentYear = new Date().getFullYear();
   const baseRevenue = marketCap * 0.3; // Revenue as percentage of market cap
   
@@ -1585,8 +1652,8 @@ function generateGlobalStockFallbackData(symbol: string): any {
     Math.random() * 15 + 10;
   
   // Business strengths/weaknesses
-  const strengths = [];
-  const weaknesses = [];
+  const strengths: string[] = [];
+  const weaknesses: string[] = [];
   
   // Add some common strengths/weaknesses
   const potentialStrengths = [
@@ -1631,7 +1698,7 @@ function generateGlobalStockFallbackData(symbol: string): any {
   const newsData = generateMockNews(symbol);
   
   // Generate chart data
-  const chartData = [];
+  const chartData: FallbackChartPoint[] = [];
   let currentPrice = basePrice;
   const today = new Date();
   
@@ -1687,7 +1754,6 @@ function generateGlobalStockFallbackData(symbol: string): any {
     // Business analysis
     strengths,
     weaknesses,
-    businessModel: companyInfo.description,
     
     // Volume data
     volume,
@@ -1702,25 +1768,33 @@ function generateGlobalStockFallbackData(symbol: string): any {
     // Timestamp
     lastUpdated: new Date().toISOString()
   };
+} // Closes the try block
+} catch (error) {
+  console.error(`Error fetching comprehensive data for ${symbol}:`, error);
+  // Return fallback data based on market type
+  const fallbackData = isIndian ? generateIndianStockFallbackData(symbol) : generateGlobalStockFallbackData(symbol);
+  // Cache the fallback data for 15 minutes
+  apiCache.set(cacheKey, fallbackData, 15 * 60 * 1000);
+  return fallbackData;
 }
 
 // Update the getIndianStockData to use the comprehensive data function
-export async function getIndianStockData(symbol: string): Promise<any> {
+async function getIndianStockData(symbol: string): Promise<any> {
   return getComprehensiveStockData(symbol, true);
 }
 
 // Update the getUSStockData to use the comprehensive data function
-export async function getUSStockData(symbol: string): Promise<any> {
+async function getUSStockData(symbol: string): Promise<any> {
   return getComprehensiveStockData(symbol, false);
 }
 
 // Rename getGlobalStockData to use the US stock data function
-export async function getGlobalStockData(symbol: string): Promise<any> {
+async function getGlobalStockData(symbol: string): Promise<any> {
   return getUSStockData(symbol);
 }
 
 // Updated multi-source function that uses market-specific functions
-export async function getMultiSourceStockData(symbol: string, market: string = 'global'): Promise<any> {
+async function getMultiSourceStockData(symbol: string, market: string = 'global'): Promise<any> {
   // Determine if this is an Indian stock by market parameter or symbol pattern
   const isIndianStock = market === 'india';
   
@@ -1733,5 +1807,4 @@ export async function getMultiSourceStockData(symbol: string, market: string = '
     return getGlobalStockData(cleanSymbol);
   }
 }
-
-// End of file
+}

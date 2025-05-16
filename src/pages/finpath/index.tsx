@@ -25,7 +25,14 @@ import {
 export default function FinPathPage() {
   const navigate = useNavigate();
   const { section } = useParams<{ section?: string }>();
-  const [activeTab, setActiveTab] = useState(section || 'overview');
+  
+  // Handle both 'assessment' and 'investor-assessment' routes
+  let initialTab = section || 'overview';
+  if (section === 'assessment') {
+    initialTab = 'investor-assessment';
+  }
+  
+  const [activeTab, setActiveTab] = useState(initialTab);
   
   // Mock data for learning path
   const learningPath = [
@@ -116,7 +123,7 @@ export default function FinPathPage() {
       title: 'Investor Assessment',
       description: 'Understand your risk profile and investment style',
       icon: <User className="h-5 w-5" />,
-      link: '/finpath/investor-assessment'
+      link: '/finpath/assessment'
     },
     {
       id: 'learning-path',
@@ -148,7 +155,14 @@ export default function FinPathPage() {
   // Handle tab change
   const handleTabChange = (value: string) => {
     setActiveTab(value);
-    navigate(`/finpath${value === 'overview' ? '' : `/${value}`}`);
+    
+    // Use 'assessment' in the URL for better SEO and user-friendly URLs
+    let urlPath = value;
+    if (value === 'investor-assessment') {
+      urlPath = 'assessment';
+    }
+    
+    navigate(`/finpath${urlPath === 'overview' ? '' : `/${urlPath}`}`);
   };
 
   return (

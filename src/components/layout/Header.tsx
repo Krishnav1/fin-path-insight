@@ -35,13 +35,22 @@ export default function Header() {
   
   const handleSignOut = async () => {
     try {
-      await signOut();
-      toast({
-        title: "Successfully logged out",
-        description: "You have been logged out of your account.",
-      });
-      navigate("/");
+      const success = await signOut();
+      if (success) {
+        // Force a page reload to ensure all state is cleared
+        navigate("/");
+        setTimeout(() => {
+          window.location.reload();
+        }, 100);
+      } else {
+        toast({
+          title: "Error signing out",
+          description: "There was a problem signing you out. Please try again.",
+          variant: "destructive",
+        });
+      }
     } catch (error) {
+      console.error('Error during sign out:', error);
       toast({
         title: "Error signing out",
         description: "There was a problem signing you out. Please try again.",

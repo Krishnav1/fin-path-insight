@@ -1,3 +1,4 @@
+import { Suspense, lazy } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -11,49 +12,68 @@ import { FinGenieProvider } from "@/contexts/FinGenieContext";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import FinGenie from "@/components/FinGenie";
 
-// Pages
+// Core pages (not lazy loaded for better initial load performance)
 import Index from "./pages/Index";
-import Login from "./pages/Login";
-import Signup from "./pages/Signup";
-import ForgotPassword from "./pages/ForgotPassword";
-import ResetPassword from "./pages/ResetPassword";
-import CompleteProfile from "./pages/CompleteProfile";
-import AuthCallback from "./pages/Auth/Callback";
-import MarketOverview from "./pages/MarketOverview";
 import NotFound from "./pages/NotFound";
-import Dashboard from "./pages/Dashboard";
-import Profile from "./pages/Profile";
-import Settings from "./pages/Settings";
-import News from "./pages/News";
-import NewsDetail from "./pages/NewsDetail";
-import Learn from "./pages/Learn";
-import FinPath from "./pages/finpath/index";
-import FinWell from "./pages/FinWell";
-import Tools from "./pages/Tools";
-import CompanyAnalysis from "./pages/CompanyAnalysis";
-import FinGeniePage from "./pages/FinGeniePage";
-import AdminPanel from "./pages/AdminPanel";
 
-// New Components
-import StockDetails from "./components/StockDetails";
-import CryptoDetails from "./components/CryptoDetails";
-import IndianMarketPage from "./components/IndianMarket/IndianMarketPage";
+// Loading component
+const LoadingFallback = () => (
+  <div className="flex items-center justify-center min-h-screen">
+    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-fin-primary"></div>
+  </div>
+);
 
-// New Pages
-import AboutPage from "./pages/about/index";
-import ContactPage from "./pages/contact/index";
-import PricingPage from "./pages/pricing/index";
-import FAQPage from "./pages/faq/index";
-import TermsPage from "./pages/terms/index";
-import PrivacyPage from "./pages/privacy/index";
+// Lazy loaded pages for better performance
+const Login = lazy(() => import("./pages/Login"));
+const Signup = lazy(() => import("./pages/Signup"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const CompleteProfile = lazy(() => import("./pages/CompleteProfile"));
+const AuthCallback = lazy(() => import("./pages/Auth/Callback"));
+const MarketOverview = lazy(() => import("./pages/MarketOverview"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Profile = lazy(() => import("./pages/Profile"));
+const Settings = lazy(() => import("./pages/Settings"));
+const News = lazy(() => import("./pages/News"));
+const NewsDetail = lazy(() => import("./pages/NewsDetail"));
+const Learn = lazy(() => import("./pages/Learn"));
+const FinPath = lazy(() => import("./pages/finpath/index"));
+const FinWell = lazy(() => import("./pages/FinWell"));
+const Tools = lazy(() => import("./pages/Tools"));
+const CompanyAnalysis = lazy(() => import("./pages/CompanyAnalysis"));
+const FinGeniePage = lazy(() => import("./pages/FinGeniePage"));
+const AdminPanel = lazy(() => import("./pages/AdminPanel"));
 
-// Tool Pages
-import StockScreenerPage from "./pages/tools/stock-screener/index";
-import PortfolioAnalyzerPage from "./pages/tools/portfolio-analyzer/index";
-import TechnicalAnalysisPage from "./pages/tools/technical-analysis/index";
-import FinGenieToolPage from "./pages/tools/fingenie/index";
+// Lazy loaded components
+const StockDetails = lazy(() => import("./components/StockDetails"));
+const CryptoDetails = lazy(() => import("./components/CryptoDetails"));
+const IndianMarketPage = lazy(() => import("./components/IndianMarket/IndianMarketPage"));
 
-const queryClient = new QueryClient();
+// Lazy loaded static pages
+const AboutPage = lazy(() => import("./pages/about/index"));
+const ContactPage = lazy(() => import("./pages/contact/index"));
+const PricingPage = lazy(() => import("./pages/pricing/index"));
+const FAQPage = lazy(() => import("./pages/faq/index"));
+const TermsPage = lazy(() => import("./pages/terms/index"));
+const PrivacyPage = lazy(() => import("./pages/privacy/index"));
+
+// Lazy loaded tool pages
+const StockScreenerPage = lazy(() => import("./pages/tools/stock-screener/index"));
+const PortfolioAnalyzerPage = lazy(() => import("./pages/tools/portfolio-analyzer/index"));
+const TechnicalAnalysisPage = lazy(() => import("./pages/tools/technical-analysis/index"));
+const FinGenieToolPage = lazy(() => import("./pages/tools/fingenie/index"));
+
+// Optimized React Query client with caching and retry configuration
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false, // Don't refetch on window focus for better performance
+      retry: 1, // Only retry failed queries once
+      staleTime: 5 * 60 * 1000, // Data considered fresh for 5 minutes
+      gcTime: 10 * 60 * 1000, // Garbage collection time (formerly cacheTime)
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -67,109 +87,244 @@ const App = () => (
               <Sonner />
               <BrowserRouter>
                 <Routes>
-                  {/* Public routes */}
+                  {/* Public routes - Index and NotFound are not lazy loaded */}
                   <Route path="/" element={<Index />} />
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/signup" element={<Signup />} />
-                  <Route path="/forgot-password" element={<ForgotPassword />} />
-                  <Route path="/reset-password" element={<ResetPassword />} />
-                  <Route path="/auth/callback" element={<AuthCallback />} />
-                  <Route path="/complete-profile" element={<CompleteProfile />} />
-                  <Route path="/markets" element={<MarketOverview />} />
-                  <Route path="/indian-market" element={<IndianMarketPage />} />
+                  <Route path="*" element={<NotFound />} />
+                  
+                  {/* Lazy loaded routes wrapped in Suspense */}
+                  <Route path="/login" element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <Login />
+                    </Suspense>
+                  } />
+                  <Route path="/signup" element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <Signup />
+                    </Suspense>
+                  } />
+                  <Route path="/forgot-password" element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <ForgotPassword />
+                    </Suspense>
+                  } />
+                  <Route path="/reset-password" element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <ResetPassword />
+                    </Suspense>
+                  } />
+                  <Route path="/auth/callback" element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <AuthCallback />
+                    </Suspense>
+                  } />
+                  <Route path="/complete-profile" element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <CompleteProfile />
+                    </Suspense>
+                  } />
+                  <Route path="/markets" element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <MarketOverview />
+                    </Suspense>
+                  } />
+                  <Route path="/indian-market" element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <IndianMarketPage />
+                    </Suspense>
+                  } />
                   
                   {/* New static pages */}
-                  <Route path="/about" element={<AboutPage />} />
-                  <Route path="/contact" element={<ContactPage />} />
-                  <Route path="/pricing" element={<PricingPage />} />
-                  <Route path="/faq" element={<FAQPage />} />
-                  <Route path="/terms" element={<TermsPage />} />
-                  <Route path="/privacy" element={<PrivacyPage />} />
+                  <Route path="/about" element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <AboutPage />
+                    </Suspense>
+                  } />
+                  <Route path="/contact" element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <ContactPage />
+                    </Suspense>
+                  } />
+                  <Route path="/pricing" element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <PricingPage />
+                    </Suspense>
+                  } />
+                  <Route path="/faq" element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <FAQPage />
+                    </Suspense>
+                  } />
+                  <Route path="/terms" element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <TermsPage />
+                    </Suspense>
+                  } />
+                  <Route path="/privacy" element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <PrivacyPage />
+                    </Suspense>
+                  } />
                   
                   {/* Market Categories now handled by query parameters */}
                   
-                  <Route path="/news" element={<News />} />
-                  <Route path="/news/:id" element={<NewsDetail />} />
-                  <Route path="/learn" element={<Learn />} />
-                  <Route path="/fingenie" element={<FinGeniePage />} />
-                  <Route path="/company/:symbol" element={<CompanyAnalysis />} />
-                  <Route path="/company-analysis/:symbol" element={<CompanyAnalysis />} />
+                  <Route path="/news" element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <News />
+                    </Suspense>
+                  } />
+                  <Route path="/news/:id" element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <NewsDetail />
+                    </Suspense>
+                  } />
+                  <Route path="/learn" element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <Learn />
+                    </Suspense>
+                  } />
+                  <Route path="/fingenie" element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <FinGeniePage />
+                    </Suspense>
+                  } />
+                  <Route path="/company/:symbol" element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <CompanyAnalysis />
+                    </Suspense>
+                  } />
+                  <Route path="/company-analysis/:symbol" element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <CompanyAnalysis />
+                    </Suspense>
+                  } />
                   
                   {/* New stock and crypto routes */}
-                  <Route path="/stocks/:symbol" element={<StockDetails />} />
-                  <Route path="/crypto/:coinId" element={<CryptoDetails />} />
-                  <Route path="/etfs/:symbol" element={<StockDetails />} />
+                  <Route path="/stocks/:symbol" element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <StockDetails />
+                    </Suspense>
+                  } />
+                  <Route path="/crypto/:coinId" element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <CryptoDetails />
+                    </Suspense>
+                  } />
+                  <Route path="/etfs/:symbol" element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <StockDetails />
+                    </Suspense>
+                  } />
                   
                   {/* Tool routes */}
-                  <Route path="/tools/stock-screener" element={<StockScreenerPage />} />
-                  <Route path="/tools/portfolio-analyzer" element={<PortfolioAnalyzerPage />} />
-                  <Route path="/tools/technical-analysis" element={<TechnicalAnalysisPage />} />
-                  <Route path="/tools/fingenie" element={<FinGenieToolPage />} />
+                  <Route path="/tools/stock-screener" element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <StockScreenerPage />
+                    </Suspense>
+                  } />
+                  <Route path="/tools/portfolio-analyzer" element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <PortfolioAnalyzerPage />
+                    </Suspense>
+                  } />
+                  <Route path="/tools/technical-analysis" element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <TechnicalAnalysisPage />
+                    </Suspense>
+                  } />
+                  <Route path="/tools/fingenie" element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <FinGenieToolPage />
+                    </Suspense>
+                  } />
                   
                   {/* Protected routes */}
                   <Route path="/dashboard" element={
                     <ProtectedRoute>
-                      <Dashboard />
+                      <Suspense fallback={<LoadingFallback />}>
+                        <Dashboard />
+                      </Suspense>
                     </ProtectedRoute>
                   } />
                   
                   <Route path="/profile" element={
                     <ProtectedRoute>
-                      <Profile />
+                      <Suspense fallback={<LoadingFallback />}>
+                        <Profile />
+                      </Suspense>
                     </ProtectedRoute>
                   } />
                   
                   <Route path="/settings" element={
                     <ProtectedRoute>
-                      <Settings />
+                      <Suspense fallback={<LoadingFallback />}>
+                        <Settings />
+                      </Suspense>
                     </ProtectedRoute>
                   } />
                   
                   {/* FinPath routes - all protected */}
                   <Route path="/finpath" element={
                     <ProtectedRoute>
-                      <FinPath />
+                      <Suspense fallback={<LoadingFallback />}>
+                        <FinPath />
+                      </Suspense>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/finpath/:section" element={
+                    <ProtectedRoute>
+                      <Suspense fallback={<LoadingFallback />}>
+                        <FinPath />
+                      </Suspense>
                     </ProtectedRoute>
                   } />
                   
                   {/* FinWell routes - all protected */}
                   <Route path="/finwell" element={
                     <ProtectedRoute>
-                      <FinWell />
+                      <Suspense fallback={<LoadingFallback />}>
+                        <FinWell />
+                      </Suspense>
                     </ProtectedRoute>
                   } />
                   <Route path="/finwell/:section" element={
                     <ProtectedRoute>
-                      <FinWell />
+                      <Suspense fallback={<LoadingFallback />}>
+                        <FinWell />
+                      </Suspense>
                     </ProtectedRoute>
                   } />
                   
                   {/* Tools routes - all protected */}
                   <Route path="/tools" element={
                     <ProtectedRoute>
-                      <Tools />
+                      <Suspense fallback={<LoadingFallback />}>
+                        <Tools />
+                      </Suspense>
                     </ProtectedRoute>
                   } />
                   <Route path="/tools/:toolType" element={
                     <ProtectedRoute>
-                      <Tools />
+                      <Suspense fallback={<LoadingFallback />}>
+                        <Tools />
+                      </Suspense>
                     </ProtectedRoute>
                   } />
                   <Route path="/tools/:toolType/:toolId" element={
                     <ProtectedRoute>
-                      <Tools />
+                      <Suspense fallback={<LoadingFallback />}>
+                        <Tools />
+                      </Suspense>
                     </ProtectedRoute>
                   } />
                   
                   {/* Admin Panel - protected route */}
                   <Route path="/admin/fingenie" element={
                     <ProtectedRoute>
-                      <AdminPanel />
+                      <Suspense fallback={<LoadingFallback />}>
+                        <AdminPanel />
+                      </Suspense>
                     </ProtectedRoute>
                   } />
-                  
-                  {/* Catch-all route */}
-                  <Route path="*" element={<NotFound />} />
                 </Routes>
                 
                 {/* FinGenie chatbot */}

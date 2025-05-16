@@ -11,7 +11,7 @@ type AuthContextType = {
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>
   signUp: (email: string, password: string, firstName: string, lastName: string) => Promise<{ error: AuthError | null }>
   signInWithOAuth: (provider: 'google' | 'github') => Promise<void>
-  signOut: () => Promise<void>
+  signOut: () => Promise<boolean> // Updated to return boolean for success/failure
   resetPassword: (email: string) => Promise<{ error: AuthError | null }>
   updateProfile: (data: Partial<Profile>) => Promise<{ error: Error | null }>
   verifyOTP: (phone: string, token: string) => Promise<boolean>
@@ -188,34 +188,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // Sign out
+  // Sign out - improved with better cleanup
   const signOut = async () => {
     try {
-      const { error } = await supabase.auth.signOut()
+      // First clear any local storage/session storage data
+      localStorage.removeItem('supabase.auth.token');
+      sessionStorage.removeItem('supabase.auth.token');
+      
+      // Clear any other app-specific stored data
+      localStorage.removeItem('userPreferences');
+      localStorage.removeItem('lastVisited');
+      
+      // Call Supabase signOut with all options
+      const { error } = await supabase.auth.signOut({
+        scope: 'global' // Sign out from all devices
+      });
+      
       if (error) {
+        console.error('Supabase signOut error:', error);
         toast({
           title: 'Sign out failed',
           description: error.message,
           variant: 'destructive',
-        })
-        return
+        });
+        return false;
       }
 
-      setUser(null)
-      setProfile(null)
-      setSession(null)
+      // Clear React state
+      setUser(null);
+      setProfile(null);
+      setSession(null);
       
       toast({
         title: 'Signed out',
         description: 'You have been successfully signed out.',
-      })
+      });
+      
+      return true;
     } catch (err) {
-      console.error('Error signing out:', err)
+      console.error('Error signing out:', err);
       toast({
         title: 'Sign out failed',
         description: 'An unexpected error occurred. Please try again.',
         variant: 'destructive',
-      })
+      });
+      return false;
     }
   }
 
