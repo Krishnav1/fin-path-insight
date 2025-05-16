@@ -72,8 +72,8 @@ interface Message {
 }
 
 // Define the type for the conversations from the context
-type ContextConversation = {
-  id: string;
+interface ContextConversation {
+  id: number;
   userMessage: string;
   botResponse: string;
   timestamp: Date;
@@ -89,12 +89,7 @@ type SampleInsight = {
 };
 
 const FinGeniePage: React.FC = () => {
-  const { sendMessage, conversations, isLoading, clearConversations } = useFinGenie() as {
-    sendMessage: (message: string) => Promise<string | undefined>;
-    conversations: ContextConversation[];
-    isLoading: boolean;
-    clearConversations: () => void;
-  };
+  const { sendMessage, conversations, isLoading, clearConversations } = useFinGenie();
   const [message, setMessage] = useState('');
   const [showSidebar, setShowSidebar] = useState(true);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
