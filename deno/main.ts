@@ -9,16 +9,23 @@ async function handler(req: Request): Promise<Response> {
   const url = new URL(req.url);
   const path = url.pathname;
 
-  // Set CORS headers with specific origin for production
+  // Set CORS headers with wildcard for all origins
   const corsHeaders = {
-    // Allow both localhost and the Netlify domain
-    "Access-Control-Allow-Origin": url.hostname.includes('localhost') ? 
-      'http://localhost:5173' : 
-      'https://fin-insight.netlify.app',
+    "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
-    "Access-Control-Allow-Credentials": "true",
   };
+  
+  // For requests that need credentials, use specific origin
+  if (req.headers.get("Origin")) {
+    // If the request has an Origin header, use that instead of wildcard
+    // This is necessary for requests with credentials
+    const origin = req.headers.get("Origin") || "";
+    if (origin.includes("fin-insight.netlify.app") || origin.includes("localhost")) {
+      corsHeaders["Access-Control-Allow-Origin"] = origin;
+      corsHeaders["Access-Control-Allow-Credentials"] = "true";
+    }
+  }
 
   // Handle OPTIONS requests for CORS preflight
   if (req.method === "OPTIONS") {
