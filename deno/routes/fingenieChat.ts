@@ -1,13 +1,10 @@
 // FinGenie Chat API for Deno Deploy
-import { GoogleGenerativeAI } from "https://esm.sh/@google/generative-ai@0.2.1";
+// Using direct import from Deno standard library
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// Declare Deno namespace for TypeScript
-declare namespace Deno {
-  export interface Env {
-    get(key: string): string | undefined;
-  }
-  export const env: Env;
-}
+// Reference to the types.d.ts file for type declarations
+/// <reference path="../types.d.ts" />
+/// <reference path="../deno.d.ts" />
 
 // In-memory storage for conversation history (in production, use a database)
 const conversationHistory: Record<string, Array<{ role: string; parts: Array<{ text: string }> }>> = {};

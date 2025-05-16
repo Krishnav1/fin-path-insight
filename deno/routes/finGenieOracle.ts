@@ -1,13 +1,9 @@
 // FinGenie Oracle API for Deno Deploy
-import { GoogleGenerativeAI } from "https://esm.sh/@google/generative-ai@0.2.1";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// Declare Deno namespace for TypeScript
-declare namespace Deno {
-  export interface Env {
-    get(key: string): string | undefined;
-  }
-  export const env: Env;
-}
+// Reference to the types.d.ts file for type declarations
+/// <reference path="../types.d.ts" />
+/// <reference path="../deno.d.ts" />
 
 // Cache for storing responses to avoid hitting rate limits
 interface CachedResponse {
@@ -128,11 +124,11 @@ Disclaimer to include: "This information is for educational purposes only and do
     console.error("Error processing oracle request:", error);
     
     // Implement graceful fallback for rate limit errors
-    let errorMessage = error.message;
+    let errorMsg = error instanceof Error ? error.message : 'Unknown error';
     let statusCode = 500;
     
-    if (error.message.includes("429") || error.message.includes("quota")) {
-      errorMessage = "Our AI services are experiencing high demand. Please try again in a few minutes.";
+    if (errorMsg.includes("429") || errorMsg.includes("quota")) {
+      errorMsg = "Our AI services are experiencing high demand. Please try again in a few minutes.";
       statusCode = 429;
       
       // Provide a simple fallback response
@@ -151,7 +147,7 @@ Please try your specific query again in a few minutes.
       return new Response(
         JSON.stringify({
           response: fallbackResponse,
-          error: errorMessage,
+          error: errorMsg,
           userId: body?.userId || "anonymous",
           fallback: true
         }),
@@ -162,9 +158,10 @@ Please try your specific query again in a few minutes.
       );
     }
     
+    // Use the already defined errorMsg variable
     return new Response(
       JSON.stringify({
-        error: `Failed to process oracle request: ${errorMessage}`,
+        error: `Failed to process oracle request: ${errorMsg}`,
         userId: body?.userId || "anonymous"
       }),
       {

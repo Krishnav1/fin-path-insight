@@ -10,9 +10,20 @@
   "imports": {
     "@google/generative-ai": "npm:@google/generative-ai@0.2.1"
   },
-  "tasks": {},
+  "tasks": {
+    "start": "deno run --allow-net --allow-env --allow-read main.ts",
+    "deploy": "deployctl deploy --project=finpath-api --prod main.ts"
+  },
   "compilerOptions": {
-    "lib": ["deno.ns", "dom"]
+    "lib": ["deno.ns", "dom", "esnext"],
+    "allowJs": true,
+    "checkJs": false
+  },
+  "lint": {
+    "rules": {
+      "tags": ["recommended"],
+      "exclude": ["no-explicit-any", "no-unused-vars"]
+    }
   },
   "npm": true
 }

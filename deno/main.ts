@@ -5,15 +5,26 @@ import { getInvestmentReport } from "./routes/getInvestmentReport.ts";
 import { finGenieOracle } from "./routes/finGenieOracle.ts";
 import { marketData } from "./routes/marketData.ts";
 
+// Define allowed origins
+const ALLOWED_ORIGINS = [
+  "https://fin-insight.netlify.app",
+  "http://localhost:3000",
+  "http://localhost:5173"
+];
+
 // Create a router to handle different endpoints
 async function handler(req: Request): Promise<Response> {
   const url = new URL(req.url);
   const path = url.pathname;
 
-  // Get the origin from the request or use the Netlify domain as default
-  const origin = req.headers.get("Origin") || "https://fin-insight.netlify.app";
+  // Get the origin from the request
+  const requestOrigin = req.headers.get("Origin");
   
-  // Set CORS headers with specific origin
+  // Validate origin against allowed list
+  const isAllowedOrigin = requestOrigin && ALLOWED_ORIGINS.includes(requestOrigin);
+  const origin = isAllowedOrigin ? requestOrigin : ALLOWED_ORIGINS[0];
+  
+  // Set CORS headers with validated origin
   const corsHeaders = {
     "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",

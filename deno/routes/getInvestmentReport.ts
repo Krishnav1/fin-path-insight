@@ -1,13 +1,9 @@
 // Investment Report API for Deno Deploy
-import { GoogleGenerativeAI } from "https://esm.sh/@google/generative-ai@0.2.1";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// Declare Deno namespace for TypeScript
-declare namespace Deno {
-  export interface Env {
-    get(key: string): string | undefined;
-  }
-  export const env: Env;
-}
+// Reference to the types.d.ts file for type declarations
+/// <reference path="../types.d.ts" />
+/// <reference path="../deno.d.ts" />
 
 // Cache for storing generated reports to avoid hitting rate limits
 interface CachedReport {
@@ -338,10 +334,10 @@ export async function getInvestmentReport(req: Request, corsHeaders: Record<stri
     }
     
     // Format currency values for better readability
-    if (aggregatedData.fundamentals.marketCap) {
+    if (aggregatedData?.fundamentals?.marketCap) {
       aggregatedData.fundamentals.marketCapFormatted = formatCurrency(
         aggregatedData.fundamentals.marketCap,
-        aggregatedData.realTimePrice.currency
+        aggregatedData?.realTimePrice?.currency || 'USD'
       );
     }
     
@@ -378,20 +374,20 @@ export async function getInvestmentReport(req: Request, corsHeaders: Record<stri
 
 ## Current Market Data
 
-- **Current Price**: ${aggregatedData.realTimePrice?.currentPrice || 'N/A'} ${aggregatedData.realTimePrice?.currency || 'USD'}
-- **Day's Change**: ${aggregatedData.realTimePrice?.dayChange?.toFixed(2) || 'N/A'} (${aggregatedData.realTimePrice?.dayChangePercent?.toFixed(2) || 'N/A'}%)
-- **52-Week Range**: ${aggregatedData.fundamentals?.fiftyTwoWeekLow || 'N/A'} - ${aggregatedData.fundamentals?.fiftyTwoWeekHigh || 'N/A'}
+- **Current Price**: ${aggregatedData?.realTimePrice?.currentPrice || 'N/A'} ${aggregatedData?.realTimePrice?.currency || 'USD'}
+- **Day's Change**: ${aggregatedData?.realTimePrice && 'dayChange' in aggregatedData.realTimePrice ? (aggregatedData.realTimePrice.dayChange as number).toFixed(2) : 'N/A'} (${aggregatedData?.realTimePrice && 'dayChangePercent' in aggregatedData.realTimePrice ? (aggregatedData.realTimePrice.dayChangePercent as number).toFixed(2) : 'N/A'}%)
+- **52-Week Range**: ${aggregatedData?.fundamentals?.fiftyTwoWeekLow || 'N/A'} - ${aggregatedData?.fundamentals?.fiftyTwoWeekHigh || 'N/A'}
 
 ## Fundamental Metrics
 
-- **Market Cap**: ${aggregatedData.fundamentals?.marketCapFormatted || 'N/A'}
-- **P/E Ratio**: ${aggregatedData.fundamentals?.trailingPE?.toFixed(2) || 'N/A'}
-- **Beta**: ${aggregatedData.fundamentals?.beta?.toFixed(2) || 'N/A'}
+- **Market Cap**: ${aggregatedData?.fundamentals?.marketCapFormatted || 'N/A'}
+- **P/E Ratio**: ${aggregatedData?.fundamentals && 'trailingPE' in aggregatedData.fundamentals ? (aggregatedData.fundamentals.trailingPE as number).toFixed(2) : 'N/A'}
+- **Beta**: ${aggregatedData?.fundamentals && 'beta' in aggregatedData.fundamentals ? (aggregatedData.fundamentals.beta as number).toFixed(2) : 'N/A'}
 
 ## Recent News
 
-${aggregatedData.news.length > 0 
-  ? aggregatedData.news.slice(0, 3).map((n: any) => `- **${n.title}** (Source: ${n.publisher || 'Unknown'})`).join('\n') 
+${aggregatedData?.news && Array.isArray(aggregatedData.news) && aggregatedData.news.length > 0 
+  ? aggregatedData.news.slice(0, 3).map((n: any) => `- **${n.title || 'Untitled'}** (Source: ${n.publisher || 'Unknown'})`).join('\n') 
   : '- No recent news available through current sources.'}
 
 ## Note
@@ -419,9 +415,10 @@ This report is for informational purposes only and does not constitute investmen
   } catch (error) {
     console.error("Error in getInvestmentReport function:", error);
     
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return new Response(
       JSON.stringify({
-        error: `Failed to generate investment report: ${error.message}`,
+        error: `Failed to generate investment report: ${errorMessage}`,
         ticker: body?.ticker,
         query: body?.query
       }),
