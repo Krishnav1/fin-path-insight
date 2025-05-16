@@ -1,23 +1,40 @@
-import { NextApiRequest, NextApiResponse } from 'next';
-import connectDB from '@/lib/mongodb';
-import MarketData from '@/models/MarketData';
+// This file has been converted from a Next.js API route to a compatible format for Vite/React
+// Import the necessary modules for your database connection
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'GET') {
-    return res.status(405).json({ message: 'Method not allowed' });
-  }
+// Define the MarketData interface
+interface MarketDataType {
+  type: string;
+  symbol?: string;
+  name?: string;
+  price?: number;
+  change?: number;
+  changePercent?: number;
+  lastUpdated: Date;
+  [key: string]: any;
+}
 
+// Function to fetch market data from your API
+export async function fetchMarketData(type?: string): Promise<MarketDataType[]> {
   try {
-    await connectDB();
+    // Use the Deno API endpoint instead of direct database access
+    const apiUrl = import.meta.env.PROD 
+      ? `https://finpath-api.deno.dev/api/market-data${type ? `?type=${type}` : ''}` 
+      : `http://localhost:8000/api/market-data${type ? `?type=${type}` : ''}`;
     
-    const { type } = req.query;
-    const query = type ? { type } : {};
+    const response = await fetch(apiUrl);
     
-    const marketData = await MarketData.find(query).sort({ lastUpdated: -1 });
+    if (!response.ok) {
+      throw new Error(`API responded with status: ${response.status}`);
+    }
     
-    res.status(200).json(marketData);
+    const data = await response.json();
+    return data;
   } catch (error) {
     console.error('Error fetching market data:', error);
-    res.status(500).json({ message: 'Error fetching market data' });
+    // Return empty array on error
+    return [];
   }
-} 
+}
+
+// Export the MarketData type for use in other components
+export type { MarketDataType };

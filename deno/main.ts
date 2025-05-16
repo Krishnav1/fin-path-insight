@@ -3,6 +3,7 @@ import { serve } from "https://deno.land/std@0.220.1/http/server.ts";
 import { fingenieChat } from "./routes/fingenieChat.ts";
 import { getInvestmentReport } from "./routes/getInvestmentReport.ts";
 import { finGenieOracle } from "./routes/finGenieOracle.ts";
+import { marketData } from "./routes/marketData.ts";
 
 // Create a router to handle different endpoints
 async function handler(req: Request): Promise<Response> {
@@ -43,6 +44,8 @@ async function handler(req: Request): Promise<Response> {
       return await getInvestmentReport(req, corsHeaders);
     } else if (path === "/api/finGenieOracle") {
       return await finGenieOracle(req, corsHeaders);
+    } else if (path === "/api/market-data") {
+      return await marketData(req, corsHeaders);
     } else if (path === "/") {
       return new Response("FinPath Insight API is running!", {
         status: 200,

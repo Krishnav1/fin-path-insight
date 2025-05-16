@@ -97,10 +97,11 @@ export async function fingenieChat(req: Request, corsHeaders: Record<string, str
     console.error("Error processing chat request:", error);
     
     // Implement graceful fallback for rate limit errors
-    let errorMessage = error.message;
+    let errorMessage = error instanceof Error ? error.message : 'Unknown error';
     let statusCode = 500;
     
-    if (error.message.includes("429") || error.message.includes("quota")) {
+    if (typeof errorMessage === 'string' && 
+        (errorMessage.includes("429") || errorMessage.includes("quota"))) {
       errorMessage = "Our AI services are experiencing high demand. Please try again in a few minutes.";
       statusCode = 429;
     }
