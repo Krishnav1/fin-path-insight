@@ -4,7 +4,7 @@ import '../styles/FinGeniePage.css';
 import Header from '../components/layout/Header';
 import Footer from '../components/layout/Footer';
 import FinGenieInvestmentReport from '../components/FinGenieInvestmentReport';
-import FinGenieOracle from '../components/FinGenieOracle';
+// Oracle functionality has been integrated into the main chat
 // Using fetch instead of axios to avoid unused import warning
 import { 
   Send, 
@@ -98,7 +98,7 @@ const FinGeniePage: React.FC = () => {
   const [message, setMessage] = useState('');
   const [showSidebar, setShowSidebar] = useState(true);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('chat'); // 'chat', 'investment-report', 'oracle'
+  const [activeTab, setActiveTab] = useState('chat'); // 'chat', 'investment-report'
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [chatHistory, setChatHistory] = useState<Message[]>([
     { 
@@ -239,21 +239,15 @@ const FinGeniePage: React.FC = () => {
             <div className="flex items-center space-x-2">
               <button 
                 onClick={() => setActiveTab('chat')}
-                className={`px-3 py-1.5 rounded-md transition-colors ${activeTab === 'chat' ? 'bg-white/20' : 'hover:bg-white/10'} text-white`}
+                className={`px-3 py-1.5 rounded-md transition-colors ${activeTab === 'chat' ? 'bg-white/20' : 'hover:bg-white/10'} text-white flex items-center`}
               >
-                Chat
+                <MessageSquare size={16} className="mr-1" /> Chat
               </button>
               <button 
                 onClick={() => setActiveTab('investment-report')}
-                className={`px-3 py-1.5 rounded-md transition-colors ${activeTab === 'investment-report' ? 'bg-white/20' : 'hover:bg-white/10'} text-white`}
+                className={`px-3 py-1.5 rounded-md transition-colors ${activeTab === 'investment-report' ? 'bg-white/20' : 'hover:bg-white/10'} text-white flex items-center`}
               >
-                Investment Reports
-              </button>
-              <button 
-                onClick={() => setActiveTab('oracle')}
-                className={`px-3 py-1.5 rounded-md transition-colors ${activeTab === 'oracle' ? 'bg-white/20' : 'hover:bg-white/10'} text-white`}
-              >
-                Oracle
+                <TrendingUp size={16} className="mr-1" /> Reports
               </button>
               <button 
                 onClick={clearConversations}
@@ -319,12 +313,6 @@ const FinGeniePage: React.FC = () => {
               {activeTab === 'investment-report' && (
                 <div className="flex-1 overflow-y-auto p-4">
                   <FinGenieInvestmentReport />
-                </div>
-              )}
-              
-              {activeTab === 'oracle' && (
-                <div className="flex-1 overflow-y-auto p-4">
-                  <FinGenieOracle />
                 </div>
               )}
             </div>
