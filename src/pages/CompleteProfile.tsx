@@ -58,8 +58,10 @@ export default function CompleteProfile() {
   // Populate form with existing profile data if available
   useEffect(() => {
     if (profile) {
-      setValue('firstName', profile.first_name || '')
-      setValue('lastName', profile.last_name || '')
+      // Split full_name into firstName and lastName for the form
+      const nameParts = profile.full_name ? profile.full_name.split(' ') : ['', ''];
+      setValue('firstName', nameParts[0] || '')
+      setValue('lastName', nameParts.slice(1).join(' ') || '')
       setValue('mobile', profile.mobile_number || '')
       setValue('dateOfBirth', profile.date_of_birth ? new Date(profile.date_of_birth).toISOString().split('T')[0] : '')
       setValue('address', profile.address || '')
@@ -82,8 +84,8 @@ export default function CompleteProfile() {
 
     try {
       const { error } = await updateProfile({
-        first_name: data.firstName,
-        last_name: data.lastName,
+        // Combine firstName and lastName into full_name
+        full_name: `${data.firstName} ${data.lastName}`.trim(),
         mobile_number: data.mobile,
         date_of_birth: data.dateOfBirth ? new Date(data.dateOfBirth).toISOString() : null,
         address: data.address,

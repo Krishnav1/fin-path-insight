@@ -727,9 +727,9 @@ export default function FinWell() {
                               <span>${goal.current_amount}</span>
                               <span className="text-slate-500">of ${goal.target_amount}</span>
                             </div>
-                            <Progress value={goal.percentage} className="h-2 mb-1" />
+                            <Progress value={Math.round((goal.current_amount / goal.target_amount) * 100)} className="h-2 mb-1" />
                             <div className="flex justify-between items-center mt-2">
-                              <span className="text-xs text-slate-500">{goal.percentage}% complete</span>
+                              <span className="text-xs text-slate-500">{Math.round((goal.current_amount / goal.target_amount) * 100)}% complete</span>
                               <Button variant="ghost" size="sm" className="h-auto py-0 px-2 text-xs">
                                 Add Funds
                               </Button>
@@ -754,7 +754,7 @@ export default function FinWell() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-5">
-                    {savings=Goals.map(goal => (
+                    {savingsGoals.map(goal => (
                       <div key={goal.id} className="border border-slate-200 rounded-lg p-3 dark:border-slate-700">
                         <h3 className="font-medium">{goal.name}</h3>
                         <div className="flex justify-between items-center text-sm my-1">

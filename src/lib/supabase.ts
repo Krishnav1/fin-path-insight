@@ -14,8 +14,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 export type Profile = {
   id: string;
   email: string;
-  first_name: string;
-  last_name: string;
+  full_name: string;
+  // first_name and last_name removed as they don't exist in the database
   mobile_number?: string;
   email_verified: boolean;
   avatar_url?: string;

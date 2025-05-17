@@ -108,6 +108,8 @@ const SearchBar = () => {
       <form onSubmit={handleSearch} className="flex w-full items-center">
         <div className="relative flex-grow">
           <Input
+            id="search-query"
+            name="search-query"
             ref={inputRef}
             type="text"
             placeholder="Search stocks or cryptocurrencies..."

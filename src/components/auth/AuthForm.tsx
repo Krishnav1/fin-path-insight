@@ -27,7 +27,10 @@ export default function AuthForm({ mode }: AuthFormProps) {
     try {
       if (mode === "signup") {
         // Sign up the user
-        await signUp(email, password);
+        const nameParts = name.trim().split(' ');
+        const firstName = nameParts[0] || '';
+        const lastName = nameParts.slice(1).join(' ') || '';
+        await signUp(email, password, firstName, lastName);
         toast({
           title: "Account created!",
           description: "Your account has been created successfully.",
@@ -68,6 +71,8 @@ export default function AuthForm({ mode }: AuthFormProps) {
         <CardContent className="space-y-4">
           {mode === "signup" && (
             <Input
+              id="name"
+              name="name"
               placeholder="Name"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -75,6 +80,8 @@ export default function AuthForm({ mode }: AuthFormProps) {
             />
           )}
           <Input
+            id="email"
+            name="email"
             placeholder="Email"
             type="email"
             value={email}
@@ -82,6 +89,8 @@ export default function AuthForm({ mode }: AuthFormProps) {
             required
           />
           <Input
+            id="password"
+            name="password"
             placeholder="Password"
             type="password"
             value={password}

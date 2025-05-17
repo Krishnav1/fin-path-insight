@@ -10,7 +10,7 @@ type AuthContextType = {
   loading: boolean
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>
   signUp: (email: string, password: string, firstName: string, lastName: string) => Promise<{ error: AuthError | null }>
-  signInWithOAuth: (provider: 'google' | 'github') => Promise<void>
+  signInWithOAuth: (provider: 'google') => Promise<void>
   signOut: () => Promise<boolean> // Updated to return boolean for success/failure
   resetPassword: (email: string) => Promise<{ error: AuthError | null }>
   updateProfile: (data: Partial<Profile>) => Promise<{ error: Error | null }>
@@ -123,6 +123,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Sign up with email and password
   const signUp = async (email: string, password: string, firstName: string, lastName: string) => {
     try {
+      // 1. Sign up with Supabase Auth
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -144,6 +145,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error }
       }
 
+      // 2. Manually create a profile for the user
+      if (data?.user) {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert([{
+            id: data.user.id,
+            email: email,
+            // Combine first and last name to create full_name
+            full_name: `${firstName} ${lastName}`,
+            // Don't include first_name and last_name as they're not in the table
+            email_verified: false,
+          }])
+          
+        if (profileError) {
+          console.error('Error creating profile:', profileError)
+          // Continue anyway - don't block signup if profile creation fails
+          // The user can create their profile later
+        }
+      }
+
       toast({
         title: 'Check your email',
         description: 'We sent you a confirmation link to complete your registration.',
@@ -162,7 +183,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   // Sign in with OAuth provider
-  const signInWithOAuth = async (provider: 'google' | 'github') => {
+  const signInWithOAuth = async (provider: 'google') => {
     try {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider,
