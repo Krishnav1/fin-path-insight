@@ -12,12 +12,14 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { GeminiAnalysis } from '@/services/portfolio-service';
 
 interface PortfolioAllocationProps {
   portfolioData: Portfolio;
+  analysisData: GeminiAnalysis | null;
 }
 
-export default function PortfolioAllocation({ portfolioData }: PortfolioAllocationProps) {
+export default function PortfolioAllocation({ portfolioData, analysisData }: PortfolioAllocationProps) {
   const { holdings } = portfolioData;
   
   // Format currency

@@ -4,6 +4,7 @@ import { fingenieChat } from "./routes/fingenieChat.ts";
 import { getInvestmentReport } from "./routes/getInvestmentReport.ts";
 import { finGenieOracle } from "./routes/finGenieOracle.ts";
 import { marketData } from "./routes/marketData.ts";
+import { analyzePortfolio } from "./routes/analyzePortfolio.ts";
 
 // Define allowed origins
 const ALLOWED_ORIGINS = [
@@ -52,6 +53,8 @@ async function handler(req: Request): Promise<Response> {
       return await finGenieOracle(req, corsHeaders);
     } else if (path === "/api/market-data") {
       return await marketData(req, corsHeaders);
+    } else if (path === "/api/analyzePortfolio") {
+      return await analyzePortfolio(req, corsHeaders);
     } else if (path === "/") {
       return new Response("FinPath Insight API is running!", {
         status: 200,

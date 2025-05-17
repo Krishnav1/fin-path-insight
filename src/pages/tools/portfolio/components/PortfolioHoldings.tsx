@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, Dispatch, SetStateAction } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Portfolio, StockHolding } from '@/types/portfolio';
-import { Search, ArrowUpDown, ArrowUp, ArrowDown, Plus, Edit, Trash2, ExternalLink } from 'lucide-react';
+import { Search, ArrowUpDown, ArrowUp, ArrowDown, Plus, Edit, Trash2, ExternalLink, Loader2, Save } from 'lucide-react';
 import { 
   DropdownMenu,
   DropdownMenuContent,
@@ -17,9 +17,12 @@ import {
 
 interface PortfolioHoldingsProps {
   portfolioData: Portfolio;
+  setPortfolioData: Dispatch<SetStateAction<Portfolio>>;
+  onSave: () => Promise<void>;
+  isAnalyzing: boolean;
 }
 
-export default function PortfolioHoldings({ portfolioData }: PortfolioHoldingsProps) {
+export default function PortfolioHoldings({ portfolioData, setPortfolioData, onSave, isAnalyzing }: PortfolioHoldingsProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState<keyof StockHolding>('value');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
@@ -94,9 +97,46 @@ export default function PortfolioHoldings({ portfolioData }: PortfolioHoldingsPr
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
-              <Button className="whitespace-nowrap">
+              <Button className="whitespace-nowrap" onClick={() => {
+                // Add a new empty holding to the portfolio
+                const newHolding: StockHolding = {
+                  symbol: '',
+                  name: '',
+                  quantity: 0,
+                  buyPrice: 0,
+                  currentPrice: 0,
+                  sector: '',
+                  buyDate: new Date().toISOString().split('T')[0],
+                  value: 0,
+                  profit: 0,
+                  profitPercentage: 0
+                };
+                
+                setPortfolioData(prev => ({
+                  ...prev,
+                  holdings: [...prev.holdings, newHolding]
+                }));
+              }}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add Holding
+              </Button>
+              <Button 
+                className="whitespace-nowrap" 
+                variant="outline" 
+                onClick={onSave}
+                disabled={isAnalyzing}
+              >
+                {isAnalyzing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Analyzing...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4 mr-2" />
+                    Save & Analyze
+                  </>
+                )}
               </Button>
             </div>
           </div>

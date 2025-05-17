@@ -11,12 +11,14 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { GeminiAnalysis } from '@/services/portfolio-service';
 
 interface PortfolioMetricsProps {
   portfolioData: Portfolio;
+  analysisData: GeminiAnalysis | null;
 }
 
-export default function PortfolioMetrics({ portfolioData }: PortfolioMetricsProps) {
+export default function PortfolioMetrics({ portfolioData, analysisData }: PortfolioMetricsProps) {
   // Mock risk metrics for now
   const riskMetrics = [
     { name: 'Beta', value: 1.1, description: 'Measures volatility relative to the market (>1 means more volatile than market)', status: 'medium' },

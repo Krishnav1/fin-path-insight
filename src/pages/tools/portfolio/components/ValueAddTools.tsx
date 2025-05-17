@@ -18,6 +18,7 @@ import {
   Newspaper,
   Percent
 } from 'lucide-react';
+import { GeminiAnalysis } from '@/services/portfolio-service';
 import {
   Select,
   SelectContent,
@@ -29,9 +30,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface ValueAddToolsProps {
   portfolioData: Portfolio;
+  analysisData: GeminiAnalysis | null;
 }
 
-export default function ValueAddTools({ portfolioData }: ValueAddToolsProps) {
+export default function ValueAddTools({ portfolioData, analysisData }: ValueAddToolsProps) {
   const [rebalancingTarget, setRebalancingTarget] = useState<'equal' | 'custom' | 'market'>('custom');
   const [whatIfSymbol, setWhatIfSymbol] = useState('RELIANCE.NS');
   const [whatIfChange, setWhatIfChange] = useState(-5);
@@ -343,6 +345,19 @@ export default function ValueAddTools({ portfolioData }: ValueAddToolsProps) {
                 </div>
                 
                 <div className="lg:col-span-2">
+                  {analysisData && (
+                    <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-900 rounded-md">
+                      <h3 className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-2">AI Insights</h3>
+                      <ul className="space-y-2">
+                        {analysisData.recommendations.slice(0, 2).map((recommendation, index) => (
+                          <li key={index} className="text-sm text-blue-700 dark:text-blue-400 flex items-start gap-2">
+                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500 mt-1.5 flex-shrink-0"></span>
+                            <span>{recommendation}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                   {whatIfResult ? (
                     <div className="space-y-6">
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -421,6 +436,19 @@ export default function ValueAddTools({ portfolioData }: ValueAddToolsProps) {
               <CardDescription>See how recent news might affect your portfolio</CardDescription>
             </CardHeader>
             <CardContent>
+              {analysisData && (
+                <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-900 rounded-md">
+                  <h3 className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-2">AI Market Insights</h3>
+                  <ul className="space-y-2">
+                    {analysisData.recommendations.slice(0, 2).map((recommendation, index) => (
+                      <li key={index} className="text-sm text-blue-700 dark:text-blue-400 flex items-start gap-2">
+                        <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500 mt-1.5 flex-shrink-0"></span>
+                        <span>{recommendation}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <div className="space-y-6">
                 {mockNews.map((news, index) => (
                   <div key={index} className="p-4 border rounded-md">
