@@ -5,6 +5,8 @@ import {
   Cell,
   LineChart as RechartsLineChart,
   Line,
+  BarChart as RechartsBarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -100,6 +102,49 @@ export const LineChart = ({
             />
           ))}
         </RechartsLineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+};
+
+// BarChart component
+export const BarChart = ({
+  data,
+  bars = [{ dataKey: "value", fill: "#8884d8" }],
+  xAxisDataKey = "name",
+  className,
+  grid = true,
+  ...props
+}: {
+  data: Array<Record<string, any>>;
+  bars?: Array<{ dataKey: string; fill?: string; name?: string }>;
+  xAxisDataKey?: string;
+  className?: string;
+  grid?: boolean;
+  [key: string]: any;
+}) => {
+  return (
+    <div className={cn("w-full h-full min-h-[300px]", className)}>
+      <ResponsiveContainer width="100%" height="100%">
+        <RechartsBarChart
+          data={data}
+          margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+          {...props}
+        >
+          {grid && <CartesianGrid strokeDasharray="3 3" />}
+          <XAxis dataKey={xAxisDataKey} />
+          <YAxis />
+          <Tooltip />
+          <Legend />
+          {bars.map((bar, index) => (
+            <Bar
+              key={`bar-${index}`}
+              dataKey={bar.dataKey}
+              fill={bar.fill || `#${Math.floor(Math.random() * 16777215).toString(16)}`}
+              name={bar.name || bar.dataKey}
+            />
+          ))}
+        </RechartsBarChart>
       </ResponsiveContainer>
     </div>
   );

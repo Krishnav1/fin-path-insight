@@ -43,6 +43,7 @@ const Tools = lazy(() => import("./pages/Tools"));
 const CompanyAnalysis = lazy(() => import("./pages/CompanyAnalysis"));
 const FinGeniePage = lazy(() => import("./pages/FinGeniePage"));
 const AdminPanel = lazy(() => import("./pages/AdminPanel"));
+const PortfolioAnalysisPage = lazy(() => import("./pages/tools/portfolio/index"));
 
 // Lazy loaded components
 const StockDetails = lazy(() => import("./components/StockDetails"));
@@ -224,6 +225,11 @@ const App = () => (
                   <Route path="/tools/portfolio-analyzer" element={
                     <Suspense fallback={<LoadingFallback />}>
                       <PortfolioAnalyzerPage />
+                    </Suspense>
+                  } />
+                  <Route path="/portfolio" element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <PortfolioAnalysisPage />
                     </Suspense>
                   } />
                   <Route path="/tools/technical-analysis" element={

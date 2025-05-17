@@ -125,6 +125,7 @@ export default function Header() {
                   <Bot size={14} className="text-fin-primary" />
                   FinGenie AI
                 </Link>
+                <Link to="/portfolio" className="block px-3 py-2 text-sm hover:bg-slate-100 rounded-md dark:hover:bg-slate-700">Portfolio Analysis</Link>
                 <Link to="/tools/calculator" className="block px-3 py-2 text-sm hover:bg-slate-100 rounded-md dark:hover:bg-slate-700">Financial Calculator</Link>
               </div>
             </div>
