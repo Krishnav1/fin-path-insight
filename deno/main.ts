@@ -1,5 +1,8 @@
 // Main entry point for Deno Deploy
-import { serve } from "https://deno.land/std@0.220.1/http/server.ts";
+// Import serve from Deno standard library
+// Using a compatible version that works with Deno Deploy
+/// <reference path="./deno.d.ts" />
+import { serve } from "https://deno.land/std@0.221.0/http/server.ts";
 import { fingenieChat } from "./routes/fingenieChat.ts";
 import { getInvestmentReport } from "./routes/getInvestmentReport.ts";
 import { finGenieOracle } from "./routes/finGenieOracle.ts";

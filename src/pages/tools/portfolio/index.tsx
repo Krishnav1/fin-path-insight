@@ -8,7 +8,7 @@ import PortfolioOverview from './components/PortfolioOverview';
 import PortfolioMetrics from './components/PortfolioMetrics';
 import PortfolioAllocation from './components/PortfolioAllocation';
 import PortfolioHoldings from './components/PortfolioHoldings';
-import FinGenieInsights from './components/FinGenieInsights';
+// FinGenieInsights component has been removed
 import ValueAddTools from './components/ValueAddTools';
 import { mockPortfolioData } from './data/mockData';
 import { portfolioService, GeminiAnalysis } from '@/services/portfolio-service';
@@ -207,13 +207,19 @@ export default function PortfolioAnalysisPage() {
             </TabsContent>
             
             <TabsContent value="insights">
-              {isLoading ? (
-                <div className="flex items-center justify-center h-64">
-                  <Loader2 className="h-8 w-8 animate-spin text-fin-primary" />
+              <div className="flex flex-col items-center justify-center p-8 bg-white dark:bg-slate-800 rounded-lg shadow-sm">
+                <h2 className="text-2xl font-bold mb-4">AI Insights Coming Soon</h2>
+                <p className="text-slate-600 dark:text-slate-400 text-center mb-6">
+                  We're enhancing our AI-powered portfolio analysis features.
+                  Check back soon for personalized insights about your investments.
+                </p>
+                <div className="p-4 bg-blue-50 dark:bg-blue-900/30 rounded-lg max-w-2xl">
+                  <p className="text-sm text-slate-700 dark:text-slate-300">
+                    Our AI assistant will analyze your portfolio for risk factors, diversification opportunities, 
+                    and personalized recommendations based on your investment goals.
+                  </p>
                 </div>
-              ) : (
-                <FinGenieInsights portfolioData={portfolioData} analysisData={analysisData} />
-              )}
+              </div>
             </TabsContent>
             
             <TabsContent value="tools">

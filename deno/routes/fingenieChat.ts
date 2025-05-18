@@ -2,6 +2,13 @@
 // Using direct import from Deno standard library
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
+// Declare Deno namespace for TypeScript compiler
+declare const Deno: {
+  env: {
+    get(key: string): string | undefined;
+  };
+};
+
 // Reference to the types.d.ts file for type declarations
 /// <reference path="../types.d.ts" />
 /// <reference path="../deno.d.ts" />

@@ -223,12 +223,14 @@ export const portfolioService = {
   // Analyze portfolio with Gemini
   async analyzePortfolio(holdings: StockHolding[]): Promise<GeminiAnalysis> {
     try {
-      console.log('Analyzing portfolio with Gemini...');
+      console.log('Analyzing portfolio with Gemini...', holdings);
       
       // Filter out empty or incomplete holdings
       const validHoldings = holdings.filter(h => 
         h.symbol && h.quantity > 0 && h.buyPrice > 0 && h.currentPrice > 0
       );
+      
+      console.log('Valid holdings:', validHoldings);
       
       if (validHoldings.length === 0) {
         throw new Error('No valid holdings to analyze. Please add complete holdings with symbol, quantity, buy price and current price.');
@@ -245,18 +247,29 @@ export const portfolioService = {
         buy_date: holding.buyDate || new Date().toISOString().split('T')[0]
       }));
       
-      console.log('Calling Deno API with holdings:', formattedHoldings);
+      console.log('Calling Deno API with holdings:', JSON.stringify(formattedHoldings));
       
       // Verify API URL
-      const apiUrl = import.meta.env.VITE_DENO_API_URL;
-      if (!apiUrl) {
-        console.error('VITE_DENO_API_URL is not defined in environment variables');
-        throw new Error('API URL not configured. Please check your environment settings.');
+      const apiUrl = import.meta.env.VITE_DENO_API_URL || 'https://fininsight-api.deno.dev';
+      console.log('Using API URL:', apiUrl);
+      
+      // Fallback for missing API key
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || '';
+      if (!apiKey) {
+        console.warn('No Gemini API key found in environment variables');
       }
       
       // Call the Deno Deploy API with timeout
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout for Gemini
+      const timeoutId = setTimeout(() => controller.abort(), 90000); // 90 second timeout for Gemini
+      
+      // Create a simplified payload for testing
+      const payload = {
+        holdings: formattedHoldings,
+        api_key: apiKey
+      };
+      
+      console.log('Request payload:', JSON.stringify(payload));
       
       // Add CORS headers and proper content-type
       const response = await fetch(`${apiUrl}/api/analyzePortfolio`, {
@@ -265,11 +278,7 @@ export const portfolioService = {
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
-        body: JSON.stringify({ 
-          holdings: formattedHoldings,
-          // Add API key if needed
-          api_key: import.meta.env.VITE_GEMINI_API_KEY || ''
-        }),
+        body: JSON.stringify(payload),
         signal: controller.signal,
         // Add credentials if needed for CORS
         credentials: 'omit'
@@ -277,10 +286,13 @@ export const portfolioService = {
       
       clearTimeout(timeoutId);
       
+      console.log('API response status:', response.status, response.statusText);
+      
       if (!response.ok) {
         let errorMessage = 'Failed to analyze portfolio';
         try {
           const errorText = await response.text();
+          console.error('Error response text:', errorText);
           try {
             const errorData = JSON.parse(errorText);
             errorMessage = errorData.error || errorData.message || errorMessage;
@@ -295,16 +307,47 @@ export const portfolioService = {
         throw new Error(errorMessage);
       }
       
-      const data = await response.json();
+      // Try to parse the response
+      let data;
+      try {
+        const responseText = await response.text();
+        console.log('Raw API response:', responseText);
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('Error parsing API response:', parseError);
+        throw new Error('Failed to parse API response');
+      }
+      
       console.log('Received analysis data:', data);
       
       if (!data.analysis) {
+        console.error('Invalid API response format - missing analysis property');
         throw new Error('Invalid response format from API');
+      }
+      
+      // If we get here, we have valid analysis data
+      // Save this to Supabase immediately
+      try {
+        const portfolios = await this.getPortfolios();
+        if (portfolios && portfolios.length > 0) {
+          const portfolioId = portfolios[0].id;
+          await this.saveAnalysisResults(portfolioId, data.analysis);
+          console.log('Analysis results saved to Supabase');
+        }
+      } catch (dbError) {
+        console.error('Failed to save analysis to database:', dbError);
+        // Continue anyway - we still want to return the analysis
       }
       
       return data.analysis;
     } catch (error) {
       console.error('Error analyzing portfolio:', error);
+      
+      // Create a fallback analysis for testing/development
+      if (import.meta.env.DEV && (error.message.includes('Failed to fetch') || error.name === 'AbortError')) {
+        console.warn('DEV MODE: Returning mock analysis data due to API error');
+        return this.createMockAnalysis(holdings);
+      }
       
       if (error.name === 'AbortError') {
         throw new Error('Analysis request timed out. The Gemini API may be experiencing high load. Please try again.');
@@ -317,6 +360,82 @@ export const portfolioService = {
       // Provide a more user-friendly error message
       throw new Error(`Analysis failed: ${error.message || 'Unknown error occurred'}`);
     }
+  },
+  
+  // Create mock analysis data for development/testing
+  createMockAnalysis(holdings: StockHolding[]): GeminiAnalysis {
+    const totalInvested = holdings.reduce((sum, h) => sum + (h.quantity * h.buyPrice), 0);
+    const marketValue = holdings.reduce((sum, h) => sum + (h.quantity * h.currentPrice), 0);
+    const absoluteReturn = marketValue - totalInvested;
+    const percentReturn = totalInvested > 0 ? (absoluteReturn / totalInvested) * 100 : 0;
+    
+    // Find top gainer and worst performer
+    let topGainer = holdings[0]?.symbol || 'N/A';
+    let worstPerformer = holdings[0]?.symbol || 'N/A';
+    let maxGain = -Infinity;
+    let maxLoss = Infinity;
+    
+    holdings.forEach(h => {
+      const gain = ((h.currentPrice - h.buyPrice) / h.buyPrice) * 100;
+      if (gain > maxGain) {
+        maxGain = gain;
+        topGainer = h.symbol;
+      }
+      if (gain < maxLoss) {
+        maxLoss = gain;
+        worstPerformer = h.symbol;
+      }
+    });
+    
+    // Create sector breakdown
+    const sectors: Record<string, number> = {};
+    holdings.forEach(h => {
+      const sector = h.sector || 'Unknown';
+      const value = h.quantity * h.currentPrice;
+      sectors[sector] = (sectors[sector] || 0) + value;
+    });
+    
+    // Convert to percentages
+    const sectorBreakdown: Record<string, string> = {};
+    Object.entries(sectors).forEach(([sector, value]) => {
+      sectorBreakdown[sector] = `${((value / marketValue) * 100).toFixed(2)}%`;
+    });
+    
+    // Determine risk flag based on sector diversification
+    const sectorCount = Object.keys(sectors).length;
+    let riskFlag: 'High' | 'Medium' | 'Low' = 'Medium';
+    if (sectorCount <= 2) {
+      riskFlag = 'High';
+    } else if (sectorCount >= 5) {
+      riskFlag = 'Low';
+    }
+    
+    return {
+      overview: {
+        total_invested: `₹${totalInvested.toFixed(2)}`,
+        market_value: `₹${marketValue.toFixed(2)}`,
+        absolute_return: `₹${absoluteReturn.toFixed(2)}`,
+        percent_return: `${percentReturn.toFixed(2)}%`,
+        top_gainer: topGainer,
+        worst_performer: worstPerformer
+      },
+      stock_breakdown: holdings.map(h => ({
+        symbol: h.symbol,
+        sector: h.sector || 'Unknown',
+        percent_gain: `${(((h.currentPrice - h.buyPrice) / h.buyPrice) * 100).toFixed(2)}%`,
+        recommendation: h.currentPrice > h.buyPrice ? 'Hold' : 'Review'
+      })),
+      diversification: {
+        sector_breakdown: sectorBreakdown,
+        risk_flag: riskFlag
+      },
+      recommendations: [
+        'Consider diversifying across more sectors to reduce risk.',
+        'Review underperforming assets in your portfolio.',
+        'Maintain a balanced asset allocation strategy.'
+      ],
+      summary: `Your portfolio of ${holdings.length} holdings has a total value of ₹${marketValue.toFixed(2)}, with a ${percentReturn >= 0 ? 'gain' : 'loss'} of ${Math.abs(percentReturn).toFixed(2)}%. The portfolio has ${Object.keys(sectors).length} different sectors, with the largest allocation in ${Object.entries(sectorBreakdown).sort((a, b) => parseFloat(b[1]) - parseFloat(a[1]))[0]?.[0] || 'Unknown'}.`
+    };
   },
   
   // Save analysis results to Supabase

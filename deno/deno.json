@@ -7,9 +7,7 @@
     "include": [],
     "entrypoint": "main.ts"
   },
-  "imports": {
-    "@google/generative-ai": "npm:@google/generative-ai@0.2.1"
-  },
+  "importMap": "./import_map.json",
   "tasks": {
     "start": "deno run --allow-net --allow-env --allow-read main.ts",
     "deploy": "deployctl deploy --project=finpath-api --prod main.ts"

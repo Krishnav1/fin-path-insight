@@ -35,20 +35,17 @@ export default function Header() {
   
   const handleSignOut = async () => {
     try {
-      const success = await signOut();
-      if (success) {
-        // Force a page reload to ensure all state is cleared
-        navigate("/");
-        setTimeout(() => {
-          window.location.reload();
-        }, 100);
-      } else {
-        toast({
-          title: "Error signing out",
-          description: "There was a problem signing you out. Please try again.",
-          variant: "destructive",
-        });
-      }
+      // Show toast first for immediate feedback
+      toast({
+        title: "Signing out",
+        description: "Please wait...",
+      });
+      
+      // Call the signOut function from AuthContext
+      await signOut();
+      
+      // No need to navigate or reload here as the signOut function now handles this
+      // The signOut function in AuthContext will force a page reload
     } catch (error) {
       console.error('Error during sign out:', error);
       toast({
@@ -89,13 +86,13 @@ export default function Header() {
   
   return (
     <header className="sticky top-0 z-50 w-full bg-white border-b border-slate-200 shadow-sm dark:bg-slate-900 dark:border-slate-800">
-      <div className="container flex items-center justify-between h-16 px-4 md:px-6">
+      <div className="container flex items-center justify-between h-16 px-2 sm:px-4 md:px-6">
         <div className="flex items-center gap-4">
           <Link to="/" className="flex items-center gap-2">
             <div className="w-8 h-8 bg-gradient-to-tr from-fin-primary to-fin-teal rounded-md flex items-center justify-center">
               <span className="text-white font-bold">FI</span>
             </div>
-            <span className="text-xl font-bold text-fin-primary dark:text-white hidden md:block">Fin Insight</span>
+            <span className="text-xl font-bold text-fin-primary dark:text-white hidden sm:block">Fin Insight</span>
           </Link>
           
           <nav className="hidden md:flex items-center gap-6 ml-6">
@@ -156,16 +153,16 @@ export default function Header() {
           </nav>
         </div>
         
-        <div className="flex items-center gap-2 md:gap-4">
-          <div className="hidden md:block">
+        <div className="flex items-center gap-1 sm:gap-2 md:gap-4">
+          <div className="hidden sm:block">
             <MarketToggle />
           </div>
           
           {searchOpen ? (
-            <div className="relative hidden md:block">
+            <div className="relative hidden sm:block">
               <Input
-                className="w-[200px] lg:w-[300px] h-9 rounded-md pl-9"
-                placeholder="Search for stocks (e.g., AAPL, MSFT)"
+                className="w-[150px] md:w-[200px] lg:w-[300px] h-9 rounded-md pl-9"
+                placeholder="Search stocks..."
                 autoFocus
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -186,7 +183,7 @@ export default function Header() {
               variant="ghost"
               size="icon"
               onClick={() => setSearchOpen(true)}
-              className="hidden md:flex"
+              className="hidden sm:flex"
             >
               <Search className="h-5 w-5" />
               <span className="sr-only">Search</span>
@@ -195,18 +192,18 @@ export default function Header() {
           
           <ThemeToggle />
           
-          <Button variant="ghost" size="icon" className="hidden md:flex">
+          <Button variant="ghost" size="icon" className="hidden lg:flex">
             <BellRing className="h-5 w-5" />
             <span className="sr-only">Notifications</span>
           </Button>
           
           {user ? (
-            <div className="hidden md:block">
+            <div className="hidden sm:block">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="font-medium flex items-center gap-2">
                     <User className="h-5 w-5" />
-                    <span className="max-w-[100px] truncate">{user.username || user.email}</span>
+                    <span className="max-w-[80px] md:max-w-[120px] truncate">{(user as any).username || user.email}</span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
@@ -217,6 +214,9 @@ export default function Header() {
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <Link to="/dashboard">Dashboard</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link to="/portfolio">Portfolio</Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <Link to="/settings">Settings</Link>
@@ -231,15 +231,15 @@ export default function Header() {
             </div>
           ) : (
             <>
-              <div className="hidden md:block">
+              <div className="hidden sm:block">
                 <Link to="/login">
-                  <Button variant="ghost" className="font-medium">Log In</Button>
+                  <Button variant="ghost" className="font-medium text-sm md:text-base">Log In</Button>
                 </Link>
               </div>
               
-              <div className="hidden md:block">
+              <div className="hidden sm:block">
                 <Link to="/signup">
-                  <Button className="bg-fin-accent hover:bg-fin-accent-hover text-fin-dark font-medium">Sign Up</Button>
+                  <Button className="bg-fin-accent hover:bg-fin-accent-hover text-fin-dark font-medium text-sm md:text-base">Sign Up</Button>
                 </Link>
               </div>
             </>
@@ -249,7 +249,9 @@ export default function Header() {
             variant="ghost" 
             size="icon" 
             onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className="md:hidden"
+            className="sm:hidden"
+            aria-expanded={isMenuOpen}
+            aria-label="Toggle menu"
           >
             {isMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             <span className="sr-only">Menu</span>
@@ -259,7 +261,7 @@ export default function Header() {
       
       {/* Mobile menu */}
       {isMenuOpen && (
-        <div className="md:hidden p-4 space-y-3 bg-white border-t border-slate-200 dark:bg-slate-900 dark:border-slate-800">
+        <div className="sm:hidden p-4 space-y-3 bg-white border-t border-slate-200 dark:bg-slate-900 dark:border-slate-800 max-h-[calc(100vh-4rem)] overflow-y-auto">
           <div className="relative mb-4">
             <Input
               className="w-full h-9 rounded-md pl-9"
@@ -299,15 +301,16 @@ export default function Header() {
           <Link to="/finpath" className="block py-2 px-3 font-medium text-slate-700 hover:bg-slate-100 rounded-md dark:text-slate-300 dark:hover:bg-slate-800">FinPath</Link>
           <Link to="/finwell" className="block py-2 px-3 font-medium text-slate-700 hover:bg-slate-100 rounded-md dark:text-slate-300 dark:hover:bg-slate-800">FinWell</Link>
           
-          <div className="pt-4 border-t border-slate-200 flex flex-col gap-3 dark:border-slate-800">
+          <div className="pt-4 mt-2 border-t border-slate-200 flex flex-col gap-3 dark:border-slate-800">
             {user ? (
               <>
-                <div className="flex items-center gap-2 py-2 px-3">
+                <div className="flex items-center gap-2 py-2 px-3 bg-slate-50 rounded-md dark:bg-slate-800/50">
                   <User className="h-5 w-5 text-fin-primary" />
-                  <span className="font-medium">{user.username || user.email}</span>
+                  <span className="font-medium truncate">{(user as any).username || user.email}</span>
                 </div>
                 <Link to="/profile" className="block py-2 px-3 font-medium text-slate-700 hover:bg-slate-100 rounded-md dark:text-slate-300 dark:hover:bg-slate-800">Profile</Link>
                 <Link to="/dashboard" className="block py-2 px-3 font-medium text-slate-700 hover:bg-slate-100 rounded-md dark:text-slate-300 dark:hover:bg-slate-800">Dashboard</Link>
+                <Link to="/portfolio" className="block py-2 px-3 font-medium text-slate-700 hover:bg-slate-100 rounded-md dark:text-slate-300 dark:hover:bg-slate-800">Portfolio</Link>
                 <Link to="/settings" className="block py-2 px-3 font-medium text-slate-700 hover:bg-slate-100 rounded-md dark:text-slate-300 dark:hover:bg-slate-800">Settings</Link>
                 <Button 
                   onClick={handleSignOut} 
@@ -320,12 +323,14 @@ export default function Header() {
               </>
             ) : (
               <>
-                <Link to="/login" className="w-full">
-                  <Button variant="outline" className="w-full font-medium">Log In</Button>
-                </Link>
-                <Link to="/signup" className="w-full">
-                  <Button className="w-full bg-fin-accent hover:bg-fin-accent-hover text-fin-dark font-medium">Sign Up</Button>
-                </Link>
+                <div className="flex flex-col gap-3">
+                  <Link to="/login" className="w-full">
+                    <Button variant="outline" className="w-full font-medium">Log In</Button>
+                  </Link>
+                  <Link to="/signup" className="w-full">
+                    <Button className="w-full bg-fin-accent hover:bg-fin-accent-hover text-fin-dark font-medium">Sign Up</Button>
+                  </Link>
+                </div>
               </>
             )}
           </div>

@@ -3,7 +3,15 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // Reference to the types.d.ts file for type declarations
 /// <reference path="../types.d.ts" />
+/// <reference lib="deno.ns" />
 /// <reference path="../deno.d.ts" />
+
+// Declare Deno namespace for TypeScript compiler
+declare const Deno: {
+  env: {
+    get(key: string): string | undefined;
+  };
+};
 
 // Cache for storing generated reports to avoid hitting rate limits
 interface CachedReport {
@@ -59,8 +67,9 @@ async function fetchYahooFinanceData(ticker: string) {
     const data = await response.json();
     return { success: true, data };
   } catch (error) {
-    console.error(`Error fetching from Yahoo Finance: ${error.message}`);
-    return { success: false, error: error.message };
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`Error fetching from Yahoo Finance: ${errorMessage}`);
+    return { success: false, error: errorMessage };
   }
 }
 
@@ -109,8 +118,9 @@ async function fetchEodhdData(eodhdTicker: string, endpointType: string, params:
     const data = await response.json();
     return { success: true, data };
   } catch (error) {
-    console.error(`Error fetching from EODHD: ${error.message}`);
-    return { success: false, error: error.message };
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`Error fetching from EODHD: ${errorMessage}`);
+    return { success: false, error: errorMessage };
   }
 }
 
@@ -187,7 +197,8 @@ Generate the report in well-formatted Markdown.
     return text;
   } catch (error) {
     console.error("Error calling Gemini API:", error);
-    throw new Error(`Failed to generate report from Gemini API: ${error.message}`);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    throw new Error(`Failed to generate report from Gemini API: ${errorMessage}`);
   }
 }
 

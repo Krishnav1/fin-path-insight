@@ -209,39 +209,76 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // Sign out - improved with better cleanup
+  // Sign out - completely revamped with forced page reload
   const signOut = async () => {
     try {
-      // First clear any local storage/session storage data
+      console.log('Starting signOut process...');
+      
+      // Show toast first so user gets immediate feedback
+      toast({
+        title: 'Signing out...',
+        description: 'Please wait while we sign you out.',
+      });
+      
+      // Aggressively clear ALL auth-related storage
+      const keysToRemove = [
+        // Supabase specific keys
+        'supabase.auth.token',
+        'supabase.auth.refreshToken',
+        'sb-refresh-token',
+        'sb-access-token',
+        'supabase.auth.event',
+        'supabase.auth.callbackUrl',
+        // App specific keys
+        'userPreferences',
+        'lastVisited',
+        'portfolioState',
+        'finPathUser'
+      ];
+      
+      // Remove specific known keys
+      keysToRemove.forEach(key => {
+        localStorage.removeItem(key);
+        sessionStorage.removeItem(key);
+      });
+      
+      // Also clear any keys matching patterns
       Object.keys(localStorage).forEach(key => {
-        if (key.startsWith('supabase.auth') || key.startsWith('sb-')) {
+        if (key.startsWith('supabase.') || key.startsWith('sb-')) {
           localStorage.removeItem(key);
         }
       });
       
       Object.keys(sessionStorage).forEach(key => {
-        if (key.startsWith('supabase.auth') || key.startsWith('sb-')) {
+        if (key.startsWith('supabase.') || key.startsWith('sb-')) {
           sessionStorage.removeItem(key);
         }
       });
       
-      // Clear app-specific stored data
-      localStorage.removeItem('userPreferences');
-      localStorage.removeItem('lastVisited');
+      // First invalidate the session through a direct API call
+      try {
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        await fetch(`${supabaseUrl}/auth/v1/logout`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token || ''}`
+          }
+        });
+      } catch (directApiError) {
+        console.warn('Direct API logout failed:', directApiError);
+        // Continue with regular logout even if this fails
+      }
       
-      // Call Supabase signOut with explicit scope
+      // Now call Supabase signOut with explicit scope
+      console.log('Calling supabase.auth.signOut()...');
       const { error } = await supabase.auth.signOut({
         scope: 'global' // Sign out from all devices
       });
       
       if (error) {
         console.error('Supabase signOut error:', error);
-        toast({
-          title: 'Sign out failed',
-          description: error.message,
-          variant: 'destructive',
-        });
-        return false;
+        // Continue cleanup even if Supabase call failed
       }
 
       // Clear React state
@@ -249,16 +286,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setProfile(null);
       setSession(null);
       
-      // Use a clean redirect to login page after successful logout
-      // This forces a clean page load which helps clear any lingering state
-      setTimeout(() => {
-        window.location.href = '/login';
-      }, 300);
+      // CRITICAL: Force a complete page reload and redirect to login
+      // This is the most reliable way to clear all state and auth tokens
+      console.log('Redirecting to login page with forced reload...');
       
-      toast({
-        title: 'Signed out',
-        description: 'You have been successfully signed out.',
-      });
+      // Use a more reliable approach to force reload
+      window.location.href = '/login?signout=true&t=' + new Date().getTime();
+      
+      // As a fallback, also try to reload the page after a short delay
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
       
       return true;
     } catch (err) {
@@ -268,6 +306,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         description: 'An unexpected error occurred. Please try again.',
         variant: 'destructive',
       });
+      
+      // Even if there was an error, try force reload as a last resort
+      setTimeout(() => {
+        window.location.href = '/login';
+        window.location.reload();
+      }, 1000);
+      
       return false;
     }
   }

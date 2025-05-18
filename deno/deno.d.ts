@@ -1,12 +1,8 @@
 // Type definitions for Deno global namespace
-declare namespace Deno {
-  export interface Env {
-    get(key: string): string | undefined;
-    set(key: string, value: string): void;
-    toObject(): Record<string, string>;
-  }
-  export const env: Env;
-}
+// We're only declaring the types we need, not redefining the entire Deno namespace
+// to avoid conflicts with built-in Deno types
+
+// The Deno namespace is already defined in the runtime, so we don't need to redeclare it
 
 // Type declarations for Deno standard library modules
 declare module "https://deno.land/std@0.221.0/http/server.ts" {

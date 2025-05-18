@@ -5,6 +5,13 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 /// <reference path="../types.d.ts" />
 /// <reference path="../deno.d.ts" />
 
+// Declare Deno namespace for TypeScript compiler
+declare const Deno: {
+  env: {
+    get(key: string): string | undefined;
+  };
+};
+
 // Cache for storing responses to avoid hitting rate limits
 interface CachedResponse {
   response: string;

@@ -6,6 +6,13 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 /// <reference path="../types.d.ts" />
 /// <reference path="../deno.d.ts" />
 
+// Declare Deno namespace for TypeScript compiler
+declare const Deno: {
+  env: {
+    get(key: string): string | undefined;
+  };
+};
+
 export async function analyzePortfolio(req: Request, corsHeaders: Record<string, string>): Promise<Response> {
   // Only accept POST requests
   if (req.method !== "POST") {
@@ -35,10 +42,24 @@ export async function analyzePortfolio(req: Request, corsHeaders: Record<string,
       );
     }
 
-    // Get API key from environment
-    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    // Get API key from environment or request body
+    let GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+
+    
+    // If not in environment, try to get from request body
+    if (!GEMINI_API_KEY && body.api_key) {
+      GEMINI_API_KEY = body.api_key;
+    }
+    
     if (!GEMINI_API_KEY) {
-      throw new Error("GEMINI_API_KEY environment variable is not set");
+      console.warn("No GEMINI_API_KEY found in environment or request");
+      return new Response(
+        JSON.stringify({ error: "API key not provided. Please set GEMINI_API_KEY environment variable or include api_key in the request body." }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
 
     // Initialize the Gemini API client
