@@ -223,51 +223,124 @@ export const portfolioService = {
   // Analyze portfolio with Gemini
   async analyzePortfolio(holdings: StockHolding[]): Promise<GeminiAnalysis> {
     try {
-      // Format holdings data for the API
-      const formattedHoldings = holdings.map(holding => ({
-        symbol: holding.symbol,
-        quantity: holding.quantity,
-        buy_price: holding.buyPrice,
-        current_price: holding.currentPrice,
-        sector: holding.sector
+      console.log('Analyzing portfolio with Gemini...');
+      
+      // Filter out empty or incomplete holdings
+      const validHoldings = holdings.filter(h => 
+        h.symbol && h.quantity > 0 && h.buyPrice > 0 && h.currentPrice > 0
+      );
+      
+      if (validHoldings.length === 0) {
+        throw new Error('No valid holdings to analyze. Please add complete holdings with symbol, quantity, buy price and current price.');
+      }
+      
+      // Format holdings data for the API - CRITICAL: ensure proper field naming
+      const formattedHoldings = validHoldings.map(holding => ({
+        symbol: holding.symbol.toUpperCase().trim(),
+        name: holding.name || holding.symbol,
+        quantity: Number(holding.quantity),
+        buy_price: Number(holding.buyPrice),
+        current_price: Number(holding.currentPrice),
+        sector: (holding.sector || 'Unknown').trim(),
+        buy_date: holding.buyDate || new Date().toISOString().split('T')[0]
       }));
       
-      // Call the Deno Deploy API
-      const response = await fetch(`${import.meta.env.VITE_DENO_API_URL}/api/analyzePortfolio`, {
+      console.log('Calling Deno API with holdings:', formattedHoldings);
+      
+      // Verify API URL
+      const apiUrl = import.meta.env.VITE_DENO_API_URL;
+      if (!apiUrl) {
+        console.error('VITE_DENO_API_URL is not defined in environment variables');
+        throw new Error('API URL not configured. Please check your environment settings.');
+      }
+      
+      // Call the Deno Deploy API with timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout for Gemini
+      
+      // Add CORS headers and proper content-type
+      const response = await fetch(`${apiUrl}/api/analyzePortfolio`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         },
-        body: JSON.stringify({ holdings: formattedHoldings })
+        body: JSON.stringify({ 
+          holdings: formattedHoldings,
+          // Add API key if needed
+          api_key: import.meta.env.VITE_GEMINI_API_KEY || ''
+        }),
+        signal: controller.signal,
+        // Add credentials if needed for CORS
+        credentials: 'omit'
       });
       
+      clearTimeout(timeoutId);
+      
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to analyze portfolio');
+        let errorMessage = 'Failed to analyze portfolio';
+        try {
+          const errorText = await response.text();
+          try {
+            const errorData = JSON.parse(errorText);
+            errorMessage = errorData.error || errorData.message || errorMessage;
+          } catch (jsonError) {
+            // If JSON parsing fails, use the response text
+            errorMessage = errorText || response.statusText || errorMessage;
+          }
+        } catch (e) {
+          errorMessage = `API error (${response.status}): ${response.statusText}`;
+        }
+        console.error('API error details:', errorMessage);
+        throw new Error(errorMessage);
       }
       
       const data = await response.json();
+      console.log('Received analysis data:', data);
+      
+      if (!data.analysis) {
+        throw new Error('Invalid response format from API');
+      }
+      
       return data.analysis;
     } catch (error) {
       console.error('Error analyzing portfolio:', error);
-      throw error;
+      
+      if (error.name === 'AbortError') {
+        throw new Error('Analysis request timed out. The Gemini API may be experiencing high load. Please try again.');
+      }
+      
+      if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+        throw new Error('Network error connecting to analysis API. Please check your internet connection and try again.');
+      }
+      
+      // Provide a more user-friendly error message
+      throw new Error(`Analysis failed: ${error.message || 'Unknown error occurred'}`);
     }
   },
   
   // Save analysis results to Supabase
   async saveAnalysisResults(portfolioId: string, analysis: GeminiAnalysis) {
     try {
-      const { error } = await supabase
-        .from('portfolio_analyses')
-        .upsert({
+      console.log('Saving analysis for portfolio:', portfolioId);
+      
+      // Use portfolio_analysis (singular) to match the SQL table name
+      const { data, error } = await supabase
+        .from('portfolio_analysis')
+        .insert({
           portfolio_id: portfolioId,
           analysis_data: analysis,
-          created_at: new Date()
-        }, {
-          onConflict: 'portfolio_id'
-        });
+          created_at: new Date(),
+          updated_at: new Date()
+        })
+        .select();
       
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase insert error:', error);
+        throw error;
+      }
+      
+      console.log('Analysis saved successfully:', data);
       return true;
     } catch (error) {
       console.error('Error saving analysis results:', error);
@@ -277,22 +350,36 @@ export const portfolioService = {
   
   // Get the latest analysis for a portfolio
   async getLatestAnalysis(portfolioId: string) {
-    const { data, error } = await supabase
-      .from('portfolio_analyses')
-      .select('*')
-      .eq('portfolio_id', portfolioId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
-    
-    if (error) {
-      // If no analysis found, return null instead of throwing an error
+    try {
+      console.log('Getting latest analysis for portfolio:', portfolioId);
+      
+      // Use portfolio_analysis (singular) to match the SQL table name
+      const { data, error } = await supabase
+        .from('portfolio_analysis')
+        .select('*')
+        .eq('portfolio_id', portfolioId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      
+      if (error) {
+        // If no analysis found, return null instead of throwing an error
+        if (error.code === 'PGRST116') {
+          console.log('No analysis found for portfolio');
+          return null;
+        }
+        console.error('Supabase query error:', error);
+        throw error;
+      }
+      
+      console.log('Found analysis:', data);
+      return data;
+    } catch (error) {
+      console.error('Error getting analysis:', error);
       if (error.code === 'PGRST116') {
         return null;
       }
       throw error;
     }
-    
-    return data;
   }
 };

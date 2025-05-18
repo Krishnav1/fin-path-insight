@@ -1,5 +1,8 @@
-import React, { useState, Dispatch, SetStateAction } from 'react';
+import React, { useState, Dispatch, SetStateAction, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { useToast } from '@/components/ui/use-toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -22,10 +25,225 @@ interface PortfolioHoldingsProps {
   isAnalyzing: boolean;
 }
 
+interface EditHoldingDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  holding: StockHolding | null;
+  onSave: (holding: StockHolding) => void;
+}
+
+// Edit Holding Dialog Component
+function EditHoldingDialog({ open, onOpenChange, holding, onSave }: EditHoldingDialogProps) {
+  const [formData, setFormData] = useState<StockHolding>({
+    symbol: '',
+    name: '',
+    quantity: 0,
+    buyPrice: 0,
+    currentPrice: 0,
+    sector: '',
+    buyDate: new Date().toISOString().split('T')[0],
+    value: 0,
+    profit: 0,
+    profitPercentage: 0
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const { toast } = useToast();
+
+  // Load holding data when dialog opens
+  useEffect(() => {
+    if (holding) {
+      setFormData(holding);
+    }
+  }, [holding]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    
+    // Clear error for this field when user starts typing
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: '' }));
+    }
+    
+    // Handle numeric fields
+    if (['quantity', 'buyPrice', 'currentPrice'].includes(name)) {
+      const numValue = parseFloat(value);
+      setFormData(prev => ({
+        ...prev,
+        [name]: isNaN(numValue) ? 0 : numValue
+      }));
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
+  };
+
+  const validateForm = (): boolean => {
+    const newErrors: Record<string, string> = {};
+    
+    if (!formData.symbol) newErrors.symbol = 'Symbol is required';
+    if (!formData.name) newErrors.name = 'Name is required';
+    if (formData.quantity <= 0) newErrors.quantity = 'Quantity must be greater than 0';
+    if (formData.buyPrice <= 0) newErrors.buyPrice = 'Buy price must be greater than 0';
+    if (formData.currentPrice <= 0) newErrors.currentPrice = 'Current price must be greater than 0';
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (validateForm()) {
+      // Calculate derived values
+      const value = formData.quantity * formData.currentPrice;
+      const profit = formData.quantity * (formData.currentPrice - formData.buyPrice);
+      const profitPercentage = ((formData.currentPrice - formData.buyPrice) / formData.buyPrice) * 100;
+      
+      const updatedHolding = {
+        ...formData,
+        value,
+        profit,
+        profitPercentage
+      };
+      
+      onSave(updatedHolding);
+      onOpenChange(false);
+      
+      toast({
+        title: holding ? 'Holding updated' : 'Holding added',
+        description: `${formData.symbol} has been ${holding ? 'updated' : 'added'} successfully.`
+      });
+    } else {
+      toast({
+        title: 'Validation Error',
+        description: 'Please fill in all required fields correctly.',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>{holding ? 'Edit Holding' : 'Add New Holding'}</DialogTitle>
+          <DialogDescription>
+            {holding ? 'Update the details of your investment.' : 'Add a new investment to your portfolio.'}
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4 py-4">
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="symbol" className="text-right">Symbol</Label>
+            <Input
+              id="symbol"
+              name="symbol"
+              value={formData.symbol}
+              onChange={handleChange}
+              className="col-span-3"
+              placeholder="e.g. AAPL"
+            />
+            {errors.symbol && <p className="col-span-3 col-start-2 text-sm text-red-500">{errors.symbol}</p>}
+          </div>
+          
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="name" className="text-right">Name</Label>
+            <Input
+              id="name"
+              name="name"
+              value={formData.name}
+              onChange={handleChange}
+              className="col-span-3"
+              placeholder="e.g. Apple Inc."
+            />
+            {errors.name && <p className="col-span-3 col-start-2 text-sm text-red-500">{errors.name}</p>}
+          </div>
+          
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="quantity" className="text-right">Quantity</Label>
+            <Input
+              id="quantity"
+              name="quantity"
+              type="number"
+              value={formData.quantity}
+              onChange={handleChange}
+              className="col-span-3"
+              min="0"
+              step="0.01"
+            />
+            {errors.quantity && <p className="col-span-3 col-start-2 text-sm text-red-500">{errors.quantity}</p>}
+          </div>
+          
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="buyPrice" className="text-right">Buy Price</Label>
+            <Input
+              id="buyPrice"
+              name="buyPrice"
+              type="number"
+              value={formData.buyPrice}
+              onChange={handleChange}
+              className="col-span-3"
+              min="0"
+              step="0.01"
+            />
+            {errors.buyPrice && <p className="col-span-3 col-start-2 text-sm text-red-500">{errors.buyPrice}</p>}
+          </div>
+          
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="currentPrice" className="text-right">Current Price</Label>
+            <Input
+              id="currentPrice"
+              name="currentPrice"
+              type="number"
+              value={formData.currentPrice}
+              onChange={handleChange}
+              className="col-span-3"
+              min="0"
+              step="0.01"
+            />
+            {errors.currentPrice && <p className="col-span-3 col-start-2 text-sm text-red-500">{errors.currentPrice}</p>}
+          </div>
+          
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="sector" className="text-right">Sector</Label>
+            <Input
+              id="sector"
+              name="sector"
+              value={formData.sector}
+              onChange={handleChange}
+              className="col-span-3"
+              placeholder="e.g. Technology"
+            />
+          </div>
+          
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="buyDate" className="text-right">Buy Date</Label>
+            <Input
+              id="buyDate"
+              name="buyDate"
+              type="date"
+              value={formData.buyDate}
+              onChange={handleChange}
+              className="col-span-3"
+            />
+          </div>
+          
+          <DialogFooter>
+            <Button type="submit" className="mt-4">
+              {holding ? 'Update Holding' : 'Add Holding'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function PortfolioHoldings({ portfolioData, setPortfolioData, onSave, isAnalyzing }: PortfolioHoldingsProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState<keyof StockHolding>('value');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [currentHolding, setCurrentHolding] = useState<StockHolding | null>(null);
+  const { toast } = useToast();
   
   // Format currency
   const formatCurrency = (value: number) => {
@@ -98,24 +316,9 @@ export default function PortfolioHoldings({ portfolioData, setPortfolioData, onS
                 />
               </div>
               <Button className="whitespace-nowrap" onClick={() => {
-                // Add a new empty holding to the portfolio
-                const newHolding: StockHolding = {
-                  symbol: '',
-                  name: '',
-                  quantity: 0,
-                  buyPrice: 0,
-                  currentPrice: 0,
-                  sector: '',
-                  buyDate: new Date().toISOString().split('T')[0],
-                  value: 0,
-                  profit: 0,
-                  profitPercentage: 0
-                };
-                
-                setPortfolioData(prev => ({
-                  ...prev,
-                  holdings: [...prev.holdings, newHolding]
-                }));
+                // Open dialog to add a new holding
+                setCurrentHolding(null);
+                setEditDialogOpen(true);
               }}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add Holding
@@ -240,7 +443,10 @@ export default function PortfolioHoldings({ portfolioData, setPortfolioData, onS
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => {
+                              setCurrentHolding(holding);
+                              setEditDialogOpen(true);
+                            }}>
                               <Edit className="mr-2 h-4 w-4" />
                               <span>Edit</span>
                             </DropdownMenuItem>
@@ -249,7 +455,25 @@ export default function PortfolioHoldings({ portfolioData, setPortfolioData, onS
                               <span>View Details</span>
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-red-600 dark:text-red-400">
+                            <DropdownMenuItem 
+                              className="text-red-600 dark:text-red-400"
+                              onClick={() => {
+                                // Remove holding from portfolio
+                                setPortfolioData(prev => ({
+                                  ...prev,
+                                  holdings: prev.holdings.filter(h => 
+                                    // Filter out the current holding
+                                    !(h.symbol === holding.symbol && 
+                                      h.buyPrice === holding.buyPrice && 
+                                      h.quantity === holding.quantity)
+                                  )
+                                }));
+                                toast({
+                                  title: 'Holding deleted',
+                                  description: `${holding.symbol} has been removed from your portfolio.`
+                                });
+                              }}
+                            >
                               <Trash2 className="mr-2 h-4 w-4" />
                               <span>Delete</span>
                             </DropdownMenuItem>
@@ -294,6 +518,33 @@ export default function PortfolioHoldings({ portfolioData, setPortfolioData, onS
           </div>
         </CardContent>
       </Card>
+      
+      {/* Edit Holding Dialog */}
+      <EditHoldingDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        holding={currentHolding}
+        onSave={(updatedHolding) => {
+          if (currentHolding) {
+            // Update existing holding
+            setPortfolioData(prev => ({
+              ...prev,
+              holdings: prev.holdings.map(h => 
+                // Match the holding to update based on multiple properties
+                (h.symbol === currentHolding.symbol && 
+                 h.buyPrice === currentHolding.buyPrice && 
+                 h.quantity === currentHolding.quantity) ? updatedHolding : h
+              )
+            }));
+          } else {
+            // Add new holding
+            setPortfolioData(prev => ({
+              ...prev,
+              holdings: [...prev.holdings, updatedHolding]
+            }));
+          }
+        }}
+      />
     </div>
   );
 }

@@ -213,14 +213,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = async () => {
     try {
       // First clear any local storage/session storage data
-      localStorage.removeItem('supabase.auth.token');
-      sessionStorage.removeItem('supabase.auth.token');
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('supabase.auth') || key.startsWith('sb-')) {
+          localStorage.removeItem(key);
+        }
+      });
       
-      // Clear any other app-specific stored data
+      Object.keys(sessionStorage).forEach(key => {
+        if (key.startsWith('supabase.auth') || key.startsWith('sb-')) {
+          sessionStorage.removeItem(key);
+        }
+      });
+      
+      // Clear app-specific stored data
       localStorage.removeItem('userPreferences');
       localStorage.removeItem('lastVisited');
       
-      // Call Supabase signOut with all options
+      // Call Supabase signOut with explicit scope
       const { error } = await supabase.auth.signOut({
         scope: 'global' // Sign out from all devices
       });
@@ -239,6 +248,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(null);
       setProfile(null);
       setSession(null);
+      
+      // Use a clean redirect to login page after successful logout
+      // This forces a clean page load which helps clear any lingering state
+      setTimeout(() => {
+        window.location.href = '/login';
+      }, 300);
       
       toast({
         title: 'Signed out',
