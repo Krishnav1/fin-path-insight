@@ -167,9 +167,18 @@ export const portfolioService = {
   },
   
   // Add a holding to a portfolio
-  addHolding(portfolioId: string, holding: StockHolding) {
+  async addHolding(portfolioId: string, holding: StockHolding) {
+    // Get the current authenticated user
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !authData.user) {
+      console.error('Auth error:', authError);
+      throw new Error('User must be authenticated to add holdings');
+    }
+    
     // Format the holding data to match the Supabase schema
     const formattedHolding = {
+      user_id: authData.user.id, // Add the user_id to satisfy RLS policy
       portfolio_id: portfolioId,
       symbol: holding.symbol.toUpperCase().trim(),
       name: holding.name || holding.symbol,
@@ -198,8 +207,17 @@ export const portfolioService = {
   
   // Update a holding
   async updateHolding(holdingId: string, holding: StockHolding) {
+    // Get the current authenticated user
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !authData.user) {
+      console.error('Auth error:', authError);
+      throw new Error('User must be authenticated to update holdings');
+    }
+
     // Format the holding data to match the Supabase schema
     const formattedHolding = {
+      user_id: authData.user.id, // Add the user_id to satisfy RLS policy
       symbol: holding.symbol.toUpperCase().trim(),
       name: holding.name || holding.symbol,
       quantity: Number(holding.quantity),
@@ -215,6 +233,7 @@ export const portfolioService = {
       .from('portfolio_holdings')
       .update(formattedHolding)
       .eq('id', holdingId)
+      .eq('user_id', authData.user.id) // Additional constraint to satisfy RLS
       .select()
       .single();
     
