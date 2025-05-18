@@ -66,11 +66,21 @@ export const portfolioService = {
   
   // Create a new portfolio
   async createPortfolio(portfolio: Portfolio) {
+    // Get the current authenticated user
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !authData.user) {
+      console.error('Auth error:', authError);
+      throw new Error('User must be authenticated to create portfolio');
+    }
+
+    const userId = authData.user.id;
+    
     // Insert portfolio
     const { data, error } = await supabase
       .from('portfolios')
       .insert({
-        user_id: (await supabase.auth.getUser()).data.user?.id,
+        user_id: userId,
         name: portfolio.name,
         description: portfolio.description,
         total_value: portfolio.totalValue,
@@ -81,11 +91,15 @@ export const portfolioService = {
       .select()
       .single();
     
-    if (error) throw error;
+    if (error) {
+      console.error('Portfolio creation error:', error);
+      throw error;
+    }
     
     // Insert holdings if any
     if (portfolio.holdings && portfolio.holdings.length > 0) {
       const holdingsData = portfolio.holdings.map(holding => ({
+        user_id: userId, // Add user_id to each holding
         portfolio_id: data.id,
         symbol: holding.symbol,
         name: holding.name,
@@ -96,11 +110,16 @@ export const portfolioService = {
         sector: holding.sector
       }));
       
+      console.log('Creating holdings with user_id:', holdingsData);
+      
       const { error: holdingsError } = await supabase
         .from('portfolio_holdings')
         .insert(holdingsData);
       
-      if (holdingsError) throw holdingsError;
+      if (holdingsError) {
+        console.error('Holdings creation error:', holdingsError);
+        throw holdingsError;
+      }
     }
     
     return data;
@@ -108,6 +127,14 @@ export const portfolioService = {
   
   // Update an existing portfolio
   async updatePortfolio(portfolioId: string, portfolio: Portfolio) {
+    // Get the current authenticated user
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !authData.user) {
+      console.error('Auth error:', authError);
+      throw new Error('User must be authenticated to update portfolio');
+    }
+
     // Update portfolio
     const { error } = await supabase
       .from('portfolios')
@@ -120,21 +147,30 @@ export const portfolioService = {
         total_return_percentage: portfolio.totalReturnPercentage,
         updated_at: new Date()
       })
-      .eq('id', portfolioId);
+      .eq('id', portfolioId)
+      .eq('user_id', authData.user.id); // Ensure we're updating the user's own portfolio
     
-    if (error) throw error;
+    if (error) {
+      console.error('Portfolio update error:', error);
+      throw error;
+    }
     
     // Delete existing holdings
     const { error: deleteError } = await supabase
       .from('portfolio_holdings')
       .delete()
-      .eq('portfolio_id', portfolioId);
+      .eq('portfolio_id', portfolioId)
+      .eq('user_id', authData.user.id); // Ensure we're deleting the user's own holdings
     
-    if (deleteError) throw deleteError;
+    if (deleteError) {
+      console.error('Delete holdings error:', deleteError);
+      throw deleteError;
+    }
     
     // Insert new holdings
     if (portfolio.holdings && portfolio.holdings.length > 0) {
       const holdingsData = portfolio.holdings.map(holding => ({
+        user_id: authData.user.id, // Add user_id to each holding
         portfolio_id: portfolioId,
         symbol: holding.symbol,
         name: holding.name,
@@ -145,11 +181,16 @@ export const portfolioService = {
         sector: holding.sector
       }));
       
+      console.log('Inserting holdings with user_id:', holdingsData);
+      
       const { error: holdingsError } = await supabase
         .from('portfolio_holdings')
         .insert(holdingsData);
       
-      if (holdingsError) throw holdingsError;
+      if (holdingsError) {
+        console.error('Insert holdings error:', holdingsError);
+        throw holdingsError;
+      }
     }
     
     return { id: portfolioId };
