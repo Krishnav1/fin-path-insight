@@ -167,45 +167,61 @@ export const portfolioService = {
   },
   
   // Add a holding to a portfolio
-  async addHolding(portfolioId: string, holding: StockHolding) {
-    const { data, error } = await supabase
-      .from('portfolio_holdings')
-      .insert({
-        portfolio_id: portfolioId,
-        symbol: holding.symbol,
-        name: holding.name,
-        quantity: holding.quantity,
-        buy_price: holding.buyPrice,
-        current_price: holding.currentPrice,
-        buy_date: holding.buyDate,
-        sector: holding.sector
-      })
-      .select()
-      .single();
+  addHolding(portfolioId: string, holding: StockHolding) {
+    // Format the holding data to match the Supabase schema
+    const formattedHolding = {
+      portfolio_id: portfolioId,
+      symbol: holding.symbol.toUpperCase().trim(),
+      name: holding.name || holding.symbol,
+      quantity: Number(holding.quantity),
+      buy_price: Number(holding.buyPrice),
+      current_price: Number(holding.currentPrice),
+      sector: (holding.sector || 'Unknown').trim(),
+      buy_date: holding.buyDate || new Date().toISOString().split('T')[0]
+    };
     
-    if (error) throw error;
-    return data;
+    console.log('Adding holding to Supabase:', formattedHolding);
+    
+    return supabase
+      .from('portfolio_holdings')
+      .insert(formattedHolding)
+      .select()
+      .single()
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('Supabase error adding holding:', error);
+          throw error;
+        }
+        return data;
+      });
   },
   
   // Update a holding
   async updateHolding(holdingId: string, holding: StockHolding) {
+    // Format the holding data to match the Supabase schema
+    const formattedHolding = {
+      symbol: holding.symbol.toUpperCase().trim(),
+      name: holding.name || holding.symbol,
+      quantity: Number(holding.quantity),
+      buy_price: Number(holding.buyPrice),
+      current_price: Number(holding.currentPrice),
+      sector: (holding.sector || 'Unknown').trim(),
+      buy_date: holding.buyDate || new Date().toISOString().split('T')[0]
+    };
+    
+    console.log('Updating holding in Supabase:', formattedHolding);
+    
     const { data, error } = await supabase
       .from('portfolio_holdings')
-      .update({
-        symbol: holding.symbol,
-        name: holding.name,
-        quantity: holding.quantity,
-        buy_price: holding.buyPrice,
-        current_price: holding.currentPrice,
-        buy_date: holding.buyDate,
-        sector: holding.sector,
-        updated_at: new Date()
-      })
+      .update(formattedHolding)
       .eq('id', holdingId)
       .select()
       .single();
     
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase error updating holding:', error);
+      throw error;
+    }
     return data;
   },
   

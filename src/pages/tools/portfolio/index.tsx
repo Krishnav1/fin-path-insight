@@ -76,39 +76,105 @@ export default function PortfolioAnalysisPage() {
     }
   };
   
-  // Save holdings to Supabase and analyze with Gemini
-  const saveAndAnalyzePortfolio = async () => {
+  // Save holdings to Supabase without analysis
+  const savePortfolio = async () => {
     try {
-      setIsAnalyzing(true);
+      setIsLoading(true);
       
       // Save portfolio data to Supabase
       const portfolios = await portfolioService.getPortfolios();
       let portfolioId;
       
+      // Format the holdings data properly for Supabase
+      // This fixes the 400 error by ensuring field names match the database schema
+      const formattedHoldings = portfolioData.holdings.map(h => ({
+        symbol: h.symbol,
+        name: h.name,
+        quantity: h.quantity,
+        buy_price: h.buyPrice, // Ensure field name matches Supabase schema
+        current_price: h.currentPrice, // Ensure field name matches Supabase schema
+        sector: h.sector || 'Unknown',
+        buy_date: h.buyDate || new Date().toISOString().split('T')[0]
+      }));
+      
+      console.log('Saving holdings to Supabase:', formattedHoldings);
+      
       if (portfolios && portfolios.length > 0) {
         // Update existing portfolio
         portfolioId = portfolios[0].id;
+        // Convert the formatted holdings back to StockHolding format for the service
+        const stockHoldings = formattedHoldings.map(h => ({
+          symbol: h.symbol,
+          name: h.name,
+          quantity: h.quantity,
+          buyPrice: h.buy_price,
+          currentPrice: h.current_price,
+          sector: h.sector,
+          buyDate: h.buy_date,
+          value: h.quantity * h.current_price,
+          profit: h.quantity * (h.current_price - h.buy_price),
+          profitPercentage: ((h.current_price - h.buy_price) / h.buy_price) * 100
+        }));
+        
         await portfolioService.updatePortfolio(portfolioId, {
           ...portfolioData,
-          holdings: portfolioData.holdings.map(h => ({
-            ...h,
-            buyPrice: h.buyPrice,
-            currentPrice: h.currentPrice,
-          }))
+          holdings: stockHoldings
         });
       } else {
         // Create new portfolio
+        // Convert the formatted holdings back to StockHolding format for the service
+        const stockHoldings = formattedHoldings.map(h => ({
+          symbol: h.symbol,
+          name: h.name,
+          quantity: h.quantity,
+          buyPrice: h.buy_price,
+          currentPrice: h.current_price,
+          sector: h.sector,
+          buyDate: h.buy_date,
+          value: h.quantity * h.current_price,
+          profit: h.quantity * (h.current_price - h.buy_price),
+          profitPercentage: ((h.current_price - h.buy_price) / h.buy_price) * 100
+        }));
+        
         const newPortfolio = await portfolioService.createPortfolio({
           name: 'My Portfolio',
           description: 'My investment portfolio',
-          holdings: portfolioData.holdings.map(h => ({
-            ...h,
-            buyPrice: h.buyPrice,
-            currentPrice: h.currentPrice,
-          }))
+          holdings: stockHoldings
         });
         portfolioId = newPortfolio.id;
       }
+      
+      toast({
+        title: 'Success',
+        description: 'Portfolio saved successfully.',
+      });
+      
+    } catch (error) {
+      console.error('Error saving portfolio:', error);
+      toast({
+        title: 'Error',
+        description: `Failed to save portfolio: ${error.message || 'Unknown error'}`,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Analyze portfolio with Gemini
+  const analyzePortfolio = async () => {
+    try {
+      setIsAnalyzing(true);
+      
+      // First save the portfolio to ensure we have the latest data
+      await savePortfolio();
+      
+      // Get the portfolio ID
+      const portfolios = await portfolioService.getPortfolios();
+      if (!portfolios || portfolios.length === 0) {
+        throw new Error('No portfolio found. Please save your portfolio first.');
+      }
+      const portfolioId = portfolios[0].id;
       
       // Analyze portfolio with Gemini
       const analysis = await portfolioService.analyzePortfolio(portfolioData.holdings);
@@ -120,7 +186,7 @@ export default function PortfolioAnalysisPage() {
       
       toast({
         title: 'Success',
-        description: 'Portfolio saved and analyzed successfully.',
+        description: 'Portfolio analyzed successfully.',
       });
       
       // Switch to overview tab to show analysis results
@@ -129,11 +195,20 @@ export default function PortfolioAnalysisPage() {
       console.error('Error analyzing portfolio:', error);
       toast({
         title: 'Error',
-        description: 'Failed to analyze portfolio. Please try again.',
+        description: `Failed to analyze portfolio: ${error.message || 'Please try again.'}`,
         variant: 'destructive',
       });
     } finally {
       setIsAnalyzing(false);
+    }
+  };
+  
+  // Combined function to handle both save and analyze based on action type
+  const handlePortfolioAction = async (action: 'save' | 'analyze' = 'save') => {
+    if (action === 'analyze') {
+      await analyzePortfolio();
+    } else {
+      await savePortfolio();
     }
   };
 
@@ -201,7 +276,7 @@ export default function PortfolioAnalysisPage() {
               <PortfolioHoldings 
                 portfolioData={portfolioData} 
                 setPortfolioData={setPortfolioData} 
-                onSave={saveAndAnalyzePortfolio} 
+                onSave={handlePortfolioAction} 
                 isAnalyzing={isAnalyzing} 
               />
             </TabsContent>

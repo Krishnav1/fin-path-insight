@@ -21,7 +21,7 @@ import {
 interface PortfolioHoldingsProps {
   portfolioData: Portfolio;
   setPortfolioData: Dispatch<SetStateAction<Portfolio>>;
-  onSave: () => Promise<void>;
+  onSave: (action?: 'save' | 'analyze') => Promise<void>;
   isAnalyzing: boolean;
 }
 
@@ -323,24 +323,52 @@ export default function PortfolioHoldings({ portfolioData, setPortfolioData, onS
                 <Plus className="h-4 w-4 mr-2" />
                 Add Holding
               </Button>
-              <Button 
-                className="whitespace-nowrap" 
-                variant="outline" 
-                onClick={onSave}
-                disabled={isAnalyzing}
-              >
-                {isAnalyzing ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Analyzing...
-                  </>
-                ) : (
-                  <>
-                    <Save className="h-4 w-4 mr-2" />
-                    Save & Analyze
-                  </>
-                )}
-              </Button>
+              <div className="flex gap-2">
+                <Button 
+                  className="whitespace-nowrap" 
+                  variant="secondary" 
+                  onClick={() => {
+                    // Call the parent component's save function but with a flag to only save
+                    if (typeof onSave === 'function') {
+                      // We'll handle this in the parent component
+                      onSave('save');
+                    }
+                  }}
+                  disabled={isAnalyzing}
+                  title="Save your portfolio holdings to the database"
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  Save
+                </Button>
+                <Button 
+                  className="whitespace-nowrap" 
+                  variant="default" 
+                  onClick={() => {
+                    // Call the parent component's analyze function
+                    if (typeof onSave === 'function') {
+                      // We'll handle this in the parent component
+                      onSave('analyze');
+                    }
+                  }}
+                  disabled={isAnalyzing}
+                  title="Analyze your portfolio with AI to get insights"
+                >
+                  {isAnalyzing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" strokeWidth="2"/>
+                        <path d="M12 7V12L15 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                      </svg>
+                      Analyze
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
         </CardHeader>
