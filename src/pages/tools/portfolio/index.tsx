@@ -176,13 +176,10 @@ export default function PortfolioAnalysisPage() {
       }
       const portfolioId = portfolios[0].id;
       
-      // Analyze portfolio with Gemini
+      // Analyze portfolio with Gemini (analysis is automatically saved to Supabase within the service)
       const analysis = await portfolioService.analyzePortfolio(portfolioData.holdings);
       setAnalysisData(analysis);
       setAnalysisTimestamp(new Date().toLocaleString());
-      
-      // Save analysis results to Supabase
-      await portfolioService.saveAnalysisResults(portfolioId, analysis);
       
       toast({
         title: 'Success',
