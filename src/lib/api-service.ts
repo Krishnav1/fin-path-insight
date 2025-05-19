@@ -1094,9 +1094,7 @@ async function getFundamentalData(symbol: string, type: string = 'general'): Pro
     });
 }
 
-// Forward declarations to avoid reference errors
-let generateIndianStockFallbackData: (symbol: string) => any;
-let generateGlobalStockFallbackData: (symbol: string) => any;
+// The getSymbolName function is already defined at line ~702
 
 // Function to get stock data from multiple sources with consistent interface
 export async function getMultiSourceStockData(symbol: string, market: string = 'global'): Promise<any> {
@@ -1107,23 +1105,20 @@ export async function getMultiSourceStockData(symbol: string, market: string = '
     return await getComprehensiveStockData(symbol, isIndian);
   } catch (error) {
     console.error(`Error fetching data for ${symbol}:`, error);
-    
-    // Fallback to appropriate market data
-    if (isIndian) {
-      // Clean symbol by removing any suffix (.NS or .NSE)
-      const cleanSymbol = symbol.replace(/\.(NS|NSE)$/, '');
-      return generateIndianStockFallbackData(cleanSymbol);
-    } else {
-      return generateGlobalStockFallbackData(symbol);
-    }
+    // Return null instead of using fallback data generators
+    return null;
   }
 }
 
 // Enhanced function to get comprehensive stock data using EODHD API
-async function getComprehensiveStockData(symbol: string, isIndian: boolean = false): Promise<any> {
-      apiSymbol = `${symbol}.NSE`;
-    }
-
+export async function getComprehensiveStockData(symbol: string, isIndian: boolean = false): Promise<any> {
+  // Format the symbol based on market
+  let apiSymbol = symbol;
+  
+  // For Indian stocks, add .NSE suffix if not already present
+  if (isIndian && !symbol.includes('.NS') && !symbol.includes('.NSE')) {
+    apiSymbol = `${symbol}.NSE`;
+  }
   
   // Check cache first (cache for 15 minutes)
   const cacheKey = `${apiSymbol}_data`;
@@ -1368,7 +1363,7 @@ type FallbackChartPoint = {
 };
 
 // Generate fallback data for Indian stocks when API fails
-generateIndianStockFallbackData = function(symbol: string = ''): any {
+function generateIndianStockFallbackData(symbol: string = ''): any {
   // Clean the symbol (remove .NS if present)
   const cleanSymbol = symbol.replace('.NS', '');
   
@@ -1605,7 +1600,7 @@ generateIndianStockFallbackData = function(symbol: string = ''): any {
 }
 
 // Generate fallback data for global stocks when API fails
-generateGlobalStockFallbackData = function(symbol: string = ''): any {
+function generateGlobalStockFallbackData(symbol: string = ''): any {
   // Get company name
   const name = getSymbolName(symbol);
   
@@ -1839,11 +1834,8 @@ generateGlobalStockFallbackData = function(symbol: string = ''): any {
 } // Closes the try block
 } catch (error) {
   console.error(`Error fetching comprehensive data for ${symbol}:`, error);
-  // Return fallback data based on market type
-  const fallbackData = isIndian ? generateIndianStockFallbackData(symbol) : generateGlobalStockFallbackData(symbol);
-  // Cache the fallback data for 15 minutes
-  apiCache.set(cacheKey, fallbackData, 15 * 60 * 1000);
-  return fallbackData;
+  // Return null instead of using fallback data generators
+  return null;
 }
 
 // Update the getIndianStockData to use the comprehensive data function
@@ -1861,18 +1853,6 @@ async function getGlobalStockData(symbol: string): Promise<any> {
   return getUSStockData(symbol);
 }
 
-// Updated multi-source function that uses market-specific functions
-async function getMultiSourceStockData(symbol: string, market: string = 'global'): Promise<any> {
-  // Determine if this is an Indian stock by market parameter or symbol pattern
-  const isIndianStock = market === 'india';
-  
-  // Remove .NS suffix for consistency across the application
-  const cleanSymbol = symbol.replace('.NS', '');
-  
-  if (isIndianStock) {
-    return getIndianStockData(cleanSymbol);
-  } else {
-    return getGlobalStockData(cleanSymbol);
-  }
-}
+// The duplicate getMultiSourceStockData function has been removed
+// We're using the implementation defined earlier in the file at line ~1485
 }
