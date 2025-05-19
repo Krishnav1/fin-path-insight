@@ -29,10 +29,10 @@ const StockDisplay: React.FC<StockDisplayProps> = ({ symbol, price, change, chan
         </div>
       </div>
       <div className="text-right">
-        <div className="font-bold">${price.toFixed(2)}</div>
+        <div className="font-bold">${(price || 0).toFixed(2)}</div>
         <div className={`flex items-center text-sm ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
           {isPositive ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}
-          {change.toFixed(2)} ({changePercent.toFixed(2)}%)
+          {(change || 0).toFixed(2)} ({(changePercent || 0).toFixed(2)}%)
         </div>
       </div>
     </div>

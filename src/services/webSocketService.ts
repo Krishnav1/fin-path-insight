@@ -1,7 +1,33 @@
 // WebSocket Service for real-time stock data
 // This service connects to our Deno backend WebSocket proxy for EODHD data
 
-import { EventEmitter } from 'events';
+// Simple browser-compatible EventEmitter implementation
+class EventEmitter {
+  private events: Record<string, Array<(...args: any[]) => void>> = {};
+
+  on(event: string, listener: (...args: any[]) => void): void {
+    if (!this.events[event]) {
+      this.events[event] = [];
+    }
+    this.events[event].push(listener);
+  }
+
+  off(event: string, listener: (...args: any[]) => void): void {
+    if (!this.events[event]) return;
+    this.events[event] = this.events[event].filter(l => l !== listener);
+  }
+
+  emit(event: string, ...args: any[]): void {
+    if (!this.events[event]) return;
+    this.events[event].forEach(listener => {
+      try {
+        listener(...args);
+      } catch (error) {
+        console.error(`Error in event listener for ${event}:`, error);
+      }
+    });
+  }
+}
 
 // Define the structure of stock update messages
 export interface StockUpdate {
