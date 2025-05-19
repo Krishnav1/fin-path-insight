@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TrendingUp, TrendingDown, RefreshCw } from 'lucide-react';
 import Header from '@/components/layout/Header';
@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button';
 import ErrorDisplay from '@/components/common/ErrorDisplay';
 import * as apiService from '@/services/apiService';
 import { getMultiSourceStockData, getComprehensiveStockData } from '@/lib/api-service';
+import useRealTimeStock, { RealTimeStockData } from '@/hooks/useRealTimeStock';
+import { ConnectionState } from '@/services/webSocketService';
 import { ERROR_TYPES } from '@/utils/errorHandler';
 import './IndianMarketPage.css';
 import axios from 'axios';
@@ -68,10 +70,18 @@ const IndianMarketPage: React.FC = () => {
   const navigate = useNavigate();
   const [marketStatus, setMarketStatus] = useState<MarketStatus | null>(null);
   const [topStocks, setTopStocks] = useState<TopStocksData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [realTimeEnabled, setRealTimeEnabled] = useState<boolean>(true);
   const [error, setError] = useState<any>(null);
   const [lastUpdated, setLastUpdated] = useState<string>('');
   
+  // Use the real-time stock hook
+  const { 
+    stockData: realTimeStockData, 
+    isConnected: isWebSocketConnected, 
+    subscribe 
+  } = useRealTimeStock();
+
   // Define Indian stock symbols for top stocks
   const indianStockSymbols = [
     'RELIANCE', 'TCS', 'HDFCBANK', 'INFY', 'HINDUNILVR', 
@@ -100,12 +110,44 @@ const IndianMarketPage: React.FC = () => {
 
   useEffect(() => {
     fetchData();
+    
+    // Set up an interval to refresh data every 5 minutes as a fallback
+    const intervalId = setInterval(() => {
+      if (!realTimeEnabled || !isWebSocketConnected) {
+        console.log('Fallback refresh: WebSocket not connected or disabled');
+        fetchData();
+      }
+    }, 5 * 60 * 1000); // 5 minutes
+    
+    return () => clearInterval(intervalId);
   }, []);
+
+  // Update stocks when real-time data changes
+  useEffect(() => {
+    if (realTimeEnabled && isWebSocketConnected && topStocks && topStocks.stocks) {
+      const updatedStocks = updateStocksWithRealTimeData(topStocks.stocks, realTimeStockData);
+      
+      setTopStocks(prev => ({
+        ...prev,
+        stocks: updatedStocks,
+        timestamp: new Date().toLocaleString(),
+        source: 'EODHD WebSocket (Real-time)'
+      }));
+    }
+  }, [realTimeStockData, realTimeEnabled, isWebSocketConnected]);
+
+  // Subscribe to new symbols when topStocks changes
+  useEffect(() => {
+    if (realTimeEnabled && topStocks && topStocks.stocks) {
+      const symbolsToSubscribe = getSymbolsToSubscribe();
+      subscribe(symbolsToSubscribe);
+    }
+  }, [topStocks?.stocks]);
 
   // Function to fetch market data using EODHD API
   const fetchData = async () => {
     try {
-      setLoading(true);
+      setIsLoading(true);
       setError(null);
 
       // Prepare the symbols for EODHD API (NSE exchange code)
@@ -172,9 +214,19 @@ const IndianMarketPage: React.FC = () => {
       });
       
       // Wait for all stock data to be fetched
-      const stockResults = await Promise.all(stockPromises);
-      const validStocks = stockResults.filter(stock => stock !== null) as StockData[];
+      const fetchedStocks = await Promise.all(stockPromises);
       
+      // Apply real-time data if available and enabled
+      const finalStocks = realTimeEnabled && isWebSocketConnected 
+        ? updateStocksWithRealTimeData(fetchedStocks, realTimeStockData)
+        : fetchedStocks;
+      
+      const topStocksData: TopStocksData = {
+        stocks: finalStocks,
+        timestamp: new Date().toLocaleString(),
+        source: realTimeEnabled && isWebSocketConnected ? 'EODHD WebSocket (Real-time)' : 'EODHD API'
+      };
+
       // Create market status data
       const marketStatusData: MarketStatus = {
         indicativenifty50: {
@@ -213,14 +265,8 @@ const IndianMarketPage: React.FC = () => {
       };
       
       // Sort stocks by market cap
-      validStocks.sort((a, b) => b.marketCap - a.marketCap);
+      finalStocks.sort((a, b) => b.marketCap - a.marketCap);
       
-      const topStocksData: TopStocksData = {
-        stocks: validStocks,
-        timestamp: new Date().toISOString(),
-        source: 'EODHD API'
-      };
-
       setMarketStatus(marketStatusData);
       setTopStocks(topStocksData);
       setLastUpdated(new Date().toISOString());
@@ -240,10 +286,10 @@ const IndianMarketPage: React.FC = () => {
       if (!marketStatus) setMarketStatus(null);
       if (!topStocks) setTopStocks(null);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
-  
+
   // Function to handle stock click and navigate to company analysis
   const handleStockClick = (symbol: string) => {
     // Symbol should already be without .NS or .NSE suffix
@@ -255,6 +301,27 @@ const IndianMarketPage: React.FC = () => {
     await fetchData();
   };
   
+  // Function to update stocks with real-time data
+  const updateStocksWithRealTimeData = (stocks: StockData[], realTimeData: RealTimeStockData) => {
+    return stocks.map(stock => {
+      const realTimeStock = realTimeData[stock.symbol];
+      if (realTimeStock) {
+        return {
+          ...stock,
+          lastPrice: realTimeStock.price,
+          change: realTimeStock.change,
+          pChange: realTimeStock.changePercent
+        };
+      }
+      return stock;
+    });
+  };
+
+  // Function to get symbols to subscribe to WebSocket
+  const getSymbolsToSubscribe = () => {
+    return indianStockSymbols.map(symbol => symbol.split('.')[0]);
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
       <Header />
@@ -264,16 +331,31 @@ const IndianMarketPage: React.FC = () => {
             <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50">Indian Market Dashboard</h1>
             <p className="text-slate-500 dark:text-slate-400">Live data from National Stock Exchange of India (NSE)</p>
           </div>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={handleRefresh}
-            disabled={loading}
-            className="flex items-center gap-1"
-          >
-            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-            <span>Refresh</span>
-          </Button>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center">
+              <span className="mr-2 text-sm">Real-time:</span>
+              <div 
+                className={`w-3 h-3 rounded-full mr-1 ${isWebSocketConnected && realTimeEnabled ? 'bg-green-500' : 'bg-gray-400'}`} 
+                title={isWebSocketConnected && realTimeEnabled ? 'Connected' : 'Disconnected'}
+              ></div>
+              <button 
+                onClick={() => setRealTimeEnabled(!realTimeEnabled)} 
+                className={`text-xs px-2 py-1 rounded ${realTimeEnabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}
+              >
+                {realTimeEnabled ? 'ON' : 'OFF'}
+              </button>
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleRefresh}
+              disabled={isLoading}
+              className="flex items-center gap-1"
+            >
+              <RefreshCw size={16} className={isLoading ? "animate-spin" : ""} />
+              <span>Refresh</span>
+            </Button>
+          </div>
         </div>
 
         {error && (
@@ -284,7 +366,7 @@ const IndianMarketPage: React.FC = () => {
           />
         )}
 
-        {loading && !error ? (
+        {isLoading && !error ? (
           <div className="flex items-center justify-center h-64">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
           </div>

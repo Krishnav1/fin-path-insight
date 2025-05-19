@@ -1,5 +1,6 @@
 // EODHD API Proxy handler for Deno Deploy
 // This endpoint forwards requests to the EODHD API
+/// <reference path="../deno.d.ts" />
 
 const EODHD_BASE_URL = 'https://eodhd.com/api';
 

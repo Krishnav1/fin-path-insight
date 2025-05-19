@@ -49,6 +49,7 @@ const PortfolioAnalysisPage = lazy(() => import("./pages/tools/portfolio/index")
 const StockDetails = lazy(() => import("./components/StockDetails"));
 const CryptoDetails = lazy(() => import("./components/CryptoDetails"));
 const IndianMarketPage = lazy(() => import("./components/IndianMarket/IndianMarketPage"));
+const GlobalMarketRealTimePage = lazy(() => import("./pages/GlobalMarketRealTime"));
 
 // Lazy loaded static pages
 const AboutPage = lazy(() => import("./pages/about/index"));
@@ -131,6 +132,11 @@ const App = () => (
                   <Route path="/indian-market" element={
                     <Suspense fallback={<LoadingFallback />}>
                       <IndianMarketPage />
+                    </Suspense>
+                  } />
+                  <Route path="/global-market-realtime" element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <GlobalMarketRealTimePage />
                     </Suspense>
                   } />
                   
