@@ -23,8 +23,7 @@ declare global {
   };
 }
 
-// Use window.Deno for TypeScript compatibility
-const Deno = window.Deno;
+// Deno is available directly in the Deno environment
 
 const flags = parse(Deno?.args || [], {
   string: ["project", "entrypoint"],

@@ -8,7 +8,7 @@ import { getInvestmentReport } from "./routes/getInvestmentReport.ts";
 import { finGenieOracle } from "./routes/finGenieOracle.ts";
 import { marketData } from "./routes/marketData.ts";
 import { analyzePortfolio } from "./routes/analyzePortfolio.ts";
-import { eodhd } from "./routes/eodhd.ts";
+import { eodhProxy } from "./routes/eodhd-proxy.ts";
 
 // Define allowed origins
 const ALLOWED_ORIGINS = [
@@ -60,7 +60,7 @@ async function handler(req: Request): Promise<Response> {
     } else if (path === "/api/analyzePortfolio") {
       return await analyzePortfolio(req, corsHeaders);
     } else if (path.startsWith("/api/eodhd-proxy/")) {
-      return await eodhd(req, corsHeaders);
+      return await eodhProxy(req, corsHeaders);
     } else if (path === "/") {
       return new Response("FinPath Insight API is running!", {
         status: 200,

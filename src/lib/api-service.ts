@@ -1046,7 +1046,8 @@ export async function getMultiSourceStockData(symbol: string, market: string = '
     
     // Fallback to appropriate market data
     if (isIndian) {
-      const cleanSymbol = symbol.replace('.NS', '');
+      // Clean symbol by removing any suffix (.NS or .NSE)
+      const cleanSymbol = symbol.replace(/\.(NS|NSE)$/, '');
       return generateIndianStockFallbackData(cleanSymbol);
     } else {
       return generateGlobalStockFallbackData(symbol);
@@ -1056,8 +1057,21 @@ export async function getMultiSourceStockData(symbol: string, market: string = '
 
 // Enhanced function to get comprehensive stock data using EODHD API
 export async function getComprehensiveStockData(symbol: string, isIndian: boolean = false): Promise<any> {
-  // Format symbol correctly for API
-  const apiSymbol = isIndian && !symbol.includes('.NS') ? `${symbol}.NS` : symbol;
+  // Format symbol correctly for API - handle both .NS and .NSE suffixes
+  let apiSymbol = symbol;
+  
+  // Clean the symbol first if it already has a suffix
+  if (isIndian) {
+    if (symbol.includes('.NSE')) {
+      apiSymbol = symbol; // Already has the correct format
+    } else if (symbol.includes('.NS')) {
+      // Convert .NS to .NSE for consistency
+      apiSymbol = symbol.replace('.NS', '.NSE');
+    } else {
+      // Add .NSE suffix if not present
+      apiSymbol = `${symbol}.NSE`;
+    }
+  }
   
   // Check cache first (cache for 15 minutes)
   const cacheKey = `${apiSymbol}_data`;
