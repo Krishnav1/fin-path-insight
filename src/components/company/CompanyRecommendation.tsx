@@ -81,11 +81,11 @@ export default function CompanyRecommendation({ companyData }: CompanyRecommenda
         fundamentalScore > 70 ? "strong potential for long-term investment" :
         fundamentalScore > 50 ? "reasonable value but with some caution advised" :
         "significant challenges that investors should carefully consider"
-      }. ${companyData.name}'s ${companyData.peRatio.toFixed(2)} P/E ratio is ${
+      }. ${companyData.name}'s ${companyData.peRatio !== null && companyData.peRatio !== undefined ? Number(companyData.peRatio).toFixed(2) : 'N/A'} P/E ratio is ${
         companyData.peRatio < 15 ? "attractively valued" :
         companyData.peRatio < 25 ? "reasonably valued" :
         "on the higher end of valuations"
-      }, while its ${companyData.revenueGrowth.toFixed(1)}% revenue growth ${
+      }, while its ${companyData.revenueGrowth !== null && companyData.revenueGrowth !== undefined ? Number(companyData.revenueGrowth).toFixed(1) : '0'}% revenue growth ${
         companyData.revenueGrowth > 10 ? "demonstrates strong business momentum" :
         companyData.revenueGrowth > 5 ? "shows steady performance" :
         "suggests challenges in expanding its business"
@@ -121,22 +121,22 @@ export default function CompanyRecommendation({ companyData }: CompanyRecommenda
               <p>
                 {companyData.name} operates in the {companyData.industry} industry and has established itself as a 
                 {companyData.marketCap > 1e12 ? " market leader" : companyData.marketCap > 1e11 ? " major player" : " significant competitor"} 
-                with a market capitalization of {companyData.marketCap > 1e12 ? "over $1 trillion" : companyData.marketCap > 1e9 ? `$${(companyData.marketCap / 1e9).toFixed(2)} billion` : `$${(companyData.marketCap / 1e6).toFixed(2)} million`}.
+                with a market capitalization of {companyData.marketCap > 1e12 ? "over $1 trillion" : companyData.marketCap > 1e9 ? `$${Number(companyData.marketCap / 1e9).toFixed(2)} billion` : `$${Number(companyData.marketCap / 1e6).toFixed(2)} million`}.
               </p>
               <p>
-                The company's P/E ratio of {companyData.peRatio?.toFixed(2) || 'N/A'} is 
+                The company's P/E ratio of {companyData.peRatio !== null && companyData.peRatio !== undefined ? Number(companyData.peRatio).toFixed(2) : 'N/A'} is 
                 {(companyData.peRatio || 0) > 30 ? " relatively high, suggesting investors have high growth expectations" : 
                  (companyData.peRatio || 0) > 15 ? " in line with the broader market, indicating balanced growth expectations" : 
                  (companyData.peRatio || 0) > 0 ? " relatively low, which may indicate either undervaluation or market concerns about future growth" :
                  " not available for analysis"}.
-                With a revenue growth rate of {(companyData.revenueGrowth || 0).toFixed(1)}%, the company is 
+                With a revenue growth rate of {companyData.revenueGrowth !== null && companyData.revenueGrowth !== undefined ? Number(companyData.revenueGrowth).toFixed(1) : '0'}%, the company is 
                 {(companyData.revenueGrowth || 0) > 15 ? " showing strong top-line expansion" : 
                  (companyData.revenueGrowth || 0) > 5 ? " maintaining solid growth" : 
                  (companyData.revenueGrowth || 0) > 0 ? " growing at a modest pace" : 
                  " currently facing growth challenges"}.
               </p>
               <p>
-                {companyData.name}'s profit margin of {(companyData.profitMargin || 0).toFixed(1)}% is 
+                {companyData.name}'s profit margin of {companyData.profitMargin !== null && companyData.profitMargin !== undefined ? Number(companyData.profitMargin).toFixed(1) : '0'}% is 
                 {(companyData.profitMargin || 0) > 20 ? " excellent, demonstrating strong operational efficiency" : 
                  (companyData.profitMargin || 0) > 10 ? " healthy, showing good cost management" : 
                  (companyData.profitMargin || 0) > 5 ? " reasonable but with room for improvement" : 
@@ -313,7 +313,7 @@ export default function CompanyRecommendation({ companyData }: CompanyRecommenda
                 <li className="flex items-start gap-2">
                   <X className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
                   <span className="text-slate-800 dark:text-slate-200">
-                    High debt-to-equity ratio ({companyData.debtToEquity?.toFixed(2) || 'N/A'}) could limit financial flexibility.
+                    High debt-to-equity ratio ({companyData.debtToEquity !== null && companyData.debtToEquity !== undefined ? Number(companyData.debtToEquity).toFixed(2) : 'N/A'}) could limit financial flexibility.
                   </span>
                 </li>
               )}

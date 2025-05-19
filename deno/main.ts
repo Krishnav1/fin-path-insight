@@ -12,6 +12,7 @@ import { eodhProxy } from "./routes/eodhd-proxy.ts";
 import { eodhWsProxy } from "./routes/eodhd-ws-proxy.ts";
 import { eodhFundamentals } from "./routes/eodhd-fundamentals.ts";
 import { eodhRealtime } from "./routes/eodhd-realtime.ts";
+import { companyDataIngest, scheduledCompanyDataUpdate } from "./routes/company-data-ingest.ts";
 
 // Define allowed origins
 const ALLOWED_ORIGINS = [
@@ -71,6 +72,15 @@ async function handler(req: Request): Promise<Response> {
     } else if (path === "/api/ws/eodhd") {
       // WebSocket endpoint doesn't need CORS headers as it's a WebSocket connection
       return await eodhWsProxy(req);
+    } else if (path.startsWith("/api/company-data-ingest")) {
+      return await companyDataIngest(req, corsHeaders);
+    } else if (path === "/api/scheduled/company-data-update" && req.method === "POST") {
+      // This endpoint will be called by Deno Deploy Cron
+      const result = await scheduledCompanyDataUpdate();
+      return new Response(JSON.stringify(result), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     } else if (path === "/") {
       return new Response("FinPath Insight API is running!", {
         status: 200,

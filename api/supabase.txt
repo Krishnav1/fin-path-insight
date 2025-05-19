@@ -7,4 +7,9 @@ direct connection (string) - postgresql://postgres:[YOUR-PASSWORD]@db.ydakwyplcq
 data base password - 0RwuxjGlRJwgquO4 using on string
 
 pool strng (best) - postgresql://postgres.ydakwyplcqoshxcdllah:0RwuxjGlRJwgquO4@aws-0-us-east-2.pooler.supabase.com:6543/postgres
+
+MCP Personal A T = sbp_7443e5ca517187e990a911a85e9ef3d13d4df776
+
+
+supabase ADMIN_API_KEY = e718c14cb94bc4408bc2d0da404a212d78fdc20367ac9918c45f0c4a83a79c0a
  

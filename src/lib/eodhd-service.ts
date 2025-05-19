@@ -1,7 +1,9 @@
 // EODHD API Service
 // This service provides functions to interact with the EODHD API through our Deno backend
+// Enhanced with Supabase-based company data storage
 
 import axios from 'axios';
+import { companyService } from '@/services/company-service';
 
 // Base URL for EODHD API endpoints
 const EODHD_FUNDAMENTALS_URL = '/api/eodhd-fundamentals';
@@ -369,17 +371,65 @@ export async function getLiveStockPrice(symbols: string | string[]) {
  */
 export async function getComprehensiveCompanyData(symbol: string) {
   try {
-    // Fetch all data in parallel for better performance
-    const [
-      fundamentals,
-      highlights,
-      financials,
-      balanceSheet,
-      incomeStatement,
-      cashFlow,
-      earnings,
-      dividends
-    ] = await Promise.all([
+    // First try to get data from Supabase if available
+    try {
+      const company = await companyService.getCompanyBySymbol(symbol);
+      
+      if (company) {
+        // Get additional data from Supabase
+        const [financialMetrics, incomeStatement, balanceSheet, peerComparison] = await Promise.all([
+          companyService.getFinancialMetrics(company.id),
+          companyService.getFinancialStatements(company.id, 'income'),
+          companyService.getFinancialStatements(company.id, 'balance'),
+          companyService.getPeerComparison(company.id)
+        ]);
+        
+        // Return comprehensive data from Supabase
+        return {
+          fundamentals: {
+            General: {
+              Code: company.symbol,
+              Name: company.name,
+              Exchange: company.exchange,
+              Sector: company.sector,
+              Industry: company.industry,
+              Description: company.description,
+              WebURL: company.website,
+              FullTimeEmployees: company.employee_count,
+              Officers: { CEO: company.ceo },
+              IPODate: company.founded_year ? `${company.founded_year}-01-01` : null,
+              CountryName: company.country
+            }
+          },
+          highlights: {
+            MarketCapitalization: company.market_cap,
+            ...(financialMetrics.length > 0 ? {
+              RevenueTTM: financialMetrics[0].revenue,
+              GrossProfitTTM: financialMetrics[0].gross_margin,
+              ProfitMargin: financialMetrics[0].profit_margin,
+              OperatingMarginTTM: financialMetrics[0].operating_margin,
+              EPS: financialMetrics[0].eps,
+              PERatio: financialMetrics[0].pe_ratio,
+              DividendYield: financialMetrics[0].dividend_yield,
+              ROE: financialMetrics[0].return_on_equity,
+              ROA: financialMetrics[0].return_on_assets,
+              FreeCashFlow: financialMetrics[0].free_cash_flow,
+              TotalDebtToEquity: financialMetrics[0].debt_to_equity
+            } : {})
+          },
+          financials: financialMetrics,
+          balanceSheet: balanceSheet.map(item => item.data),
+          incomeStatement: incomeStatement.map(item => item.data),
+          peerComparison: peerComparison?.peer_data || [],
+          fromSupabase: true
+        };
+      }
+    } catch (supabaseError) {
+      console.warn('Could not fetch from Supabase, falling back to API:', supabaseError);
+    }
+    
+    // Fallback to API calls if Supabase data is not available
+    const [fundamentals, highlights, financials, balanceSheet, incomeStatement, cashFlow, earnings, dividends] = await Promise.all([
       getCompanyFundamentals(symbol).catch(() => null),
       getCompanyHighlights(symbol).catch(() => null),
       getCompanyFinancials(symbol).catch(() => null),
@@ -400,7 +450,8 @@ export async function getComprehensiveCompanyData(symbol: string) {
       cashFlow,
       earnings,
       dividends,
-      lastUpdated: new Date()
+      lastUpdated: new Date(),
+      fromSupabase: false
     };
   } catch (error) {
     console.error('Error fetching comprehensive company data:', error);

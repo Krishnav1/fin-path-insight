@@ -92,6 +92,9 @@ export type CompanyData = {
     close: number;
     volume?: number;
   }[];
+  // Added for enhanced Supabase integration
+  fromSupabase?: boolean;
+  peerData?: any[];
 };
 
 export default function CompanyAnalysis() {

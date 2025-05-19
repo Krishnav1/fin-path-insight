@@ -39,6 +39,7 @@ export interface StockUpdate {
   dm?: string;       // Market/Exchange
   ch?: number;       // Change
   chp?: number;      // Change Percent
+  exchange?: string; // Exchange identifier (us, eu, cn, in)
 }
 
 // Define WebSocket connection states
@@ -64,16 +65,43 @@ class WebSocketService {
   private clientId: string | null = null;
   
   // Get the WebSocket URL based on environment
-  private getWebSocketUrl(): string {
-    const isProduction = import.meta.env.PROD;
-    const devUrl = 'ws://localhost:8000/api/ws/eodhd';
-    const prodUrl = 'wss://fin-path-insight.deno.dev/api/ws/eodhd';
+  private getWebSocketUrl(exchange: string = 'us'): string {
+    // Use a direct connection to EODHD WebSocket API
+    // This avoids the need for a proxy server
+    // Note: In a production app, you would use a secure backend proxy
+    // to handle API keys and authentication
+    const apiToken = this.getApiToken();
     
-    return isProduction ? prodUrl : devUrl;
+    // Different endpoints for different exchanges
+    switch (exchange) {
+      case 'us':
+        return `wss://ws.eodhistoricaldata.com/ws/us?api_token=${apiToken}`;
+      case 'eu':
+        return `wss://ws.eodhistoricaldata.com/ws/eu?api_token=${apiToken}`;
+      case 'cn':
+        return `wss://ws.eodhistoricaldata.com/ws/cn?api_token=${apiToken}`;
+      case 'in':
+        return `wss://ws.eodhistoricaldata.com/ws/in?api_token=${apiToken}`;
+      default:
+        return `wss://ws.eodhistoricaldata.com/ws/us?api_token=${apiToken}`;
+    }
+  }
+  
+  // Get API token from environment or use a fallback for development
+  private getApiToken(): string {
+    // In a real app, you would retrieve this from environment variables
+    // or a secure backend service
+    const apiToken = import.meta.env.VITE_EODHD_API_KEY || '';
+    
+    if (!apiToken) {
+      console.warn('EODHD API key not found. WebSocket connection will fail.');
+    }
+    
+    return apiToken;
   }
   
   // Connect to the WebSocket server
-  public connect(): void {
+  public connect(exchange: string = 'us'): void {
     if (this.socket && (this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING)) {
       console.log('WebSocket already connected or connecting');
       return;
@@ -82,7 +110,8 @@ class WebSocketService {
     this.setConnectionState(ConnectionState.CONNECTING);
     
     try {
-      const wsUrl = this.getWebSocketUrl();
+      const wsUrl = this.getWebSocketUrl(exchange);
+      console.log(`Connecting to WebSocket for ${exchange} exchange: ${wsUrl}`);
       this.socket = new WebSocket(wsUrl);
       
       this.socket.onopen = this.handleOpen.bind(this);
@@ -92,7 +121,7 @@ class WebSocketService {
     } catch (error) {
       console.error('Error connecting to WebSocket:', error);
       this.setConnectionState(ConnectionState.ERROR);
-      this.scheduleReconnect();
+      this.scheduleReconnect(exchange);
     }
   }
   
@@ -287,25 +316,28 @@ class WebSocketService {
     this.pingInterval = window.setInterval(() => this.sendPing(), this.PING_INTERVAL);
   }
   
-  // Schedule reconnect with exponential backoff
-  private scheduleReconnect(): void {
+  // Schedule a reconnection attempt
+  private scheduleReconnect(exchange: string = 'us'): void {
     if (this.reconnectTimer !== null) {
       clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
     }
     
-    if (this.reconnectAttempts < this.MAX_RECONNECT_ATTEMPTS) {
-      const delay = this.RECONNECT_DELAY * Math.pow(1.5, this.reconnectAttempts);
-      console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts + 1}/${this.MAX_RECONNECT_ATTEMPTS})`);
-      
-      this.reconnectTimer = window.setTimeout(() => {
-        this.reconnectAttempts++;
-        this.connect();
-      }, delay);
-    } else {
-      console.error('Max reconnection attempts reached');
-      this.setConnectionState(ConnectionState.ERROR);
-      this.eventEmitter.emit('maxReconnectAttemptsReached');
+    if (this.reconnectAttempts >= this.MAX_RECONNECT_ATTEMPTS) {
+      console.log('Max reconnection attempts reached');
+      this.setConnectionState(ConnectionState.DISCONNECTED);
+      this.eventEmitter.emit('error', { message: 'Max reconnection attempts reached' });
+      return;
     }
+    
+    this.reconnectAttempts++;
+    this.setConnectionState(ConnectionState.RECONNECTING);
+    
+    console.log(`Scheduling reconnection attempt ${this.reconnectAttempts} in ${this.RECONNECT_DELAY}ms for ${exchange} exchange`);
+    
+    this.reconnectTimer = window.setTimeout(() => {
+      this.connect(exchange);
+    }, this.RECONNECT_DELAY);
   }
   
   // Clear all timers

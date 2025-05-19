@@ -41,7 +41,7 @@ export default function CompanyOverview({ companyData, currencySymbol }: Company
                 <TrendingUp className="h-4 w-4 text-fin-primary" />
                 <p className="text-sm font-medium text-slate-500 dark:text-slate-400">P/E Ratio</p>
               </div>
-              <p className="font-semibold">{companyData.peRatio?.toFixed(2) || 'N/A'}</p>
+              <p className="font-semibold">{companyData.peRatio !== null && companyData.peRatio !== undefined ? Number(companyData.peRatio).toFixed(2) : 'N/A'}</p>
             </div>
             
             <div className="border rounded-md p-3">
@@ -49,7 +49,7 @@ export default function CompanyOverview({ companyData, currencySymbol }: Company
                 <DollarSign className="h-4 w-4 text-fin-primary" />
                 <p className="text-sm font-medium text-slate-500 dark:text-slate-400">EPS</p>
               </div>
-              <p className="font-semibold">{currencySymbol}{companyData.eps?.toFixed(2) || 'N/A'}</p>
+              <p className="font-semibold">{currencySymbol}{companyData.eps !== null && companyData.eps !== undefined ? Number(companyData.eps).toFixed(2) : 'N/A'}</p>
             </div>
             
             <div className="border rounded-md p-3">
@@ -57,7 +57,7 @@ export default function CompanyOverview({ companyData, currencySymbol }: Company
                 <PercentCircle className="h-4 w-4 text-fin-primary" />
                 <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Dividend Yield</p>
               </div>
-              <p className="font-semibold">{companyData.dividendYield?.toFixed(2) || 0}%</p>
+              <p className="font-semibold">{companyData.dividendYield !== null && companyData.dividendYield !== undefined ? Number(companyData.dividendYield).toFixed(2) : '0'}%</p>
             </div>
             
             <div className="border rounded-md p-3">
@@ -65,7 +65,7 @@ export default function CompanyOverview({ companyData, currencySymbol }: Company
                 <PercentCircle className="h-4 w-4 text-fin-primary" />
                 <p className="text-sm font-medium text-slate-500 dark:text-slate-400">ROE</p>
               </div>
-              <p className="font-semibold">{companyData.roe?.toFixed(2) || 'N/A'}%</p>
+              <p className="font-semibold">{companyData.roe !== null && companyData.roe !== undefined ? Number(companyData.roe).toFixed(2) : 'N/A'}%</p>
             </div>
             
             <div className="border rounded-md p-3">
@@ -73,7 +73,7 @@ export default function CompanyOverview({ companyData, currencySymbol }: Company
                 <PercentCircle className="h-4 w-4 text-fin-primary" />
                 <p className="text-sm font-medium text-slate-500 dark:text-slate-400">ROCE</p>
               </div>
-              <p className="font-semibold">{companyData.roce?.toFixed(2) || 'N/A'}%</p>
+              <p className="font-semibold">{companyData.roce !== null && companyData.roce !== undefined ? Number(companyData.roce).toFixed(2) : 'N/A'}%</p>
             </div>
             
             <div className="border rounded-md p-3">
@@ -81,7 +81,7 @@ export default function CompanyOverview({ companyData, currencySymbol }: Company
                 <ArrowUpDown className="h-4 w-4 text-fin-primary" />
                 <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Debt to Equity</p>
               </div>
-              <p className="font-semibold">{companyData.debtToEquity?.toFixed(2) || 'N/A'}</p>
+              <p className="font-semibold">{companyData.debtToEquity !== null && companyData.debtToEquity !== undefined ? Number(companyData.debtToEquity).toFixed(2) : 'N/A'}</p>
             </div>
             
             <div className="border rounded-md p-3">
@@ -90,7 +90,7 @@ export default function CompanyOverview({ companyData, currencySymbol }: Company
                 <p className="text-sm font-medium text-slate-500 dark:text-slate-400">52W Range</p>
               </div>
               <p className="font-semibold text-sm">
-                {currencySymbol}{companyData.market52WeekLow?.toFixed(2) || 'N/A'} - {currencySymbol}{companyData.market52WeekHigh?.toFixed(2) || 'N/A'}
+                {currencySymbol}{companyData.market52WeekLow !== null && companyData.market52WeekLow !== undefined ? Number(companyData.market52WeekLow).toFixed(2) : 'N/A'} - {currencySymbol}{companyData.market52WeekHigh !== null && companyData.market52WeekHigh !== undefined ? Number(companyData.market52WeekHigh).toFixed(2) : 'N/A'}
               </p>
             </div>
           </div>

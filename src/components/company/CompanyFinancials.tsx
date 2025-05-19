@@ -176,7 +176,7 @@ export default function CompanyFinancials({ companyData, currencySymbol }: Compa
       name: "P/E Ratio",
       value: (() => {
         const peRatio = getMetricValue('peRatio', companyData.peRatio);
-        return peRatio ? peRatio.toFixed(2) : 'N/A';
+        return peRatio !== null && peRatio !== undefined ? Number(peRatio).toFixed(2) : 'N/A';
       })(),
       tooltip: "Price-to-Earnings Ratio. A valuation ratio of a company's current share price compared to its per-share earnings. A high P/E suggests that investors are expecting higher earnings growth in the future."
     },
@@ -184,7 +184,7 @@ export default function CompanyFinancials({ companyData, currencySymbol }: Compa
       name: "EPS",
       value: (() => {
         const eps = getMetricValue('eps', companyData.eps);
-        return eps ? `${currencySymbol}${eps.toFixed(2)}` : 'N/A';
+        return eps !== null && eps !== undefined ? `${currencySymbol}${Number(eps).toFixed(2)}` : 'N/A';
       })(),
       tooltip: "Earnings Per Share. The portion of a company's profit allocated to each outstanding share of common stock. It's an indicator of a company's profitability."
     },
@@ -192,7 +192,7 @@ export default function CompanyFinancials({ companyData, currencySymbol }: Compa
       name: "Beta",
       value: (() => {
         const beta = getMetricValue('beta', companyData.beta);
-        return beta ? beta.toFixed(2) : 'N/A';
+        return beta !== null && beta !== undefined ? Number(beta).toFixed(2) : 'N/A';
       })(),
       tooltip: "A measure of a stock's volatility in relation to the overall market. A beta greater than 1 indicates the stock is more volatile than the market, while a beta less than 1 indicates it's less volatile."
     },
@@ -200,7 +200,7 @@ export default function CompanyFinancials({ companyData, currencySymbol }: Compa
       name: "Dividend Yield",
       value: (() => {
         const dividendYield = getMetricValue('dividendYield', companyData.dividendYield);
-        return dividendYield ? `${dividendYield.toFixed(2)}%` : 'N/A';
+        return dividendYield !== null && dividendYield !== undefined ? `${Number(dividendYield).toFixed(2)}%` : 'N/A';
       })(),
       tooltip: "The annual dividend payment divided by the stock price, expressed as a percentage. It's a way to measure the cash flow you're getting for each dollar invested in a stock."
     },
@@ -208,7 +208,7 @@ export default function CompanyFinancials({ companyData, currencySymbol }: Compa
       name: "ROE",
       value: (() => {
         const roe = getMetricValue('roe', companyData.roe);
-        return roe ? `${roe.toFixed(2)}%` : 'N/A';
+        return roe !== null && roe !== undefined ? `${(roe * 100).toFixed(2)}%` : 'N/A';
       })(),
       tooltip: "Return on Equity. A measure of financial performance calculated by dividing net income by shareholders' equity. It measures a corporation's profitability by revealing how much profit a company generates with the money shareholders have invested."
     },
@@ -216,23 +216,23 @@ export default function CompanyFinancials({ companyData, currencySymbol }: Compa
       name: "Profit Margin",
       value: (() => {
         const profitMargin = getMetricValue('profitMargin', companyData.profitMargin);
-        return profitMargin ? `${profitMargin.toFixed(2)}%` : 'N/A';
+        return profitMargin !== null && profitMargin !== undefined ? `${Number(profitMargin).toFixed(2)}%` : 'N/A';
       })(),
       tooltip: "The percentage of revenue that exceeds costs. It's a good indicator of how efficiently a company is managing its costs."
     },
     {
       name: "Revenue Growth",
-      value: `${companyData.revenueGrowth?.toFixed(2) || 'N/A'}%`,
+      value: companyData.revenueGrowth !== null && companyData.revenueGrowth !== undefined ? `${Number(companyData.revenueGrowth).toFixed(2)}%` : 'N/A',
       tooltip: "The year-over-year percentage increase in a company's revenue."
     },
     {
       name: "ROCE",
-      value: `${companyData.roce?.toFixed(2) || 'N/A'}%`,
+      value: companyData.roce !== null && companyData.roce !== undefined ? `${Number(companyData.roce).toFixed(2)}%` : 'N/A',
       tooltip: "Return on Capital Employed shows a company's efficiency and profitability of its capital investments."
     },
     {
       name: "Debt/Equity",
-      value: `${companyData.debtToEquity?.toFixed(2) || 'N/A'}`,
+      value: companyData.debtToEquity !== null && companyData.debtToEquity !== undefined ? `${Number(companyData.debtToEquity).toFixed(2)}` : 'N/A',
       tooltip: "The Debt-to-Equity ratio indicates the relative proportion of shareholder's equity and debt used to finance a company's assets."
     }
   ];

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { TrendingUp, TrendingDown, Search, RefreshCw } from "lucide-react";
+import { useState, useEffect } from "react";
+import { TrendingUp, TrendingDown, Search, RefreshCw, Wifi, WifiOff } from "lucide-react";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,7 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useMarket } from "@/hooks/use-market";
 import { useMarketData } from "@/context/market-data-context";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import useRealTimeStock, { RealTimeStockData } from "@/hooks/useRealTimeStock";
+import { ConnectionState } from "@/services/webSocketService";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // Define types for market data
 type StockData = {
@@ -19,9 +22,21 @@ type StockData = {
   volume: number;
   sector?: string;
   market: 'global' | 'india';
+  exchange?: 'us' | 'eu' | 'cn' | 'in';
+  lastUpdated?: Date;
+};
+
+// Sample symbols for different exchanges
+const EXCHANGE_SYMBOLS = {
+  us: ['AAPL', 'MSFT', 'AMZN', 'GOOGL', 'META', 'TSLA', 'NVDA', 'JPM', 'V', 'WMT'],
+  eu: ['BMW.XETRA', 'AIR.PARIS', 'NESN.SWISS', 'SAN.MC', 'VOD.L', 'BP.L', 'HSBA.L'],
+  cn: ['BABA', 'TCEHY', 'JD', 'PDD', 'BIDU', 'NIO', 'LI', 'XPEV'],
+  in: ['RELIANCE.BSE', 'TCS.BSE', 'HDFCBANK.BSE', 'INFY.BSE', 'ICICIBANK.BSE']
 };
 
 const StocksMarket = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [sectorFilter, setSectorFilter] = useState<string | null>(null);
   const { market } = useMarket();
@@ -33,9 +48,71 @@ const StocksMarket = () => {
     refreshData,
     lastUpdated 
   } = useMarketData();
+  
+  // Get exchange from URL query params or default to 'us'
+  const queryParams = new URLSearchParams(location.search);
+  const exchangeParam = queryParams.get('exchange') as 'us' | 'eu' | 'cn' | 'in' | null;
+  const [activeExchange, setActiveExchange] = useState<'us' | 'eu' | 'cn' | 'in'>(exchangeParam || 'us');
+  const [realTimeEnabled, setRealTimeEnabled] = useState<boolean>(true);
+  
+  // Use real-time stock data for the active exchange
+  const { 
+    connectionState,
+    stockData: realTimeStockData,
+    error: wsError,
+    connect,
+    disconnect,
+    isConnected
+  } = useRealTimeStock(EXCHANGE_SYMBOLS[activeExchange] || [], {
+    autoConnect: true,
+    exchange: activeExchange,
+    onConnectionChange: (state) => {
+      console.log('WebSocket connection state changed:', state);
+    },
+    onError: (err) => {
+      console.error('WebSocket error:', err);
+    }
+  });
+  
+  // Update URL when exchange changes
+  useEffect(() => {
+    const newParams = new URLSearchParams(location.search);
+    newParams.set('type', 'stocks');
+    newParams.set('exchange', activeExchange);
+    navigate(`/markets?${newParams.toString()}`, { replace: true });
+  }, [activeExchange, navigate, location.search]);
+  
+  // Toggle real-time updates
+  const toggleRealTime = () => {
+    if (realTimeEnabled) {
+      disconnect();
+    } else {
+      connect();
+    }
+    setRealTimeEnabled(!realTimeEnabled);
+  };
 
-  // Convert stock data to our format
+  // Convert stock data to our format, combining market data and real-time data
   const getStockData = (): StockData[] => {
+    // If we're viewing real-time data from a specific exchange
+    if (realTimeEnabled && Object.keys(realTimeStockData).length > 0) {
+      return Object.entries(realTimeStockData).map(([symbol, data]) => {
+        return {
+          symbol,
+          name: symbol, // We might not have the company name from real-time data
+          price: data.price,
+          change: data.change,
+          changePercent: data.changePercent,
+          volume: data.volume,
+          sector: 'Other', // We don't have sector info from real-time data
+          market: 'global' as 'global' | 'india', // Cast to the correct union type
+          exchange: data.exchange as 'us' | 'eu' | 'cn' | 'in',
+          lastUpdated: data.lastUpdated
+        };
+      }).filter(stock => !stock.exchange || stock.exchange === activeExchange);
+    }
+    
+    // Otherwise, use the regular market data
     // Combine our data sources
     const stocks = [
       ...Object.values(popularStocks),
@@ -62,7 +139,8 @@ const StocksMarket = () => {
         volume: stock.volume,
         // Add optional chaining and provide default value for sector
         sector: (stock as any).sector || 'Other',
-        market: stockMarket
+        market: stockMarket,
+        exchange: activeExchange
       };
     }).filter(stock => stock.market === market);
   };
@@ -158,6 +236,46 @@ const StocksMarket = () => {
           </div>
         </div>
         
+        <div className="flex justify-between items-center mb-4">
+          <Tabs defaultValue={activeExchange} onValueChange={(value) => setActiveExchange(value as 'us' | 'eu' | 'cn' | 'in')}>
+            <TabsList>
+              <TabsTrigger value="us">US Market</TabsTrigger>
+              <TabsTrigger value="eu">European Market</TabsTrigger>
+              <TabsTrigger value="cn">China Market</TabsTrigger>
+              <TabsTrigger value="in">Indian Market</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          
+          <div className="flex items-center gap-2">
+            <div className="flex items-center">
+              <span className="mr-2 text-sm">Real-time:</span>
+              <div 
+                className={`w-3 h-3 rounded-full mr-1 ${isConnected && realTimeEnabled ? 'bg-green-500' : 'bg-gray-400'}`} 
+                title={connectionState}
+              ></div>
+              <button 
+                onClick={toggleRealTime} 
+                className={`text-xs px-2 py-1 rounded flex items-center ${realTimeEnabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}
+              >
+                {realTimeEnabled ? <Wifi className="h-3 w-3 mr-1" /> : <WifiOff className="h-3 w-3 mr-1" />}
+                {realTimeEnabled ? 'ON' : 'OFF'}
+              </button>
+            </div>
+            <div className="text-xs text-gray-500">
+              {connectionState === ConnectionState.CONNECTED ? 'Connected' : 
+               connectionState === ConnectionState.CONNECTING ? 'Connecting...' :
+               connectionState === ConnectionState.RECONNECTING ? 'Reconnecting...' :
+               connectionState === ConnectionState.ERROR ? 'Connection Error' : 'Disconnected'}
+            </div>
+          </div>
+        </div>
+        
+        {wsError && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
+            {wsError}
+          </div>
+        )}
+        
         <div className="text-sm text-slate-500 dark:text-slate-400 mb-6 flex items-center justify-end gap-2">
           <span>Last updated:</span>
           <time dateTime={lastUpdated?.toISOString()}>{formatTimestamp(lastUpdated)}</time>
@@ -212,37 +330,42 @@ const StocksMarket = () => {
                 </thead>
                 <tbody>
                   {filteredStocks.map((stock) => (
-                    <tr key={stock.symbol} className="border-b border-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                      <td className="p-3 font-medium">{stock.symbol}</td>
-                      <td className="p-3">{stock.name}</td>
-                      <td className="p-3 text-slate-500">{stock.sector || "—"}</td>
-                      <td className="p-3 text-right">{formatCurrency(stock.price, stock.symbol)}</td>
-                      <td className={`p-3 text-right ${stock.change >= 0 ? "text-fin-positive" : "text-fin-negative"}`}>
-                        {stock.change >= 0 ? "+" : ""}{stock.change.toFixed(2)}
-                      </td>
-                      <td className={`p-3 text-right font-medium ${stock.changePercent >= 0 ? "text-fin-positive" : "text-fin-negative"}`}>
-                        <div className="flex items-center justify-end">
-                          {stock.changePercent >= 0 ? (
-                            <TrendingUp className="mr-1 h-4 w-4" />
-                          ) : (
-                            <TrendingDown className="mr-1 h-4 w-4" />
-                          )}
-                          {stock.changePercent >= 0 ? "+" : ""}
-                          {stock.changePercent.toFixed(2)}%
-                        </div>
-                      </td>
-                      <td className="p-3 text-right">
-                        {stock.volume.toLocaleString()}
-                      </td>
-                      <td className="p-3 text-right">
-                        <Link 
-                          to={`/stocks/${stock.symbol}`}
-                          className="px-3 py-1 bg-fin-primary text-white text-sm rounded hover:bg-fin-primary-dark"
-                        >
-                          View
-                        </Link>
-                      </td>
-                    </tr>
+                <tr key={stock.symbol}>
+                  <td className="px-4 py-3 border-b border-slate-200 dark:border-slate-700">
+                    <div className="font-medium">{stock.symbol}</div>
+                    <div className="text-sm text-slate-500 dark:text-slate-400">{stock.name}</div>
+                    {stock.lastUpdated && (
+                      <div className="text-xs text-slate-400 dark:text-slate-500">
+                        Updated: {stock.lastUpdated.toLocaleTimeString()}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 text-right">
+                    {formatCurrency(stock.price, stock.symbol)}
+                  </td>
+                  <td className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 text-right">
+                    <div className={`flex items-center justify-end ${stock.change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {stock.change >= 0 ? <TrendingUp className="h-4 w-4 mr-1" /> : <TrendingDown className="h-4 w-4 mr-1" />}
+                      {stock.change.toFixed(2)}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 text-right">
+                    <div className={`${stock.changePercent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {stock.changePercent.toFixed(2)}%
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 text-right">
+                    {stock.volume.toLocaleString()}
+                  </td>
+                  <td className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 text-right">
+                    <Link 
+                      to={`/company/${stock.symbol}`} 
+                      className="text-fin-primary hover:underline"
+                    >
+                      View
+                    </Link>
+                  </td>
+                </tr>
                   ))}
                 </tbody>
               </table>

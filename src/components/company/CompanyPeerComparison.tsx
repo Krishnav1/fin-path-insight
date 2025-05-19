@@ -1,5 +1,24 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CompanyData } from "@/pages/CompanyAnalysis";
+import { useTheme } from "@/hooks/use-theme";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  Cell,
+} from "recharts";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useState, useEffect } from "react";
+import { companyService } from "@/services/company-service";
+import { getPeerComparison } from "@/lib/api-service";
+import { TrendingUp, TrendingDown, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -8,16 +27,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { TrendingUp, TrendingDown, RefreshCw } from "lucide-react";
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { getPeerComparison } from "@/lib/api-service";
 
-interface CompanyPeerComparisonProps {
-  companyData: CompanyData;
-  currencySymbol: string;
-}
-
+// Helper function to format large numbers
 function formatLargeNumber(num: number | undefined | null): string {
   if (num === undefined || num === null) return 'N/A';
   
@@ -32,36 +43,99 @@ function formatLargeNumber(num: number | undefined | null): string {
   }
 }
 
+interface CompanyPeerComparisonProps {
+  companyData: CompanyData;
+  currencySymbol: string;
+}
+
 export default function CompanyPeerComparison({ companyData, currencySymbol }: CompanyPeerComparisonProps) {
-  const [peers, setPeers] = useState(companyData.peerComparison || []);
+  const { theme } = useTheme();
+  const [peerData, setPeerData] = useState<any[]>(companyData.peerComparison || []);
   const [loading, setLoading] = useState(false);
-  
-  // Refresh peer data
-  const refreshPeers = async () => {
-    setLoading(true);
-    try {
-      // Make sure we have a ticker
-      if (!companyData.ticker) {
-        console.error("Cannot refresh peer data: ticker is missing");
-        return;
+
+  // If the data came from Supabase and has the fromSupabase flag, try to get enhanced peer data
+  useEffect(() => {
+    const fetchEnhancedPeerData = async () => {
+      if (companyData.fromSupabase && companyData.ticker) {
+        try {
+          setLoading(true);
+          const company = await companyService.getCompanyBySymbol(companyData.ticker);
+          if (company) {
+            const peerComparison = await companyService.getPeerComparison(company.id);
+            if (peerComparison && peerComparison.peer_data && peerComparison.peer_data.length > 0) {
+              // Transform the peer data to match the expected format
+              const transformedPeerData = peerComparison.peer_data.map((peer: any) => ({
+                name: peer.name,
+                ticker: peer.symbol,
+                marketCap: peer.market_cap,
+                peRatio: peer.pe_ratio,
+                revenueGrowth: 0, // Not available in our peer data yet
+                roe: 0, // Not available in our peer data yet
+                roce: 0, // Not available in our peer data yet
+              }));
+              setPeerData(transformedPeerData);
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching enhanced peer data:', error);
+        } finally {
+          setLoading(false);
+        }
       }
-      
-      // Safely call the getPeerComparison function with proper error handling
-      const freshPeers = await getPeerComparison(
-        companyData.ticker, 
-        typeof companyData.sector === 'string' ? companyData.sector : undefined
-      );
-      
-      if (freshPeers && Array.isArray(freshPeers) && freshPeers.length > 0) {
-        setPeers(freshPeers);
-      }
-    } catch (error) {
-      console.error("Error refreshing peer data:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-  
+    };
+
+    fetchEnhancedPeerData();
+  }, [companyData.ticker, companyData.fromSupabase]);
+
+  // Check if peer comparison data is available
+  if (loading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Peer Comparison</CardTitle>
+          <CardDescription>Compare with industry peers</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col space-y-2">
+            <Skeleton className="h-[300px] w-full" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!peerData || peerData.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Peer Comparison</CardTitle>
+          <CardDescription>Compare with industry peers</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center h-64">
+            <p className="text-slate-500 dark:text-slate-400">No peer comparison data available</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Prepare data for charts
+  const marketCapData = peerData.map((peer) => ({
+    name: peer.ticker,
+    value: peer.marketCap,
+  }));
+
+  const peRatioData = peerData.map((peer) => ({
+    name: peer.ticker,
+    value: peer.peRatio,
+  }));
+
+  const revenueGrowthData = peerData.map((peer) => ({
+    name: peer.ticker,
+    value: peer.revenueGrowth * 100, // Convert to percentage
+  }));
+
   // Add the current company to the peer comparison list
   const allCompanies = [
     {
@@ -71,22 +145,22 @@ export default function CompanyPeerComparison({ companyData, currencySymbol }: C
       peRatio: companyData.peRatio || 0,
       revenueGrowth: companyData.revenueGrowth || 0,
       roe: companyData.roe || 0,
-      roce: companyData.roce || 0
+      roce: companyData.roce || 0,
     },
-    ...peers
+    ...peerData,
   ];
-  
+
   // Sort by market cap (largest first)
   const sortedCompanies = [...allCompanies].sort((a, b) => b.marketCap - a.marketCap);
-  
+
   // Find the maximum values for each metric to highlight leaders
-  const maxMarketCap = Math.max(...sortedCompanies.map(c => c.marketCap));
-  const maxRevenueGrowth = Math.max(...sortedCompanies.map(c => c.revenueGrowth || 0));
-  const maxRoe = Math.max(...sortedCompanies.map(c => c.roe || 0));
-  const maxRoce = Math.max(...sortedCompanies.map(c => c.roce || 0));
-  
+  const maxMarketCap = Math.max(...sortedCompanies.map((c) => c.marketCap));
+  const maxRevenueGrowth = Math.max(...sortedCompanies.map((c) => c.revenueGrowth || 0));
+  const maxRoe = Math.max(...sortedCompanies.map((c) => c.roe || 0));
+  const maxRoce = Math.max(...sortedCompanies.map((c) => c.roce || 0));
+
   // For P/E, we actually want to highlight the lowest (most efficient) that's positive
-  const positiveRatios = sortedCompanies.filter(c => (c.peRatio || 0) > 0).map(c => c.peRatio || 0);
+  const positiveRatios = sortedCompanies.filter((c) => (c.peRatio || 0) > 0).map((c) => c.peRatio || 0);
   const minPositivePE = positiveRatios.length ? Math.min(...positiveRatios) : 0;
 
   return (
@@ -97,14 +171,37 @@ export default function CompanyPeerComparison({ companyData, currencySymbol }: C
             <CardTitle>Peer Comparison</CardTitle>
             <CardDescription>{companyData.name} compared to industry peers</CardDescription>
           </div>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={refreshPeers}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={async () => {
+              setLoading(true);
+              try {
+                // Make sure we have a ticker
+                if (!companyData.ticker) {
+                  console.error("Cannot refresh peer data: ticker is missing");
+                  return;
+                }
+
+                // Safely call the getPeerComparison function with proper error handling
+                const freshPeers = await getPeerComparison(
+                  companyData.ticker,
+                  typeof companyData.sector === "string" ? companyData.sector : undefined
+                );
+
+                if (freshPeers && Array.isArray(freshPeers) && freshPeers.length > 0) {
+                  setPeerData(freshPeers);
+                }
+              } catch (error) {
+                console.error("Error refreshing peer data:", error);
+              } finally {
+                setLoading(false);
+              }
+            }}
             disabled={loading}
             className="h-8 w-8 p-0"
           >
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             <span className="sr-only">Refresh</span>
           </Button>
         </CardHeader>
@@ -124,7 +221,10 @@ export default function CompanyPeerComparison({ companyData, currencySymbol }: C
               </TableHeader>
               <TableBody>
                 {sortedCompanies.map((peer, index) => (
-                  <TableRow key={index} className={peer.ticker === companyData.ticker ? "bg-slate-50 dark:bg-slate-800" : ""}>
+                  <TableRow
+                    key={index}
+                    className={peer.ticker === companyData.ticker ? "bg-slate-50 dark:bg-slate-800" : ""}
+                  >
                     <TableCell className="font-medium">
                       {peer.ticker === companyData.ticker ? (
                         <span className="font-bold">{peer.name}</span>
@@ -133,21 +233,34 @@ export default function CompanyPeerComparison({ companyData, currencySymbol }: C
                       )}
                     </TableCell>
                     <TableCell>{peer.ticker}</TableCell>
-                    <TableCell className={peer.marketCap === maxMarketCap ? "font-bold text-fin-primary" : ""}>
-                      {currencySymbol}{formatLargeNumber(peer.marketCap)}
+                    <TableCell
+                      className={peer.marketCap === maxMarketCap ? "font-bold text-fin-primary" : ""}
+                    >
+                      {currencySymbol}
+                      {formatLargeNumber(peer.marketCap)}
                     </TableCell>
-                    <TableCell className={(peer.peRatio > 0 && peer.peRatio === minPositivePE) ? "font-bold text-fin-primary" : ""}>
-                      {peer.peRatio?.toFixed(2) || 'N/A'}
+                    <TableCell
+                      className={(peer.peRatio > 0 && peer.peRatio === minPositivePE) ? "font-bold text-fin-primary" : ""}
+                    >
+                      {peer.peRatio?.toFixed(2) || "N/A"}
                     </TableCell>
-                    <TableCell className={peer.roe === maxRoe && peer.roe > 0 ? "font-bold text-fin-primary" : ""}>
-                      {peer.roe?.toFixed(2) || 'N/A'}%
+                    <TableCell
+                      className={peer.roe === maxRoe && peer.roe > 0 ? "font-bold text-fin-primary" : ""}
+                    >
+                      {peer.roe?.toFixed(2) || "N/A"}%
                     </TableCell>
-                    <TableCell className={peer.roce === maxRoce && peer.roce > 0 ? "font-bold text-fin-primary" : ""}>
-                      {peer.roce?.toFixed(2) || 'N/A'}%
+                    <TableCell
+                      className={peer.roce === maxRoce && peer.roce > 0 ? "font-bold text-fin-primary" : ""}
+                    >
+                      {peer.roce?.toFixed(2) || "N/A"}%
                     </TableCell>
-                    <TableCell className={`text-right ${
-                      peer.revenueGrowth === maxRevenueGrowth && peer.revenueGrowth > 0 ? "font-bold text-fin-primary" : ""
-                    }`}>
+                    <TableCell
+                      className={`text-right ${
+                        peer.revenueGrowth === maxRevenueGrowth && peer.revenueGrowth > 0
+                          ? "font-bold text-fin-primary"
+                          : ""
+                      }`}
+                    >
                       <div className="flex items-center justify-end gap-1">
                         {(peer.revenueGrowth || 0) >= 0 ? (
                           <>
@@ -167,13 +280,13 @@ export default function CompanyPeerComparison({ companyData, currencySymbol }: C
               </TableBody>
             </Table>
           </div>
-          
+
           <div className="mt-4 text-xs text-slate-500 dark:text-slate-400">
             <p>* Bold values indicate best-in-class metrics among peers</p>
           </div>
         </CardContent>
       </Card>
-      
+
       <Card>
         <CardHeader>
           <CardTitle>Industry Context</CardTitle>
@@ -183,24 +296,11 @@ export default function CompanyPeerComparison({ companyData, currencySymbol }: C
           <div className="p-6 bg-slate-50 rounded-lg dark:bg-slate-800">
             <h3 className="text-lg font-medium mb-3">Competitive Landscape</h3>
             <p className="text-slate-600 dark:text-slate-400 mb-4">
-              {companyData.name} ranks {
-                sortedCompanies.findIndex(c => c.ticker === companyData.ticker) + 1
-              } out of {sortedCompanies.length} in market capitalization within its peer group.
-              The company's P/E ratio is {
-                (companyData.peRatio || 0) > minPositivePE && minPositivePE > 0
-                  ? "higher than" 
-                  : "among the lowest in"
-              } its peer group, indicating a {
-                (companyData.peRatio || 0) > minPositivePE && minPositivePE > 0
-                  ? "potentially higher valuation relative to earnings" 
-                  : "potentially attractive valuation relative to earnings"
-              }.
-            </p>
-            <p className="text-slate-600 dark:text-slate-400 mb-4">
-              {companyData.name}'s return on equity (ROE) of {companyData.roe?.toFixed(2) || 'N/A'}% is {
-                (companyData.roe || 0) === maxRoe && maxRoe > 0
-                  ? "the highest among peers, demonstrating efficient use of shareholder capital" 
-                  : (companyData.roe || 0) > (sortedCompanies.reduce((sum, c) => sum + (c.roe || 0), 0) / sortedCompanies.length)
+              {companyData.name} ranks{" "}
+              {sortedCompanies.findIndex((c) => c.ticker === companyData.ticker) + 1} out of{" "}
+              {sortedCompanies.length} in market capitalization within its peer group.
+              The company's P/E ratio is{" "}
+              {(companyData.peRatio || 0) > minPositivePE && minPositivePE > 0
                     ? "above the peer average, indicating good capital efficiency"
                     : "below the peer group average, suggesting potential areas for improvement"
               }.

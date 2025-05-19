@@ -6,6 +6,7 @@ interface RealTimeStockOptions {
   autoConnect?: boolean;
   onConnectionChange?: (state: ConnectionState) => void;
   onError?: (error: any) => void;
+  exchange?: 'us' | 'eu' | 'cn' | 'in';
 }
 
 export interface RealTimeStockData {
@@ -16,6 +17,7 @@ export interface RealTimeStockData {
     volume: number;
     timestamp: number;
     lastUpdated: Date;
+    exchange?: string;
   };
 }
 
@@ -33,7 +35,8 @@ const useRealTimeStock = (
   const { 
     autoConnect = true,
     onConnectionChange,
-    onError 
+    onError,
+    exchange = 'us'
   } = options;
 
   // Handle connection state changes
@@ -98,7 +101,8 @@ const useRealTimeStock = (
             changePercent: typeof changePercent === 'number' ? changePercent : 0,
             volume: typeof update.v === 'number' ? update.v : 0,
             timestamp: typeof update.t === 'number' ? update.t : Date.now(),
-            lastUpdated: new Date()
+            lastUpdated: new Date(),
+            exchange: update.exchange || exchange
           }
         };
       });
@@ -116,7 +120,7 @@ const useRealTimeStock = (
     if (symbols.length > 0) {
       // Auto-connect if specified
       if (autoConnect && webSocketService.getConnectionState() === ConnectionState.DISCONNECTED) {
-        webSocketService.connect();
+        webSocketService.connect(exchange);
       }
 
       // Subscribe to symbols
@@ -129,12 +133,12 @@ const useRealTimeStock = (
         webSocketService.unsubscribe(symbols);
       }
     };
-  }, [symbols, autoConnect]);
+  }, [symbols, autoConnect, exchange]);
 
   // Connect/disconnect methods
   const connect = useCallback(() => {
-    webSocketService.connect();
-  }, []);
+    webSocketService.connect(exchange);
+  }, [exchange]);
 
   const disconnect = useCallback(() => {
     webSocketService.disconnect();
