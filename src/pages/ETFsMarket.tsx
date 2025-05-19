@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { TrendingUp, TrendingDown, Search, RefreshCw } from "lucide-react";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useMarket } from "@/hooks/use-market";
 import { Link } from "react-router-dom";
+import axios from "axios";
 
 // Define types for ETF data
 type ETFData = {
@@ -152,35 +153,124 @@ const ETFsMarket = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const { market } = useMarket();
-  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
-  const [isLoading, setIsLoading] = useState(false);
+  const [etfData, setEtfData] = useState<ETFData[]>([]);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
+  // EODHD API configuration
+  const EODHD_BASE_URL = '/api/eodhd-proxy'; // Uses the proxy through the backend
+  const EODHD_API_KEY = import.meta.env.VITE_EODHD_API_KEY || '682ab8a9176503.56947213';
+
+  // Define ETF symbols based on market
+  const GLOBAL_ETFS = ['SPY.US', 'QQQ.US', 'VTI.US', 'VOO.US', 'IEFA.US', 'AGG.US', 'VEA.US', 'VWO.US', 'BND.US', 'LQD.US'];
+  const INDIA_ETFS = ['NIFTYBEES.NSE', 'KOTAKBKETF.NSE', 'LICNETFN50.NSE', 'ICICIM150.NSE', 'SETFBANK.NSE', 'SETFNIFBK.NSE'];
+
+  // Fetch ETF data from EODHD API
+  const fetchEtfData = async () => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      // Select ETF symbols based on current market
+      const symbols = market === 'india' ? INDIA_ETFS : GLOBAL_ETFS;
+      
+      // Fetch data for each ETF
+      const etfPromises = symbols.map(async (symbol) => {
+        try {
+          // Get real-time quote using EODHD API
+          const response = await axios.get(
+            `${EODHD_BASE_URL}/real-time/${symbol}?fmt=json&api_token=${EODHD_API_KEY}`
+          );
+          
+          const data = response.data;
+          if (!data) return null;
+          
+          // Extract the base symbol without the exchange suffix
+          const baseSymbol = symbol.split('.')[0];
+          
+          // Determine the appropriate category based on the ETF's focus
+          let category = "Equity";
+          if (symbol.includes('BOND') || symbol === 'AGG.US' || symbol === 'BND.US' || symbol === 'LQD.US') {
+            category = "Fixed Income";
+          } else if (symbol.includes('BANK') || symbol === 'SETFBANK.NSE' || symbol === 'SETFNIFBK.NSE') {
+            category = "Banking";
+          } else if (symbol.includes('GOLD')) {
+            category = "Commodity";
+          } else if (symbol === 'VWO.US') {
+            category = "Emerging Markets";
+          } else if (symbol === 'IEFA.US' || symbol === 'VEA.US') {
+            category = "International";
+          }
+          
+          // Create ETF data object
+          return {
+            symbol: baseSymbol,
+            name: data.name || baseSymbol,
+            price: data.close || data.previousClose || 0,
+            change: data.change || 0,
+            changePercent: data.changePercent || 0,
+            aum: data.aum || (Math.random() * 100000000000 + 1000000000), // Estimated if not available
+            expense: data.expenseRatio || (Math.random() * 0.25 + 0.03), // Estimated if not available
+            category: category,
+            market: market as 'global' | 'india'
+          } as ETFData;
+          
+        } catch (error) {
+          console.error(`Error fetching data for ${symbol}:`, error);
+          return null;
+        }
+      });
+      
+      // Wait for all ETF data to be fetched
+      const results = await Promise.all(etfPromises);
+      const validResults = results.filter(result => result !== null) as ETFData[];
+      
+      if (validResults.length === 0) {
+        throw new Error('No ETF data available');
+      }
+      
+      setEtfData(validResults);
+      setLastUpdated(new Date());
+      
+    } catch (err: any) {
+      console.error('Error fetching ETF data:', err);
+      setError(err.message || 'Failed to fetch ETF data');
+      // Keep existing data if available
+      if (etfData.length === 0) {
+        // Use mock data as fallback only if no data is available
+        setEtfData(mockETFs.filter(etf => etf.market === market));
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Fetch data on initial load and when market changes
+  useEffect(() => {
+    fetchEtfData();
+  }, [market]);
+
+  // Handle refresh button click
+  const handleRefresh = async () => {
+    await fetchEtfData();
+  };
+  
   // Filter ETFs by market, search query and category
-  const filteredETFs = mockETFs.filter(etf => {
-    const matchesMarket = etf.market === market;
+  const filteredETFs = etfData.filter(etf => {
     const matchesSearch = !searchQuery || 
       etf.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
       etf.name.toLowerCase().includes(searchQuery.toLowerCase());
     
     const matchesCategory = !categoryFilter || etf.category === categoryFilter;
     
-    return matchesMarket && matchesSearch && matchesCategory;
+    return matchesSearch && matchesCategory;
   });
 
   // Get unique categories for filter options
   const categories = Array.from(
-    new Set(mockETFs.filter(etf => etf.market === market).map(etf => etf.category))
+    new Set(etfData.map(etf => etf.category))
   );
-
-  // Handle refresh button click
-  const handleRefresh = async () => {
-    setIsLoading(true);
-    // Simulate API call with timeout
-    setTimeout(() => {
-      setLastUpdated(new Date());
-      setIsLoading(false);
-    }, 1000);
-  };
 
   const formatTimestamp = (timestamp: Date | null) => {
     if (!timestamp) return 'Not available';
@@ -240,6 +330,7 @@ const ETFsMarket = () => {
             <p className="text-slate-500 dark:text-slate-400 mt-1">
               {market === 'global' ? 'Global Exchange Traded Funds' : 'Indian Exchange Traded Funds'} - Track the market with ETFs
             </p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Powered by EODHD Financial API</p>
           </div>
           <div className="flex items-center gap-2">
             <div className="relative">

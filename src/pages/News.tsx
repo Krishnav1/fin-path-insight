@@ -16,6 +16,8 @@ interface NewsItem {
   snippet: string;
   category?: string;
   image?: string;
+  symbols?: string[];
+  tickers?: string[];
 }
 
 export default function News() {
@@ -47,23 +49,44 @@ export default function News() {
       setError(null);
       
       try {
-        // Use GNews API directly instead of FastAPI
-        const gnewsApiKey = import.meta.env.VITE_GNEWS_API_KEY || ''; // Get from environment variables
-        const query = market === 'global' ? 'finance OR economy OR stock market' : `${market} stock market OR economy`;
-        const response = await fetch(`https://gnews.io/api/v4/search?q=${encodeURIComponent(query)}&token=${gnewsApiKey}&lang=en&max=10`);
+        // EODHD API configuration
+        const EODHD_BASE_URL = '/api/eodhd-proxy'; // Uses the proxy through the backend
+        const EODHD_API_KEY = import.meta.env.VITE_EODHD_API_KEY || '682ab8a9176503.56947213';
         
-        if (!response.ok) {
-          throw new Error(`Failed to fetch news: ${response.status} ${response.statusText}`);
+        // Parameters for EODHD news API
+        const params = new URLSearchParams({
+          api_token: EODHD_API_KEY,
+          limit: '30', // Fetch more news to have enough after filtering
+          offset: '0',
+          sort: 'publishedAt',
+          order: 'desc',
+          fmt: 'json'
+        });
+        
+        // Add market-specific parameters
+        if (market === 'india') {
+          // For Indian market, fetch news for Indian stocks
+          params.append('s', 'RELIANCE.NSE,TCS.NSE,HDFCBANK.NSE,INFY.NSE');
         }
         
-        const data = await response.json();
-        const apiNewsItems: NewsItem[] = data.articles?.map(article => ({
+        // Get news from EODHD API
+        const url = `${EODHD_BASE_URL}/news?${params.toString()}`;
+        const response = await axios.get(url);
+        
+        if (!response.data) {
+          throw new Error('Failed to fetch news from EODHD API');
+        }
+        
+        // Map the EODHD news data to our NewsItem format
+        const apiNewsItems: NewsItem[] = response.data.map((article: any) => ({
           title: article.title,
-          url: article.url,
-          source: article.source?.name || 'Unknown',
-          publishedAt: article.publishedAt,
-          snippet: article.description,
-          image: article.image
+          url: article.link,
+          source: article.source || 'EODHD News',
+          publishedAt: article.date || article.published || new Date().toISOString(),
+          snippet: article.text || article.summary || 'No description provided',
+          image: article.image_url || article.banner_image || null,
+          symbols: article.symbols || [],
+          tickers: article.tickers || []
         })) || [];
         
         // Add category field to each news item based on content analysis
@@ -80,14 +103,14 @@ export default function News() {
             }
           }
           
-          // Generate a placeholder image based on category
+          // Use image from API or generate placeholder based on category
           const imagePlaceholder = `https://placehold.co/600x400/e9f5ff/003566?text=${assignedCategory.replace(/ /g, '+')}`;          
-          
+        
           return {
             ...item,
             id: Math.random(), // Assign a random ID if not present
             category: assignedCategory,
-            image: imagePlaceholder
+            image: item.image || imagePlaceholder
           };
         });
         
@@ -113,7 +136,8 @@ export default function News() {
       <Header />
       
       <main className="flex-grow container mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold mb-6">Latest Financial News</h1>
+        <h1 className="text-3xl font-bold mb-2">Latest Financial News</h1>
+        <p className="text-slate-500 dark:text-slate-400 mb-6">Powered by EODHD Financial News API</p>
         
         <div className="mb-6">
           <div className="flex overflow-x-auto gap-2 pb-2">

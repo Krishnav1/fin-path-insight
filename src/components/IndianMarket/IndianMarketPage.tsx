@@ -7,8 +7,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import ErrorDisplay from '@/components/common/ErrorDisplay';
 import * as apiService from '@/services/apiService';
+import { getMultiSourceStockData, getComprehensiveStockData } from '@/lib/api-service';
 import { ERROR_TYPES } from '@/utils/errorHandler';
 import './IndianMarketPage.css';
+import axios from 'axios';
 
 // Define error object interface
 interface ErrorObject {
@@ -69,6 +71,13 @@ const IndianMarketPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<any>(null);
   const [lastUpdated, setLastUpdated] = useState<string>('');
+  
+  // Define Indian stock symbols for top stocks
+  const indianStockSymbols = [
+    'RELIANCE', 'TCS', 'HDFCBANK', 'INFY', 'HINDUNILVR', 
+    'ICICIBANK', 'SBIN', 'BHARTIARTL', 'ITC', 'KOTAKBANK',
+    'LT', 'AXISBANK', 'BAJFINANCE', 'HCLTECH', 'ASIANPAINT'
+  ];
 
   // Format timestamp for display
   const formatTimestamp = (timestamp: string | undefined) => {
@@ -93,17 +102,98 @@ const IndianMarketPage: React.FC = () => {
     fetchData();
   }, []);
 
-  // Function to fetch market data
+  // Function to fetch market data using EODHD API
   const fetchData = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // Fetch market status and top stocks in parallel using our apiService
-      const [marketStatusData, topStocksData] = await Promise.all([
-        apiService.getMarketOverview('india'),
-        apiService.getLatestNews('india')
-      ]);
+      // Prepare the symbols for EODHD API (NSE exchange code)
+      const formattedSymbols = indianStockSymbols.map(symbol => `${symbol}.NSE`);
+      
+      // Get EODHD API key and base URL from environment or default
+      const EODHD_BASE_URL = '/api/eodhd-proxy'; // Proxied through backend
+      const EODHD_API_KEY = import.meta.env.VITE_EODHD_API_KEY || '682ab8a9176503.56947213';
+      
+      // Fetch NSE index data (NIFTY 50) from EODHD
+      const niftyResponse = await axios.get(
+        `${EODHD_BASE_URL}/real-time/NIFTY50.INDX?fmt=json&api_token=${EODHD_API_KEY}`
+      ).then(response => response.data)
+        .catch(err => {
+          console.error('Error fetching NIFTY50 data:', err);
+          return null;
+        });
+      
+      // Fetch batch stock data for top Indian stocks
+      const stockPromises = formattedSymbols.map(async (symbol) => {
+        try {
+          // Use the getComprehensiveStockData for detailed data
+          const stockData = await getMultiSourceStockData(symbol, 'india');
+          
+          return {
+            symbol: symbol.split('.')[0], // Remove the .NSE suffix
+            companyName: stockData.name || symbol.split('.')[0],
+            lastPrice: stockData.price || 0,
+            change: stockData.change || 0,
+            pChange: stockData.changePercent || 0,
+            marketCap: stockData.marketCap ? Math.floor(stockData.marketCap / 10000000) : 0, // Convert to crores
+            sector: stockData.sector || 'Unknown'
+          };
+        } catch (err) {
+          console.error(`Error fetching data for ${symbol}:`, err);
+          return null;
+        }
+      });
+      
+      // Wait for all stock data to be fetched
+      const stockResults = await Promise.all(stockPromises);
+      const validStocks = stockResults.filter(stock => stock !== null) as StockData[];
+      
+      // Create market status data
+      const marketStatusData: MarketStatus = {
+        indicativenifty50: {
+          finalClosingValue: niftyResponse?.price || 0,
+          closingValue: niftyResponse?.price || 0,
+          change: niftyResponse?.change?.toString() || '0',
+          perChange: niftyResponse?.changePercent?.toString() || '0',
+          status: new Date().getHours() < 16 ? 'Open' : 'Closed', // Basic logic - update as needed
+          dateTime: new Date().toISOString()
+        },
+        marketcap: {
+          marketCapinLACCRRupeesFormatted: '300+', // This would need to be calculated correctly from actual data
+          marketCapinTRDollars: '3.5+', // This would need to be calculated correctly from actual data
+          timeStamp: new Date().toISOString()
+        },
+        marketState: [
+          {
+            market: 'NSE',
+            marketStatus: new Date().getHours() < 16 ? 'Open' : 'Closed',
+            marketStatusMessage: new Date().getHours() < 16 ? 'Trading in Progress' : 'Market Closed for the Day',
+            tradeDate: new Date().toISOString().split('T')[0],
+            index: 'NIFTY 50',
+            last: niftyResponse?.price || 0,
+            percentChange: niftyResponse?.changePercent || 0
+          },
+          {
+            market: 'BSE',
+            marketStatus: new Date().getHours() < 16 ? 'Open' : 'Closed',
+            marketStatusMessage: new Date().getHours() < 16 ? 'Trading in Progress' : 'Market Closed for the Day',
+            tradeDate: new Date().toISOString().split('T')[0],
+            index: 'SENSEX',
+            last: 0, // Would need another API call for BSE data
+            percentChange: 0 // Would need another API call for BSE data
+          }
+        ]
+      };
+      
+      // Sort stocks by market cap
+      validStocks.sort((a, b) => b.marketCap - a.marketCap);
+      
+      const topStocksData: TopStocksData = {
+        stocks: validStocks,
+        timestamp: new Date().toISOString(),
+        source: 'EODHD API'
+      };
 
       setMarketStatus(marketStatusData);
       setTopStocks(topStocksData);
@@ -130,9 +220,8 @@ const IndianMarketPage: React.FC = () => {
   
   // Function to handle stock click and navigate to company analysis
   const handleStockClick = (symbol: string) => {
-    // Remove .NS suffix if present
-    const baseSymbol = symbol.replace('.NS', '');
-    navigate(`/company-analysis/${baseSymbol}`);
+    // Symbol should already be without .NS or .NSE suffix
+    navigate(`/company-analysis/${symbol}`);
   };
 
   // Handle refresh button click

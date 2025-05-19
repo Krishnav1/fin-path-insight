@@ -67,9 +67,12 @@ export default function MarketOverview() {
   return (
     <div className="w-full">
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-semibold text-fin-primary dark:text-white">
-          {market === "global" ? "Global Market Overview" : "Indian Market Overview"}
-        </h2>
+        <div>
+          <h2 className="text-xl font-semibold text-fin-primary dark:text-white">
+            {market === "global" ? "Global Market Overview" : "Indian Market Overview"}
+          </h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Powered by EODHD Financial API</p>
+        </div>
         <div className="flex items-center gap-4">
           {lastUpdated && (
             <span className="text-xs text-slate-500 dark:text-slate-400">

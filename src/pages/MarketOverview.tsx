@@ -85,16 +85,21 @@ const MarketOverview = () => {
 
   const getIndicesData = (): MarketData[] => {
     // Convert live indices data
-    return indices.map(index => ({
-      symbol: index.symbol,
-      name: index.name,
-      price: index.price,
-      change: index.change,
-      changePercent: index.changePercent,
-      volume: 0,
-      type: 'index',
-      market: index.symbol && index.symbol.includes('.NS') ? 'india' : 'global'
-    })).filter(item => item.market === market);
+    return indices.map(index => {
+      // Determine market based on symbol
+      const marketValue = index.symbol && index.symbol.includes('.NS') ? 'india' : 'global';
+      
+      return {
+        symbol: index.symbol,
+        name: index.name,
+        price: index.price,
+        change: index.change,
+        changePercent: index.changePercent,
+        volume: 0,
+        type: 'index' as const, // Use const assertion to ensure type is strictly 'index'
+        market: marketValue as 'global' | 'india' // Use type assertion to ensure market is strictly 'global' or 'india'
+      };
+    }).filter(item => item.market === market);
   };
 
   // Filter data by search query
@@ -249,8 +254,9 @@ const MarketOverview = () => {
           <div>
             <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Market Overview</h1>
             <p className="text-slate-500 dark:text-slate-400 mt-1">
-              {market === 'global' ? 'Global Markets' : 'Indian Markets'} - Live updates and insights
+              {market === 'global' ? 'Global' : 'Indian'} market summary and performance
             </p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Powered by EODHD Financial API</p>
           </div>
           <div className="flex items-center gap-2">
             <div className="relative">

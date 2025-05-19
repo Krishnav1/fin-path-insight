@@ -18,9 +18,11 @@ import AIAnalysis from "@/components/company/AIAnalysis";
 import { Loader2, ArrowLeft, RefreshCw, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useMarket } from "@/hooks/use-market";
-import { getMultiSourceStockData, getYFStockFinancials, getYFStockChart, getCompanyNews, getPeerComparison } from "@/lib/api-service";
-import * as html2pdfLib from 'html2pdf.js';
-const html2pdf = html2pdfLib.default || html2pdfLib;
+import { getMultiSourceStockData, getComprehensiveStockData, getYFStockFinancials, getYFStockChart, getCompanyNews, getPeerComparison } from '@/lib/api-service';
+// Import html2pdf and declare its type to include the 'from' method
+import html2pdfLib from 'html2pdf.js';
+// Use a type assertion to tell TypeScript that the library has the methods we need
+const html2pdf = html2pdfLib as any;
 
 // Company data types
 export type CompanyData = {
@@ -105,22 +107,26 @@ export default function CompanyAnalysis() {
     
     setLoading(true);
     try {
-      // Get comprehensive stock data from Alpha Vantage
-      const stockData = await getMultiSourceStockData(symbol, market);
+      // Determine if this is an Indian stock based on context
+      const isIndianStock = market === 'india';
+      
+      // Using the EODHD API for comprehensive stock data
+      // This function handles symbol formatting (.NS for Indian stocks)
+      const stockData = await getComprehensiveStockData(symbol, isIndianStock);
       
       if (!stockData) {
-        throw new Error("Failed to fetch stock data");
+        throw new Error("Failed to fetch stock data from EODHD API");
       }
       
       // Basic info we can directly extract from stock data
-      // Always use the base symbol without .NS suffix for consistency
-      const cleanSymbol = (symbol: string) => symbol.replace('.NS', '');
+      // Always use the base symbol without exchange suffix for consistency
+      const cleanSymbol = (symbol: string) => symbol.replace(/\.(NS|NSE|US|NYSE)$/, '');
       
       const baseCompanyData: Partial<CompanyData> = {
         ticker: cleanSymbol(stockData.symbol),
         displaySymbol: stockData.displaySymbol || cleanSymbol(stockData.symbol),
         name: stockData.name || cleanSymbol(symbol || ''),
-        exchange: stockData.exchange || (stockData.symbol && stockData.symbol.includes('.NS') ? 'NSE' : 'NYSE/NASDAQ'),
+        exchange: stockData.exchange || (isIndianStock ? 'NSE' : 'NYSE/NASDAQ'),
         currentPrice: stockData.price,
         priceChange: stockData.change,
         priceChangePercent: stockData.changePercent,
@@ -430,17 +436,31 @@ export default function CompanyAnalysis() {
     return "Fairly Valued";
   };
 
+  // Function to handle refresh button click
+  const handleRefresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    
+    // Display a message to the user that data is being refreshed from EODHD API
+    console.log("Refreshing company data from EODHD API...");
+    
+    try {
+      await fetchCompanyData();
+    } catch (error) {
+      console.error("Error refreshing company data from EODHD API:", error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   // Fetch data on initial load
   useEffect(() => {
     fetchCompanyData();
   }, [symbol, market]);
 
   // Handle manual refresh
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await fetchCompanyData();
-  };
   
+
   // Handle PDF download
   const handleDownloadPDF = () => {
     if (!companyData) return;
@@ -524,43 +544,55 @@ export default function CompanyAnalysis() {
       <Header />
       <main className="container py-8 px-4 md:px-6" id="company-report">
         <div className="mb-8">
-          <div className="flex items-center gap-2 mb-2">
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => navigate(-1)}
-              className="flex items-center gap-1"
-            >
-              <ArrowLeft size={16} />
-              <span>Back</span>
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleRefresh}
-              disabled={refreshing}
-              className="flex items-center gap-1"
-            >
-              <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
-              <span>Refresh</span>
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleDownloadPDF}
-              className="flex items-center gap-1 ml-auto"
-            >
-              <Download size={16} />
-              <span>Download PDF</span>
-            </Button>
-          </div>
+          <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center gap-4">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => navigate(-1)}
+                className="flex-shrink-0"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+              
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-3xl font-bold tracking-tight">{companyData?.name}</h1>
+                  <span className="text-sm font-medium text-slate-500 dark:text-slate-400">{companyData?.ticker}</span>
+                </div>
+                <p className="text-slate-500 dark:text-slate-400 text-sm">Powered by EODHD Financial API</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="flex items-center gap-1"
+              >
+                <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
+                <span>Refresh</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleDownloadPDF}
+                disabled={!companyData}
+                className="flex items-center gap-1"
+              >
+                <Download size={16} />
+                <span>Download PDF</span>
+              </Button>
+            </div>
+        </div>
           
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50 flex items-center gap-3">
-            {companyData?.name || 'Company'}
-            <span className="text-xl text-slate-500 dark:text-slate-400">
-              ({companyData?.exchange || 'Exchange'}: {companyData?.displaySymbol || companyData?.ticker?.split('.')[0] || companyData?.ticker || 'Symbol'})
-            </span>
-          </h1>
+        <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50 flex items-center gap-3">
+          {companyData?.name || 'Company'}
+          <span className="text-xl text-slate-500 dark:text-slate-400">
+            ({companyData?.exchange || 'Exchange'}: {companyData?.displaySymbol || companyData?.ticker?.split('.')[0] || companyData?.ticker || 'Symbol'})
+          </span>
+        </h1>
           
           <div className="mt-1 flex items-center gap-3">
             <div className="flex items-center">

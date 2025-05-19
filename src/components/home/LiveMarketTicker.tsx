@@ -49,16 +49,22 @@ export default function LiveMarketTicker() {
   };
 
   const isStock = (symbol: string) => {
-    if (!symbol) return true;
     return !symbol.includes('^') && !symbol.includes('BEE');
   };
 
   if (isLoading || tickerItems.length === 0) {
     return (
-      <div className="w-full py-2 bg-fin-primary text-white overflow-hidden">
-        <div className="container flex items-center justify-center">
-          <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent mr-2" />
+      <div className="w-full bg-fin-primary text-white dark:bg-slate-800 py-2 overflow-hidden">
+        <div className="container mx-auto px-4 flex items-center gap-4">
+          <div className="flex-shrink-0 flex items-center space-x-2">
+            <div>
+              <span className="font-medium">Live Markets</span>
+              <span className="text-xs opacity-80 ml-2">via EODHD</span>
+            </div>
+            {isLoading && <div className="h-4 w-4 rounded-full border-2 border-t-transparent border-white animate-spin" />}
+          </div>  
           <span className="text-sm">Loading market data...</span>
+          <span className="text-xs opacity-80 ml-2">via EODHD</span>
         </div>
       </div>
     );

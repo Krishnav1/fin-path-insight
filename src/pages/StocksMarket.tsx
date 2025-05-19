@@ -48,16 +48,23 @@ const StocksMarket = () => {
       new Map(stocks.map(stock => [stock.symbol, stock])).values()
     );
     
-    return uniqueStocks.map(stock => ({
-      symbol: stock.symbol,
-      name: stock.name || stock.symbol,
-      price: stock.price,
-      change: stock.change,
-      changePercent: stock.changePercent,
-      volume: stock.volume,
-      sector: stock.sector,
-      market: stock.symbol.includes('.NS') ? 'india' : 'global'
-    })).filter(stock => stock.market === market);
+    return uniqueStocks.map(stock => {
+      // Determine the market based on context rather than suffix
+      // Indian stocks should not have .NS suffix in our application
+      const stockMarket = market as 'global' | 'india'; // Cast to the correct union type
+      
+      return {
+        symbol: stock.symbol, // Symbol should already be without suffix
+        name: stock.name || stock.symbol,
+        price: stock.price,
+        change: stock.change,
+        changePercent: stock.changePercent,
+        volume: stock.volume,
+        // Add optional chaining and provide default value for sector
+        sector: (stock as any).sector || 'Other',
+        market: stockMarket
+      };
+    }).filter(stock => stock.market === market);
   };
 
   // Filter stocks by search query and sector
@@ -73,7 +80,7 @@ const StocksMarket = () => {
 
   // Get unique sectors for filter options
   const sectors = Array.from(
-    new Set(getStockData().map(stock => stock.sector).filter(Boolean))
+    new Set(getStockData().map(stock => stock.sector).filter(Boolean) as string[])
   );
 
   // Handle refresh button click
@@ -96,7 +103,9 @@ const StocksMarket = () => {
   };
 
   const formatCurrency = (value: number, symbol: string) => {
-    const currencySymbol = market === "india" && symbol.includes('.NS') ? "₹" : "$";
+    // Use the current market setting to determine currency symbol,
+    // not based on .NS suffix which is no longer used
+    const currencySymbol = market === "india" ? "₹" : "$";
     return `${currencySymbol}${value.toFixed(2)}`;
   };
 
@@ -170,7 +179,7 @@ const StocksMarket = () => {
                   key={sector} 
                   variant={sectorFilter === sector ? "default" : "outline"} 
                   size="sm"
-                  onClick={() => setSectorFilter(sector)}
+                  onClick={() => setSectorFilter(sector || null)}
                 >
                   {sector}
                 </Button>
