@@ -23,8 +23,16 @@ const activeSymbols: Set<string> = new Set();
 // Connect to EODHD WebSocket
 function connectToEODHD() {
   try {
-    // Get API key from environment
-    const API_KEY = Deno.env.get('EODHD_API_KEY') || '682ab8a9176503.56947213';
+    // Get API key from environment or use premium API key
+    // Use a try-catch block to handle potential Deno namespace issues
+    let API_KEY = '682ab8a9176503.56947213'; // Default fallback
+    try {
+      const envKey = Deno?.env?.get?.('EODHD_API_KEY');
+      if (envKey) API_KEY = envKey;
+    } catch (e) {
+      console.error('Error accessing environment variable:', e);
+      // Continue with default API key
+    }
     
     // Close existing connection if any
     if (eodhSocket) {
@@ -223,7 +231,22 @@ export async function eodhWsProxy(req: Request): Promise<Response> {
   
   try {
     // Create WebSocket pair
-    const { socket, response } = Deno.upgradeWebSocket(req);
+    // Handle potential Deno namespace issues
+    let socket: WebSocket;
+    let response: Response;
+    
+    try {
+      const upgrade = Deno?.upgradeWebSocket?.(req);
+      if (upgrade) {
+        socket = upgrade.socket;
+        response = upgrade.response;
+      } else {
+        throw new Error('WebSocket upgrade failed');
+      }
+    } catch (e) {
+      console.error('Error upgrading WebSocket:', e);
+      return new Response('WebSocket upgrade failed: ' + e.message, { status: 500 });
+    }
     
     // Generate a unique client ID
     const clientId = crypto.randomUUID();

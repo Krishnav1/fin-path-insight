@@ -14,7 +14,15 @@ export async function eodhProxy(req: Request, corsHeaders: Record<string, string
     const eodhPath = path.replace('/api/eodhd-proxy', '');
     
     // Get API key from environment or use premium API key
-    const API_KEY = Deno.env.get('EODHD_API_KEY') || '682ab8a9176503.56947213';
+    // Use a try-catch block to handle potential Deno namespace issues
+    let API_KEY = '682ab8a9176503.56947213'; // Default fallback
+    try {
+      const envKey = Deno?.env?.get?.('EODHD_API_KEY');
+      if (envKey) API_KEY = envKey;
+    } catch (e) {
+      console.error('Error accessing environment variable:', e);
+      // Continue with default API key
+    }
     
     // Create a new URL with searchParams
     const queryParams = new URLSearchParams(url.search);
