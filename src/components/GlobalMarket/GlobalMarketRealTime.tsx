@@ -76,16 +76,16 @@ const GlobalMarketRealTime: React.FC = () => {
     setRealTimeEnabled(!realTimeEnabled);
   };
   
-  // Get stock data for display
+  // Get stock data for display with additional safety checks
   const getStockDisplayProps = (symbol: string): StockDisplayProps => {
     const data = stockData[symbol];
     if (data) {
       return {
         symbol,
-        price: data.price,
-        change: data.change,
-        changePercent: data.changePercent,
-        lastUpdated: data.lastUpdated
+        price: typeof data.price === 'number' ? data.price : 0,
+        change: typeof data.change === 'number' ? data.change : 0,
+        changePercent: typeof data.changePercent === 'number' ? data.changePercent : 0,
+        lastUpdated: data.lastUpdated instanceof Date ? data.lastUpdated : null
       };
     }
     

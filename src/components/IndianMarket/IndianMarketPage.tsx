@@ -301,19 +301,42 @@ const IndianMarketPage: React.FC = () => {
     await fetchData();
   };
   
-  // Function to update stocks with real-time data
+  // Function to update stocks with real-time data with defensive checks
   const updateStocksWithRealTimeData = (stocks: StockData[], realTimeData: RealTimeStockData) => {
+    if (!stocks || !Array.isArray(stocks) || !realTimeData) {
+      return stocks || [];
+    }
+    
     return stocks.map(stock => {
-      const realTimeStock = realTimeData[stock.symbol];
+      if (!stock || typeof stock !== 'object') {
+        return {
+          symbol: 'UNKNOWN',
+          companyName: 'Unknown',
+          lastPrice: 0,
+          change: 0,
+          pChange: 0,
+          marketCap: 0,
+          sector: 'Unknown'
+        };
+      }
+      
+      const realTimeStock = stock.symbol ? realTimeData[stock.symbol] : null;
       if (realTimeStock) {
         return {
           ...stock,
-          lastPrice: realTimeStock.price,
-          change: realTimeStock.change,
-          pChange: realTimeStock.changePercent
+          lastPrice: typeof realTimeStock.price === 'number' ? realTimeStock.price : (stock.lastPrice || 0),
+          change: typeof realTimeStock.change === 'number' ? realTimeStock.change : (stock.change || 0),
+          pChange: typeof realTimeStock.changePercent === 'number' ? realTimeStock.changePercent : (stock.pChange || 0)
         };
       }
-      return stock;
+      return {
+        ...stock,
+        lastPrice: stock.lastPrice || 0,
+        change: stock.change || 0,
+        pChange: stock.pChange || 0,
+        marketCap: stock.marketCap || 0,
+        sector: stock.sector || 'Unknown'
+      };
     });
   };
 

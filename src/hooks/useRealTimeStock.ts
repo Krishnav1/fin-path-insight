@@ -89,14 +89,15 @@ const useRealTimeStock = (
           }
         }
 
+        // Ensure all values have proper defaults
         return {
           ...prevData,
           [update.s]: {
-            price: update.p,
-            change: change || 0,
-            changePercent: changePercent || 0,
-            volume: update.v,
-            timestamp: update.t,
+            price: typeof update.p === 'number' ? update.p : 0,
+            change: typeof change === 'number' ? change : 0,
+            changePercent: typeof changePercent === 'number' ? changePercent : 0,
+            volume: typeof update.v === 'number' ? update.v : 0,
+            timestamp: typeof update.t === 'number' ? update.t : Date.now(),
             lastUpdated: new Date()
           }
         };

@@ -1,12 +1,12 @@
 // EODHD API Proxy for Netlify Functions
 // This function forwards requests to the EODHD API and handles CORS
 
-const axios = require('axios');
+import axios from 'axios';
 
 // EODHD API base URL
 const EODHD_BASE_URL = 'https://eodhd.com/api';
 
-exports.handler = async function(event, context) {
+export const handler = async function(event, context) {
   // Set CORS headers for all responses
   const headers = {
     'Access-Control-Allow-Origin': '*',
