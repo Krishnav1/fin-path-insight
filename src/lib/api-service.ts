@@ -9,7 +9,7 @@ const ALPHA_VANTAGE_BASE_URL = 'https://www.alphavantage.co/query'; // No longer
 // All EODHD calls are proxied through /api/eodhd-proxy/* which is handled by netlify redirects
 // to the Deno backend. The Deno backend must then call the actual https://eodhd.com/api endpoint.
 const EODHD_BASE_URL = '/api/eodhd-proxy'; // Was: 'https://eodhd.com/api'
-const EODHD_API_KEY = import.meta.env.VITE_EODHD_API_KEY || '6825d040e69a53.46529931';
+const EODHD_API_KEY = import.meta.env.VITE_EODHD_API_KEY || '682ab8a9176503.56947213';
 const FMP_BASE_URL = 'https://financialmodelingprep.com/api/v3';
 
 // Alternative API for some data sources (cryptocompare for crypto data)

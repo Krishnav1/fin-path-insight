@@ -77,8 +77,12 @@ export default function News() {
           throw new Error('Failed to fetch news from EODHD API');
         }
         
+        // Ensure response.data is an array before mapping
+        const newsData = Array.isArray(response.data) ? response.data : [];
+        console.log('News data type:', typeof response.data, 'Is array:', Array.isArray(response.data));
+        
         // Map the EODHD news data to our NewsItem format
-        const apiNewsItems: NewsItem[] = response.data.map((article: any) => ({
+        const apiNewsItems: NewsItem[] = newsData.map((article: any) => ({
           title: article.title,
           url: article.link,
           source: article.source || 'EODHD News',

@@ -127,8 +127,25 @@ const IndianMarketPage: React.FC = () => {
       // Fetch batch stock data for top Indian stocks
       const stockPromises = formattedSymbols.map(async (symbol) => {
         try {
-          // Use the getComprehensiveStockData for detailed data
-          const stockData = await getMultiSourceStockData(symbol, 'india');
+          // Use the getMultiSourceStockData for detailed data
+          const stockData = await getMultiSourceStockData(symbol, 'india')
+            .catch(err => {
+              console.error(`API error for ${symbol}:`, err);
+              // Return a minimal object with the symbol to prevent null errors
+              return {
+                name: symbol.split('.')[0],
+                price: 0,
+                change: 0,
+                changePercent: 0,
+                marketCap: 0,
+                sector: 'Technology'
+              };
+            });
+          
+          // Ensure we have a valid stockData object
+          if (!stockData) {
+            throw new Error(`No data returned for ${symbol}`);
+          }
           
           return {
             symbol: symbol.split('.')[0], // Remove the .NSE suffix
@@ -140,8 +157,17 @@ const IndianMarketPage: React.FC = () => {
             sector: stockData.sector || 'Unknown'
           };
         } catch (err) {
-          console.error(`Error fetching data for ${symbol}:`, err);
-          return null;
+          console.error(`Error processing data for ${symbol}:`, err);
+          // Return a default object instead of null to prevent mapping errors
+          return {
+            symbol: symbol.split('.')[0],
+            companyName: symbol.split('.')[0],
+            lastPrice: 0,
+            change: 0,
+            pChange: 0,
+            marketCap: 0,
+            sector: 'Unknown'
+          };
         }
       });
       

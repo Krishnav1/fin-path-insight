@@ -12,8 +12,8 @@ export async function eodhProxy(req: Request, corsHeaders: Record<string, string
     // Remove the '/api/eodhd-proxy' prefix to get the actual EODHD API path
     const eodhPath = path.replace('/api/eodhd-proxy', '');
     
-    // Get API key from environment or use fallback
-    const API_KEY = Deno.env.get('EODHD_API_KEY') || '6825d040e69a53.46529931';
+    // Get API key from environment or use premium API key
+    const API_KEY = Deno.env.get('EODHD_API_KEY') || '682ab8a9176503.56947213';
     
     // Create a new URL with searchParams
     const queryParams = new URLSearchParams(url.search);
