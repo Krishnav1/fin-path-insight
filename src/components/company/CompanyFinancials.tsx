@@ -1,5 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { HelpCircle, TrendingUp, TrendingDown } from "lucide-react";
+import { HelpCircle, TrendingUp, TrendingDown, AlertCircle } from "lucide-react";
 import { CompanyData } from "@/pages/CompanyAnalysis";
 import {
   Tooltip,
@@ -14,6 +14,10 @@ import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, 
   Tooltip as RechartsTooltip, Legend, ResponsiveContainer 
 } from 'recharts';
+import { getCompanyFinancials, getCompanyBalanceSheet, getCompanyIncomeStatement, getCompanyCashFlow } from "@/lib/eodhd-service";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 
 interface CompanyFinancialsProps {
   companyData: CompanyData;
@@ -36,6 +40,13 @@ function formatLargeNumber(num: number | undefined | null): string {
 
 export default function CompanyFinancials({ companyData, currencySymbol }: CompanyFinancialsProps) {
   const { theme } = useTheme();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [financialsData, setFinancialsData] = useState<any>(null);
+  const [balanceSheetData, setBalanceSheetData] = useState<any>(null);
+  const [incomeStatementData, setIncomeStatementData] = useState<any>(null);
+  const [cashFlowData, setCashFlowData] = useState<any>(null);
+  
   const [chartTheme, setChartTheme] = useState({
     textColor: '#64748b', // slate-500
     gridColor: '#e2e8f0', // slate-200
@@ -44,6 +55,66 @@ export default function CompanyFinancials({ companyData, currencySymbol }: Compa
     secondaryColor: '#14b8a6', // teal-500
     tertiaryColor: '#f59e0b' // amber-500
   });
+  
+  // Fetch financial data from EODHD API
+  useEffect(() => {
+    if (!companyData?.ticker) return;
+    
+    const fetchFinancialData = async () => {
+      setLoading(true);
+      setError(null);
+      
+      try {
+        // Fetch all financial data in parallel
+        const [financials, balanceSheet, incomeStatement, cashFlow] = await Promise.all([
+          getCompanyFinancials(companyData.ticker),
+          getCompanyBalanceSheet(companyData.ticker),
+          getCompanyIncomeStatement(companyData.ticker),
+          getCompanyCashFlow(companyData.ticker)
+        ]);
+        
+        setFinancialsData(financials);
+        setBalanceSheetData(balanceSheet);
+        setIncomeStatementData(incomeStatement);
+        setCashFlowData(cashFlow);
+      } catch (err) {
+        console.error('Error fetching financial data:', err);
+        setError('Failed to load financial data. Please try again later.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchFinancialData();
+  }, [companyData?.ticker]);
+  
+  // Function to handle refresh of financial data
+  const handleRefresh = async () => {
+    if (!companyData?.ticker) return;
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // Fetch all financial data in parallel
+      const [financials, balanceSheet, incomeStatement, cashFlow] = await Promise.all([
+        getCompanyFinancials(companyData.ticker),
+        getCompanyBalanceSheet(companyData.ticker),
+        getCompanyIncomeStatement(companyData.ticker),
+        getCompanyCashFlow(companyData.ticker)
+      ]);
+      
+      setFinancialsData(financials);
+      setBalanceSheetData(balanceSheet);
+      setIncomeStatementData(incomeStatement);
+      setCashFlowData(cashFlow);
+    } catch (err) {
+      console.error('Error fetching financial data:', err);
+      setError('Failed to load financial data. Please try again later.');
+    } finally {
+      setLoading(false);
+    }
+  };
   
   // Update chart colors based on theme
   useEffect(() => {
@@ -67,32 +138,92 @@ export default function CompanyFinancials({ companyData, currencySymbol }: Compa
       });
     }
   }, [theme]);
+  
+  // Get financial metrics from EODHD API if available, otherwise use the original data
+  const getMetricValue = (key: string, defaultValue: any) => {
+    if (financialsData && financialsData.Highlights) {
+      const highlights = financialsData.Highlights;
+      switch (key) {
+        case 'marketCap':
+          return highlights.MarketCapitalization || defaultValue;
+        case 'peRatio':
+          return highlights.PERatio || defaultValue;
+        case 'eps':
+          return highlights.EPS || defaultValue;
+        case 'beta':
+          return highlights.Beta || defaultValue;
+        case 'dividendYield':
+          return highlights.DividendYield ? highlights.DividendYield * 100 : defaultValue; // Convert to percentage
+        case 'roe':
+          return highlights.ROE || defaultValue;
+        case 'profitMargin':
+          return highlights.ProfitMargin ? highlights.ProfitMargin * 100 : defaultValue; // Convert to percentage
+        default:
+          return defaultValue;
+      }
+    }
+    return defaultValue;
+  };
 
+  // Use EODHD data if available, otherwise fall back to original data
   const metrics = [
     {
       name: "Market Cap",
-      value: `${currencySymbol}${formatLargeNumber(companyData.marketCap)}`,
+      value: `${currencySymbol}${formatLargeNumber(getMetricValue('marketCap', companyData.marketCap))}`,
       tooltip: "The total value of all of a company's shares of stock. It's calculated by multiplying the price of a single share by the total number of outstanding shares."
     },
     {
       name: "P/E Ratio",
-      value: companyData.peRatio?.toFixed(2) || 'N/A',
-      tooltip: "Price-to-Earnings ratio shows if a stock is expensive or cheap compared to its earnings. It's calculated by dividing the current share price by earnings per share."
+      value: (() => {
+        const peRatio = getMetricValue('peRatio', companyData.peRatio);
+        return peRatio ? peRatio.toFixed(2) : 'N/A';
+      })(),
+      tooltip: "Price-to-Earnings Ratio. A valuation ratio of a company's current share price compared to its per-share earnings. A high P/E suggests that investors are expecting higher earnings growth in the future."
     },
     {
       name: "EPS",
-      value: `${currencySymbol}${companyData.eps?.toFixed(2) || 'N/A'}`,
-      tooltip: "Earnings Per Share represents the portion of a company's profit allocated to each outstanding share of common stock."
+      value: (() => {
+        const eps = getMetricValue('eps', companyData.eps);
+        return eps ? `${currencySymbol}${eps.toFixed(2)}` : 'N/A';
+      })(),
+      tooltip: "Earnings Per Share. The portion of a company's profit allocated to each outstanding share of common stock. It's an indicator of a company's profitability."
+    },
+    {
+      name: "Beta",
+      value: (() => {
+        const beta = getMetricValue('beta', companyData.beta);
+        return beta ? beta.toFixed(2) : 'N/A';
+      })(),
+      tooltip: "A measure of a stock's volatility in relation to the overall market. A beta greater than 1 indicates the stock is more volatile than the market, while a beta less than 1 indicates it's less volatile."
     },
     {
       name: "Dividend Yield",
-      value: `${companyData.dividendYield?.toFixed(2) || '0.00'}%`,
-      tooltip: "Dividend Yield shows how much a company pays out in dividends each year relative to its stock price."
+      value: (() => {
+        const dividendYield = getMetricValue('dividendYield', companyData.dividendYield);
+        return dividendYield ? `${dividendYield.toFixed(2)}%` : 'N/A';
+      })(),
+      tooltip: "The annual dividend payment divided by the stock price, expressed as a percentage. It's a way to measure the cash flow you're getting for each dollar invested in a stock."
     },
     {
       name: "ROE",
-      value: `${companyData.roe?.toFixed(2) || 'N/A'}%`,
-      tooltip: "Return on Equity measures a corporation's profitability by revealing how much profit a company generates with the money shareholders have invested."
+      value: (() => {
+        const roe = getMetricValue('roe', companyData.roe);
+        return roe ? `${roe.toFixed(2)}%` : 'N/A';
+      })(),
+      tooltip: "Return on Equity. A measure of financial performance calculated by dividing net income by shareholders' equity. It measures a corporation's profitability by revealing how much profit a company generates with the money shareholders have invested."
+    },
+    {
+      name: "Profit Margin",
+      value: (() => {
+        const profitMargin = getMetricValue('profitMargin', companyData.profitMargin);
+        return profitMargin ? `${profitMargin.toFixed(2)}%` : 'N/A';
+      })(),
+      tooltip: "The percentage of revenue that exceeds costs. It's a good indicator of how efficiently a company is managing its costs."
+    },
+    {
+      name: "Revenue Growth",
+      value: `${companyData.revenueGrowth?.toFixed(2) || 'N/A'}%`,
+      tooltip: "The year-over-year percentage increase in a company's revenue."
     },
     {
       name: "ROCE",
@@ -101,18 +232,8 @@ export default function CompanyFinancials({ companyData, currencySymbol }: Compa
     },
     {
       name: "Debt/Equity",
-      value: companyData.debtToEquity?.toFixed(2) || 'N/A',
+      value: `${companyData.debtToEquity?.toFixed(2) || 'N/A'}`,
       tooltip: "The Debt-to-Equity ratio indicates the relative proportion of shareholder's equity and debt used to finance a company's assets."
-    },
-    {
-      name: "Revenue Growth",
-      value: `${companyData.revenueGrowth?.toFixed(2) || 'N/A'}%`,
-      tooltip: "The year-over-year percentage increase in a company's revenue."
-    },
-    {
-      name: "Profit Margin",
-      value: `${companyData.profitMargin?.toFixed(2) || 'N/A'}%`,
-      tooltip: "The percentage of revenue that a company keeps as profit after accounting for all expenses."
     }
   ];
 
@@ -185,24 +306,71 @@ export default function CompanyFinancials({ companyData, currencySymbol }: Compa
                 </div>
                 <div className="text-2xl font-bold text-slate-900 dark:text-white">{metric.value}</div>
               </div>
-            ))}
+            ))}  
           </div>
         </CardContent>
-      </Card>
-      
-      <Tabs defaultValue="revenue" className="space-y-4">
-        <TabsList className="grid grid-cols-3 md:grid-cols-6 w-full">
-          <TabsTrigger value="revenue">Revenue & Profit</TabsTrigger>
-          <TabsTrigger value="eps">EPS</TabsTrigger>
-          <TabsTrigger value="roe">ROE</TabsTrigger>
-          <TabsTrigger value="roce">ROCE</TabsTrigger>
-          <TabsTrigger value="debt">Debt/Equity</TabsTrigger>
-          <TabsTrigger value="dividend">Dividend Yield</TabsTrigger>
-        </TabsList>
         
-        <Card>
-          <CardContent className="pt-6">
-            <TabsContent value="revenue" className="mt-0">
+        <CardContent className="pt-6">
+          <Tabs defaultValue="revenue">
+          <TabsContent value="revenue" className="mt-0">
+            <div className="h-[400px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={chartData}
+                  margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.gridColor} />
+                  <XAxis dataKey="year" stroke={chartTheme.textColor} />
+                  <YAxis stroke={chartTheme.textColor} tickFormatter={(value) => currencySymbol + formatLargeNumber(value)} />
+                  <RechartsTooltip content={<CustomTooltip />} />
+                  <Legend />
+                  <Bar name="Revenue" dataKey="revenue" fill={chartTheme.primaryColor} />
+                  <Bar name="Profit" dataKey="profit" fill={chartTheme.secondaryColor} />
+                </BarChart>
+              </ResponsiveContainer>
+              <p className="text-center text-sm text-slate-500 dark:text-slate-400 mt-4">
+                Annual Revenue and Profit Growth
+              </p>
+            </div>
+          </TabsContent>
+            
+          
+          <TabsContent value="eps" className="mt-0">
+            <div className="h-[400px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart
+                  data={chartData}
+                  margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.gridColor} />
+                  <XAxis dataKey="year" stroke={chartTheme.textColor} />
+                  <YAxis stroke={chartTheme.textColor} />
+                  <RechartsTooltip content={<CustomTooltip />} />
+                  <Legend />
+                  <Line
+                    name="EPS"
+                    type="monotone"
+                    dataKey="eps"
+                    stroke={chartTheme.primaryColor}
+                    strokeWidth={2}
+                    dot={{ r: 4 }}
+                    activeDot={{ r: 8 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+              <p className="text-center text-sm text-slate-500 dark:text-slate-400 mt-4">
+                Earnings Per Share (EPS) Trend
+              </p>
+              <div className="mt-4 bg-slate-100 dark:bg-slate-800 p-4 rounded-md">
+                <h4 className="text-sm font-medium mb-2">What is EPS?</h4>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  Earnings per share (EPS) is the portion of a company's profit allocated to each outstanding share of common stock. It serves as an indicator of a company's profitability. A higher EPS indicates greater value because investors will pay more for a company's shares if they think the company has higher profits relative to its share price.
+                </p>
+              </div>
+            </div>
+          </TabsContent>
+            
+          <TabsContent value="revenue" className="mt-0">
               <div className="h-[400px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
@@ -398,9 +566,9 @@ export default function CompanyFinancials({ companyData, currencySymbol }: Compa
                 </div>
               </div>
             </TabsContent>
-          </CardContent>
-        </Card>
-      </Tabs>
+          </Tabs>
+        </CardContent>
+      </Card>
     </div>
   );
-} 
+}

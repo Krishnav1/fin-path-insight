@@ -6,9 +6,10 @@ const FMP_API_KEY = 't9MOrZBPrRnGQ6vSynrboJZIM3IGy8nT'; // Financial Modeling Pr
 
 // Base URLs for different APIs
 const ALPHA_VANTAGE_BASE_URL = 'https://www.alphavantage.co/query'; // No longer used, replaced with EODHD
-// All EODHD calls are proxied through /api/eodhd-proxy/* which is handled by netlify redirects
-// to the Deno backend. The Deno backend must then call the actual https://eodhd.com/api endpoint.
-const EODHD_BASE_URL = '/api/eodhd-proxy'; // Was: 'https://eodhd.com/api'
+// All EODHD calls are proxied through Deno Deploy backend
+// The Deno backend handles the actual calls to https://eodhd.com/api endpoint.
+const EODHD_BASE_URL = '/api/eodhd-proxy';
+const EODHD_FUNDAMENTALS_URL = '/api/eodhd-fundamentals';
 const EODHD_API_KEY = import.meta.env.VITE_EODHD_API_KEY || '682ab8a9176503.56947213';
 const FMP_BASE_URL = 'https://financialmodelingprep.com/api/v3';
 
@@ -1019,15 +1020,78 @@ export async function getFMPStockData(symbol: string): Promise<any> {
 
 // Get stock quote using EODHD API
 async function getStockQuote(symbol: string): Promise<any> {
+  const cacheKey = `quote-${symbol}`;
+  const cachedData = apiCache.get(cacheKey);
+  if (cachedData) return Promise.resolve(cachedData);
+  
+  return axios.get(`${EODHD_BASE_URL}/real-time/${symbol}?fmt=json&api_token=${EODHD_API_KEY}`)
+    .then(response => {
+      apiCache.set(cacheKey, response.data);
+      return response.data;
+    })
+    .catch(error => {
+      console.error('Error fetching stock quote:', error);
+      return null;
+    });
+}
+
+// Get live (delayed) stock prices using the EODHD API
+// This uses our Deno backend proxy to avoid exposing API keys
+async function getLiveStockPrices(symbols: string | string[]): Promise<any> {
+  // Convert single symbol to array for consistent handling
+  const symbolArray = Array.isArray(symbols) ? symbols : [symbols];
+  const symbolsStr = symbolArray.join(',');
+  
+  const cacheKey = `live_prices_${symbolsStr}`;
+  const cachedData = apiCache.get<any>(cacheKey);
+  
+  if (cachedData) {
+    return Promise.resolve(cachedData);
+  }
+  
   try {
-    const response = await axios.get(
-      `${EODHD_BASE_URL}/real-time/${symbol}?fmt=json&api_token=${EODHD_API_KEY}`
-    );
+    // If it's a single symbol, use the primary symbol in the URL path
+    // If multiple symbols, use the first one in the path and the rest in the 's' parameter
+    const primarySymbol = symbolArray[0];
+    const additionalSymbols = symbolArray.length > 1 ? symbolArray.slice(1).join(',') : '';
+    
+    const params: Record<string, string> = { fmt: 'json' };
+    if (additionalSymbols) {
+      params.s = additionalSymbols;
+    }
+    
+    const response = await axios.get(`/api/eodhd-realtime/${primarySymbol}`, { params });
+    
+    // Cache the response with a short TTL (1 minute)
+    apiCache.set(cacheKey, response.data, 60 * 1000);
+    
     return response.data;
   } catch (error) {
-    console.error(`Error fetching stock quote for ${symbol}:`, error);
+    console.error(`Error fetching live stock prices for ${symbolsStr}:`, error);
     return null;
   }
+}
+
+// Get fundamental data for a stock using EODHD API via Deno backend
+async function getFundamentalData(symbol: string, type: string = 'general'): Promise<any> {
+  const cacheKey = `fundamentals-${type}-${symbol}`;
+  const cachedData = apiCache.get(cacheKey);
+  if (cachedData) return Promise.resolve(cachedData);
+  
+  return axios.get(EODHD_FUNDAMENTALS_URL, {
+    params: {
+      symbol,
+      type
+    }
+  })
+    .then(response => {
+      apiCache.set(cacheKey, response.data);
+      return response.data;
+    })
+    .catch(error => {
+      console.error(`Error fetching ${type} fundamental data:`, error);
+      return null;
+    });
 }
 
 // Forward declarations to avoid reference errors
@@ -1056,22 +1120,10 @@ export async function getMultiSourceStockData(symbol: string, market: string = '
 }
 
 // Enhanced function to get comprehensive stock data using EODHD API
-export async function getComprehensiveStockData(symbol: string, isIndian: boolean = false): Promise<any> {
-  // Format symbol correctly for API - handle both .NS and .NSE suffixes
-  let apiSymbol = symbol;
-  
-  // Clean the symbol first if it already has a suffix
-  if (isIndian) {
-    if (symbol.includes('.NSE')) {
-      apiSymbol = symbol; // Already has the correct format
-    } else if (symbol.includes('.NS')) {
-      // Convert .NS to .NSE for consistency
-      apiSymbol = symbol.replace('.NS', '.NSE');
-    } else {
-      // Add .NSE suffix if not present
+async function getComprehensiveStockData(symbol: string, isIndian: boolean = false): Promise<any> {
       apiSymbol = `${symbol}.NSE`;
     }
-  }
+
   
   // Check cache first (cache for 15 minutes)
   const cacheKey = `${apiSymbol}_data`;
