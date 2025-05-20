@@ -12,4 +12,6 @@ MCP Personal A T = sbp_7443e5ca517187e990a911a85e9ef3d13d4df776
 
 
 supabase ADMIN_API_KEY = e718c14cb94bc4408bc2d0da404a212d78fdc20367ac9918c45f0c4a83a79c0a
+
+service role key = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlkYWt3eXBsY3Fvc2h4Y2RsbGFoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NzIxMDA1MywiZXhwIjoyMDYyNzg2MDUzfQ.GGig2M1RJV3egyYlhEBxhlP5U2XxzgJsPpXf_tZ_5zM
  

@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "serve": {
+      "port": 54328
+    }
+  }
+}

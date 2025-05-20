@@ -291,14 +291,14 @@ export const companyService = {
   // For admin: Trigger data update for a company
   async triggerCompanyDataUpdate(symbol: string, updateType: 'fundamentals' | 'financials' | 'peers' | 'all' = 'all') {
     try {
-      const apiUrl = import.meta.env.VITE_API_BASE_URL || '';
+      const apiUrl = import.meta.env.VITE_SUPABASE_URL || '';
       const response = await fetch(
-        `${apiUrl}/api/company-data-ingest?symbol=${symbol}&type=${updateType}`,
+        `${apiUrl}/functions/v1/company-data-ingest?symbol=${symbol}&type=${updateType}`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_ADMIN_API_KEY}`
+            'Authorization': `Bearer ${ADMIN_API_KEY}`
           }
         }
       );
