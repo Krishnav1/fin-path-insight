@@ -144,8 +144,8 @@ export default function FinGenieInsights({ portfolioData, analysisData }: FinGen
                         <h4 className="text-sm font-medium">Total Return</h4>
                         <TrendingUp className="h-4 w-4 text-green-500" />
                       </div>
-                      <p className="text-2xl font-bold text-fin-primary">{analysisData.overview.percent_return}</p>
-                      <p className="text-xs text-slate-500 mt-1">Absolute: {analysisData.overview.absolute_return}</p>
+                      <p className="text-2xl font-bold text-fin-primary">{analysisData.overview?.percent_return || '0%'}</p>
+                      <p className="text-xs text-slate-500 mt-1">Absolute: {analysisData.overview?.absolute_return || '₹0'}</p>
                     </div>
                     
                     <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-md border border-slate-200 dark:border-slate-800">
@@ -153,7 +153,7 @@ export default function FinGenieInsights({ portfolioData, analysisData }: FinGen
                         <h4 className="text-sm font-medium">Top Performer</h4>
                         <CheckCircle className="h-4 w-4 text-green-500" />
                       </div>
-                      <p className="text-lg font-bold">{analysisData.overview.top_gainer}</p>
+                      <p className="text-lg font-bold">{analysisData.overview?.top_gainer || 'N/A'}</p>
                     </div>
                     
                     <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-md border border-slate-200 dark:border-slate-800">

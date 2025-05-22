@@ -326,22 +326,21 @@ export const portfolioService = {
       console.log('Calling API with holdings:', JSON.stringify(formattedHoldings));
       
       try {
-        // Use the Deno API URL from environment or fallback to default
-        const apiUrl = import.meta.env.VITE_DENO_API_URL || 'https://fininsight-api.deno.dev';
-        const apiKey = import.meta.env.VITE_GEMINI_API_KEY || '';
+        // Import API configuration
+        const { API_ENDPOINTS, API_KEYS, getSupabaseHeaders } = await import('@/config/api-config');
+        const apiKey = API_KEYS.GEMINI_API_KEY;
         
-        console.log(`Using API URL: ${apiUrl}/api/analyzePortfolio`);
+        console.log(`Using Supabase Edge Function: ${API_ENDPOINTS.ANALYZE_PORTFOLIO}`);
         
         // Set up timeout
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
         
-        // Make the API call
-        const response = await fetch(`${apiUrl}/api/analyzePortfolio`, {
+        // Make the API call to Supabase Edge Function
+        const response = await fetch(API_ENDPOINTS.ANALYZE_PORTFOLIO, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
+            ...getSupabaseHeaders(),
           },
           body: JSON.stringify({
             holdings: formattedHoldings,

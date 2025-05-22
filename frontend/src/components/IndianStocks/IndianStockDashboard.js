@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { fetchStocks, fetchGainersLosers, fetchSectorPerformance } from '../../services/stockApi';
 import './IndianStockDashboard.css';
 
 const IndianStockDashboard = () => {
@@ -29,8 +29,19 @@ const IndianStockDashboard = () => {
   useEffect(() => {
     const fetchMarketIndices = async () => {
       try {
-        const response = await axios.get('/api/indian-stocks/market/indices');
-        setMarketIndices(response.data);
+        // Use EODHD-backed API: fetch NIFTY, SENSEX, etc.
+        const indices = ['^NSEI', '^BSESN'];
+        const data = await fetchStocks({ symbols: indices, market: 'indian' });
+        // Map to expected structure
+        const mapped = {};
+        indices.forEach((symbol, idx) => {
+          mapped[symbol] = {
+            company: { name: symbol === '^NSEI' ? 'NIFTY 50' : 'SENSEX' },
+            currentPrice: data[idx]?.currentPrice,
+            dayChangePct: data[idx]?.changePercent,
+          };
+        });
+        setMarketIndices(mapped);
         setLoading(prev => ({ ...prev, indices: false }));
       } catch (err) {
         console.error('Error fetching market indices:', err);
@@ -38,16 +49,15 @@ const IndianStockDashboard = () => {
         setLoading(prev => ({ ...prev, indices: false }));
       }
     };
-
     fetchMarketIndices();
   }, []);
 
   // Fetch top gainers and losers on component mount
   useEffect(() => {
-    const fetchTopGainersLosers = async () => {
+    const fetchTopGainersLosersProd = async () => {
       try {
-        const response = await axios.get('/api/indian-stocks/market/gainers-losers');
-        setTopGainersLosers(response.data);
+        const data = await fetchGainersLosers();
+        setTopGainersLosers(data);
         setLoading(prev => ({ ...prev, gainersLosers: false }));
       } catch (err) {
         console.error('Error fetching top gainers and losers:', err);
@@ -55,16 +65,15 @@ const IndianStockDashboard = () => {
         setLoading(prev => ({ ...prev, gainersLosers: false }));
       }
     };
-
-    fetchTopGainersLosers();
+    fetchTopGainersLosersProd();
   }, []);
 
   // Fetch sector performance on component mount
   useEffect(() => {
-    const fetchSectorPerformance = async () => {
+    const fetchSectorPerformanceProd = async () => {
       try {
-        const response = await axios.get('/api/indian-stocks/market/sectors');
-        setSectorPerformance(response.data);
+        const data = await fetchSectorPerformance();
+        setSectorPerformance(data);
         setLoading(prev => ({ ...prev, sectors: false }));
       } catch (err) {
         console.error('Error fetching sector performance:', err);
@@ -72,8 +81,7 @@ const IndianStockDashboard = () => {
         setLoading(prev => ({ ...prev, sectors: false }));
       }
     };
-
-    fetchSectorPerformance();
+    fetchSectorPerformanceProd();
   }, []);
 
   // Handle search input change
@@ -84,15 +92,13 @@ const IndianStockDashboard = () => {
   // Search for stocks
   const handleSearch = async (e) => {
     e.preventDefault();
-    
     if (!searchQuery.trim()) return;
-    
     setLoading(prev => ({ ...prev, search: true }));
     setError(prev => ({ ...prev, search: null }));
-    
     try {
-      const response = await axios.get(`/api/indian-stocks/search?query=${searchQuery}`);
-      setSearchResults(response.data);
+      // For demo: search by symbol. In production, use a backend search endpoint or EODHD screener API.
+      const data = await fetchStocks({ symbols: [searchQuery.toUpperCase() + '.NSE'], market: 'indian' });
+      setSearchResults(data.map(stock => ({ ticker: stock.symbol, name: stock.name })));
       setLoading(prev => ({ ...prev, search: false }));
     } catch (err) {
       console.error('Error searching stocks:', err);
@@ -101,15 +107,20 @@ const IndianStockDashboard = () => {
     }
   };
 
+
   // Fetch stock data when a stock is selected
   const handleStockSelect = async (ticker) => {
     setSelectedStock(ticker);
     setLoading(prev => ({ ...prev, stockData: true }));
     setError(prev => ({ ...prev, stockData: null }));
-    
     try {
-      const response = await axios.get(`/api/indian-stocks/${ticker}`);
-      setStockData(response.data);
+      const data = await fetchStocks({ symbols: [ticker], market: 'indian' });
+      setStockData({
+        company: { name: data[0]?.name, sector: 'N/A', industry: 'N/A', marketCap: null },
+        currentPrice: data[0]?.currentPrice,
+        dayChangePct: data[0]?.changePercent,
+        history: [] // Optionally fetch and add history
+      });
       setLoading(prev => ({ ...prev, stockData: false }));
     } catch (err) {
       console.error(`Error fetching data for ${ticker}:`, err);
@@ -117,6 +128,7 @@ const IndianStockDashboard = () => {
       setLoading(prev => ({ ...prev, stockData: false }));
     }
   };
+
 
   // Format percentage for display
   const formatPercentage = (value) => {

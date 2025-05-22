@@ -4,13 +4,16 @@ import axios from 'axios';
 const ALPHA_VANTAGE_API_KEY = '6LXHJ0IQFYHN4LOW'; // Alpha Vantage API key
 const FMP_API_KEY = 't9MOrZBPrRnGQ6vSynrboJZIM3IGy8nT'; // Financial Modeling Prep API key
 
+// Import API configuration for Supabase Edge Functions
+import { API_ENDPOINTS, API_KEYS, getSupabaseHeaders } from '@/config/api-config';
+
 // Base URLs for different APIs
 const ALPHA_VANTAGE_BASE_URL = 'https://www.alphavantage.co/query'; // No longer used, replaced with EODHD
-// All EODHD calls are proxied through Deno Deploy backend
-// The Deno backend handles the actual calls to https://eodhd.com/api endpoint.
-const EODHD_BASE_URL = '/api/eodhd-proxy';
-const EODHD_FUNDAMENTALS_URL = '/api/eodhd-fundamentals';
-const EODHD_API_KEY = import.meta.env.VITE_EODHD_API_KEY || '682ab8a9176503.56947213';
+// All EODHD calls are now proxied through Supabase Edge Functions
+// The Edge Functions handle the actual calls to https://eodhd.com/api endpoint.
+const EODHD_BASE_URL = API_ENDPOINTS.EODHD_PROXY;
+const EODHD_FUNDAMENTALS_URL = API_ENDPOINTS.EODHD_FUNDAMENTALS;
+const EODHD_API_KEY = API_KEYS.EODHD_API_KEY;
 const FMP_BASE_URL = 'https://financialmodelingprep.com/api/v3';
 
 // Alternative API for some data sources (cryptocompare for crypto data)
@@ -1036,7 +1039,7 @@ async function getStockQuote(symbol: string): Promise<any> {
 }
 
 // Get live (delayed) stock prices using the EODHD API
-// This uses our Deno backend proxy to avoid exposing API keys
+// This uses our Supabase Edge Function to avoid exposing API keys
 async function getLiveStockPrices(symbols: string | string[]): Promise<any> {
   // Convert single symbol to array for consistent handling
   const symbolArray = Array.isArray(symbols) ? symbols : [symbols];
@@ -1055,43 +1058,56 @@ async function getLiveStockPrices(symbols: string | string[]): Promise<any> {
     const primarySymbol = symbolArray[0];
     const additionalSymbols = symbolArray.length > 1 ? symbolArray.slice(1).join(',') : '';
     
-    const params: Record<string, string> = { fmt: 'json' };
+    // Build the query parameters
+    const url = new URL(`${API_ENDPOINTS.EODHD_REALTIME}/${primarySymbol}`);
+    url.searchParams.append('fmt', 'json');
     if (additionalSymbols) {
-      params.s = additionalSymbols;
+      url.searchParams.append('s', additionalSymbols);
     }
     
-    const response = await axios.get(`/api/eodhd-realtime/${primarySymbol}`, { params });
+    // Call the Supabase Edge Function
+    const response = await fetch(url.toString(), {
+      headers: getSupabaseHeaders()
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch live stock prices: ${response.statusText}`);
+    }
+    
+    const data = await response.json();
     
     // Cache the response with a short TTL (1 minute)
-    apiCache.set(cacheKey, response.data, 60 * 1000);
+    apiCache.set(cacheKey, data, 60 * 1000);
     
-    return response.data;
+    return data;
   } catch (error) {
     console.error(`Error fetching live stock prices for ${symbolsStr}:`, error);
     return null;
   }
 }
 
-// Get fundamental data for a stock using EODHD API via Deno backend
+// Get fundamental data for a stock using EODHD API via Supabase Edge Function
 async function getFundamentalData(symbol: string, type: string = 'general'): Promise<any> {
-  const cacheKey = `fundamentals-${type}-${symbol}`;
-  const cachedData = apiCache.get(cacheKey);
-  if (cachedData) return Promise.resolve(cachedData);
+  const cacheKey = `fundamental_${symbol}_${type}`;
+  const cachedData = apiCache.get<any>(cacheKey);
+  if (cachedData) return cachedData;
   
-  return axios.get(EODHD_FUNDAMENTALS_URL, {
-    params: {
-      symbol,
-      type
-    }
-  })
-    .then(response => {
-      apiCache.set(cacheKey, response.data);
-      return response.data;
-    })
-    .catch(error => {
-      console.error(`Error fetching ${type} fundamental data:`, error);
-      return null;
+  try {
+    const response = await fetch(`${EODHD_FUNDAMENTALS_URL}?symbol=${symbol}&type=${type}`, {
+      headers: getSupabaseHeaders()
     });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch fundamental data: ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    apiCache.set(cacheKey, data, 24 * 60 * 60 * 1000); // Cache for 24 hours
+    return data;
+  } catch (error) {
+    console.error('Error fetching fundamental data:', error);
+    return null;
+  }
 }
 
 // The getSymbolName function is already defined at line ~702

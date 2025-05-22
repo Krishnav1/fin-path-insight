@@ -66,7 +66,7 @@ export default function PortfolioAllocation({ portfolioData, analysisData }: Por
     .slice(0, 10)
     .map(holding => ({
       name: holding.symbol,
-      value: Number(((holding.value || 0) / (portfolioData.totalValue || 1)) * 100).toFixed(1)
+      value: Number((((holding.value || 0) / (portfolioData.totalValue || 1)) * 100).toFixed(1))
     }));
   
   // Benchmark sector allocation (for comparison)
@@ -128,7 +128,7 @@ export default function PortfolioAllocation({ portfolioData, analysisData }: Por
                           <span>{sector.name}</span>
                         </div>
                         <div className="text-right">
-                          <div className="font-medium">{sector.value}%</div>
+                          <div className="font-medium">{sector.value || 0}%</div>
                           <div className="text-sm text-slate-500 dark:text-slate-400">
                             {formatCurrency((sector.value / 100) * (portfolioData.totalValue || 0))}
                           </div>
@@ -197,7 +197,7 @@ export default function PortfolioAllocation({ portfolioData, analysisData }: Por
                             </div>
                           </div>
                           <div className="text-right">
-                            <div className="font-medium">{allocationPercentage.toFixed(1)}%</div>
+                            <div className="font-medium">{allocationPercentage?.toFixed(1) || '0.0'}%</div>
                             <div className="text-sm text-slate-500 dark:text-slate-400">
                               {formatCurrency(holding.value || 0)}
                             </div>
