@@ -1,6 +1,7 @@
 import axios from 'axios';
 
 const BASE_URL = '/api/market-data'; // Update if your proxy path is different
+const FUNCTIONS_BASE_URL = '/functions/v1'; // Supabase Edge Functions base URL
 
 // Helper to map EODHD response to frontend format
 function mapEodhdStock(item) {
@@ -53,22 +54,50 @@ export async function fetchSectorPerformance() {
     throw error;
   }
 }
-// Fetch Indian market stocks from the new backend endpoint
-export async function fetchIndianMarketStocks({ search = '', limit = 20 } = {}) {
+// Generic function to fetch market stocks for any market
+export async function fetchMarketStocks(market, { search = '', limit = 20 } = {}) {
   try {
     const params = [];
     if (search) params.push(`search=${encodeURIComponent(search)}`);
     if (limit) params.push(`limit=${limit}`);
-    const url = `/functions/v1/indian-market${params.length ? '?' + params.join('&') : ''}`;
+    const url = `${FUNCTIONS_BASE_URL}/${market}-market${params.length ? '?' + params.join('&') : ''}`;
     const response = await axios.get(url);
     // Response shape: { stocks: [...] }
-    return (response.data.stocks || []).map(item => {
-      // Remove .NSE if present (defensive)
-      const cleanSymbol = item.symbol.replace(/\.NSE$/, '');
-      return { ...mapEodhdStock(item), symbol: cleanSymbol };
-    });
+    return (response.data.stocks || []).map(item => mapEodhdStock(item));
   } catch (error) {
-    console.error('Error fetching Indian market stocks:', error);
+    console.error(`Error fetching ${market} market stocks:`, error);
+    throw error;
+  }
+}
+
+// Fetch Indian market stocks
+export async function fetchIndianMarketStocks(options = {}) {
+  return fetchMarketStocks('indian', options);
+}
+
+// Fetch US market stocks
+export async function fetchUSMarketStocks(options = {}) {
+  return fetchMarketStocks('us', options);
+}
+
+// Fetch European market stocks
+export async function fetchEuropeanMarketStocks(options = {}) {
+  return fetchMarketStocks('european', options);
+}
+
+// Fetch China market stocks
+export async function fetchChinaMarketStocks(options = {}) {
+  return fetchMarketStocks('china', options);
+}
+
+// Fetch market indices for a specific market
+export async function fetchMarketIndices(market = 'us') {
+  try {
+    const url = `${FUNCTIONS_BASE_URL}/market-indices?market=${market}`;
+    const response = await axios.get(url);
+    return response.data.indices || [];
+  } catch (error) {
+    console.error(`Error fetching ${market} market indices:`, error);
     throw error;
   }
 }

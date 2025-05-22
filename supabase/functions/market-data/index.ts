@@ -155,54 +155,205 @@ async function fetchEodhdScreenerBulk(limit = 100) {
 }
 
 serve(async (req) => {
-  // --- Custom endpoint for Indian Market ---
-  if (req.method === 'GET' && new URL(req.url).pathname.endsWith('/indian-market')) {
-    try {
-      const API_KEY = Deno.env.get('EODHD_API_KEY');
-      if (!API_KEY) {
-        return new Response(JSON.stringify({ error: 'EODHD_API_KEY not set in environment variables.' }), { status: 500 });
+  // --- Generic function to fetch market data for any exchange ---
+  async function fetchMarketData(exchange: string, search: string = '', limit: number = 50) {
+    const API_KEY = Deno.env.get('EODHD_API_KEY');
+    if (!API_KEY) {
+      throw new Error('EODHD_API_KEY not set in environment variables.');
+    }
+    
+    // Map exchange code to EODHD exchange code
+    const exchangeMap: Record<string, string> = {
+      'us': 'US',       // US exchanges
+      'european': 'XETR', // German exchange as primary European exchange
+      'china': 'SSE',   // Shanghai Stock Exchange
+      'indian': 'NSE'   // National Stock Exchange of India
+    };
+    
+    const exchangeCode = exchangeMap[exchange.toLowerCase()] || exchange;
+    
+    // Fetch a list of stocks using the EODHD screener API
+    const screenerUrl = `https://eodhd.com/api/screener?filters=[{"field":"exchange","operator":"=","value":"${exchangeCode}"},{"field":"is_primary","operator":"=","value":true}]&limit=${limit}&api_token=${API_KEY}&fmt=json`;
+    const screenerRes = await fetch(screenerUrl);
+    if (!screenerRes.ok) throw new Error(`Failed to fetch screener data for ${exchangeCode}`);
+    const screenerData = await screenerRes.json();
+    let stocks = screenerData.data || [];
+    
+    // Filter by search query if provided
+    if (search) {
+      stocks = stocks.filter((item: any) =>
+        item.Code?.toUpperCase().includes(search.toUpperCase()) ||
+        item.Name?.toUpperCase().includes(search.toUpperCase())
+      );
+    }
+    
+    // Fetch real-time data for filtered symbols, up to 20 at a time for performance
+    const batch = stocks.slice(0, 20);
+    const results: MarketDataItem[] = [];
+    
+    for (const item of batch) {
+      const symbol = item.Code;
+      const url = `https://eodhd.com/api/real-time/${symbol}.${exchangeCode}?api_token=${API_KEY}&fmt=json`;
+      const response = await fetch(url);
+      if (!response.ok) continue;
+      const data = await response.json();
+      if (data && data.code) {
+        // Remove exchange suffix from symbol
+        const cleanSymbol = data.code.replace(new RegExp(`\\.${exchangeCode}$`), '');
+        results.push({
+          type: 'stock',
+          symbol: cleanSymbol,
+          name: data.name || cleanSymbol,
+          price: data.close,
+          change: data.change,
+          changePercent: data.change_p,
+          lastUpdated: data.timestamp ? new Date(data.timestamp * 1000).toISOString() : new Date().toISOString(),
+          volume: data.volume,
+          exchange: exchangeCode,
+          currency: getCurrencyForExchange(exchangeCode)
+        });
       }
-      const urlObj = new URL(req.url);
-      const search = urlObj.searchParams.get('search')?.toUpperCase() || '';
-      const limit = Number(urlObj.searchParams.get('limit')) || 50;
-      // Fetch a list of Indian stocks using the EODHD screener API
-      const screenerUrl = `https://eodhd.com/api/screener?filters=[{"field":"exchange","operator":"=","value":"NSE"},{"field":"is_primary","operator":"=","value":true}]&limit=${limit}&api_token=${API_KEY}&fmt=json`;
-      const screenerRes = await fetch(screenerUrl);
-      if (!screenerRes.ok) throw new Error('Failed to fetch screener data');
-      const screenerData = await screenerRes.json();
-      let stocks = screenerData.data || [];
-      // Filter by search query if provided
-      if (search) {
-        stocks = stocks.filter((item: any) =>
-          item.Code?.toUpperCase().includes(search) ||
-          item.Name?.toUpperCase().includes(search)
-        );
-      }
-      // Fetch real-time data for filtered symbols, up to 20 at a time for performance
-      const batch = stocks.slice(0, 20);
-      const results: MarketDataItem[] = [];
-      for (const item of batch) {
-        const symbol = item.Code;
-        const url = `https://eodhd.com/api/real-time/${symbol}.NSE?api_token=${API_KEY}&fmt=json`;
+    }
+    
+    return results;
+  }
+  
+  // Helper function to get currency for exchange
+  function getCurrencyForExchange(exchange: string): string {
+    const currencyMap: Record<string, string> = {
+      'US': 'USD',
+      'XETR': 'EUR',
+      'SSE': 'CNY',
+      'NSE': 'INR'
+    };
+    return currencyMap[exchange] || 'USD';
+  }
+  
+  // --- Function to fetch market indices for a specific market ---
+  async function fetchMarketIndices(market: string) {
+    const API_KEY = Deno.env.get('EODHD_API_KEY');
+    if (!API_KEY) {
+      throw new Error('EODHD_API_KEY not set in environment variables.');
+    }
+    
+    // Define key indices for each market
+    const marketIndices: Record<string, string[]> = {
+      'us': ['SPY', 'QQQ', 'DIA', 'IWM', 'VIX'], // S&P 500, NASDAQ, Dow Jones, Russell 2000, VIX
+      'european': ['DAX.INDX', 'STOXX50E.INDX', 'UKX.INDX', 'CAC40.INDX'], // DAX, Euro Stoxx 50, FTSE 100, CAC 40
+      'china': ['000001.INDX', '399001.INDX', 'HSI.INDX'], // SSE Composite, SZSE Component, Hang Seng
+      'indian': ['NIFTY 50', 'NIFTY BANK', 'NIFTY IT', 'NIFTY NEXT 50', 'INDIA VIX']
+    };
+    
+    const indices = marketIndices[market.toLowerCase()] || [];
+    const results: Array<{
+      symbol: string;
+      name: string;
+      price: number;
+      change: number;
+      changePercent: number;
+      lastUpdated: string;
+    }> = [];
+    
+    for (const index of indices) {
+      try {
+        // For indices, we use a different endpoint
+        const url = `https://eodhd.com/api/real-time/${index}?api_token=${API_KEY}&fmt=json`;
         const response = await fetch(url);
         if (!response.ok) continue;
         const data = await response.json();
+        
         if (data && data.code) {
-          // Remove .NSE suffix from symbol
-          const cleanSymbol = data.code.replace(/\.NSE$/, '');
           results.push({
-            type: 'stock',
-            symbol: cleanSymbol,
-            name: data.name || cleanSymbol,
+            symbol: data.code,
+            name: data.name || data.code,
             price: data.close,
             change: data.change,
             changePercent: data.change_p,
-            lastUpdated: data.timestamp ? new Date(data.timestamp * 1000).toISOString() : new Date().toISOString(),
-            volume: data.volume
+            lastUpdated: data.timestamp ? new Date(data.timestamp * 1000).toISOString() : new Date().toISOString()
           });
         }
+      } catch (error) {
+        console.error(`Error fetching index ${index}:`, error);
       }
-      return new Response(JSON.stringify({ stocks: results }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+    
+    return results;
+  }
+  
+  // --- Custom endpoint for Indian Market ---
+  if (req.method === 'GET' && new URL(req.url).pathname.endsWith('/indian-market')) {
+    try {
+      const urlObj = new URL(req.url);
+      const search = urlObj.searchParams.get('search') || '';
+      const limit = Number(urlObj.searchParams.get('limit')) || 50;
+      
+      const stocks = await fetchMarketData('indian', search, limit);
+      return new Response(JSON.stringify({ stocks }), { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
+    } catch (err) {
+      return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+    }
+  }
+  
+  // --- Custom endpoint for US Market ---
+  if (req.method === 'GET' && new URL(req.url).pathname.endsWith('/us-market')) {
+    try {
+      const urlObj = new URL(req.url);
+      const search = urlObj.searchParams.get('search') || '';
+      const limit = Number(urlObj.searchParams.get('limit')) || 50;
+      
+      const stocks = await fetchMarketData('us', search, limit);
+      return new Response(JSON.stringify({ stocks }), { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
+    } catch (err) {
+      return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+    }
+  }
+  
+  // --- Custom endpoint for European Market ---
+  if (req.method === 'GET' && new URL(req.url).pathname.endsWith('/european-market')) {
+    try {
+      const urlObj = new URL(req.url);
+      const search = urlObj.searchParams.get('search') || '';
+      const limit = Number(urlObj.searchParams.get('limit')) || 50;
+      
+      const stocks = await fetchMarketData('european', search, limit);
+      return new Response(JSON.stringify({ stocks }), { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
+    } catch (err) {
+      return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+    }
+  }
+  
+  // --- Custom endpoint for China Market ---
+  if (req.method === 'GET' && new URL(req.url).pathname.endsWith('/china-market')) {
+    try {
+      const urlObj = new URL(req.url);
+      const search = urlObj.searchParams.get('search') || '';
+      const limit = Number(urlObj.searchParams.get('limit')) || 50;
+      
+      const stocks = await fetchMarketData('china', search, limit);
+      return new Response(JSON.stringify({ stocks }), { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
+    } catch (err) {
+      return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+    }
+  }
+  
+  // --- Custom endpoint for Market Indices ---
+  if (req.method === 'GET' && new URL(req.url).pathname.endsWith('/market-indices')) {
+    try {
+      const urlObj = new URL(req.url);
+      const market = urlObj.searchParams.get('market') || 'us';
+      
+      const indices = await fetchMarketIndices(market);
+      return new Response(JSON.stringify({ indices }), { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
     } catch (err) {
       return new Response(JSON.stringify({ error: err.message }), { status: 500 });
     }

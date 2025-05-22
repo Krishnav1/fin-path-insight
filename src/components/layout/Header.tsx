@@ -102,10 +102,10 @@ export default function Header() {
               </Link>
               <div className="absolute top-full left-0 bg-white shadow-md rounded-md p-2 w-48 invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-all transform origin-top-left border border-slate-200 dark:bg-slate-800 dark:border-slate-700">
                 <Link to="/markets?type=stocks" className="block px-3 py-2 text-sm hover:bg-slate-100 rounded-md dark:hover:bg-slate-700">Stocks</Link>
-                <Link to="/markets?type=stocks&exchange=us" className="block px-3 py-2 text-sm hover:bg-slate-100 rounded-md dark:hover:bg-slate-700 pl-6">- US Market</Link>
-                <Link to="/markets?type=stocks&exchange=eu" className="block px-3 py-2 text-sm hover:bg-slate-100 rounded-md dark:hover:bg-slate-700 pl-6">- European Market</Link>
-                <Link to="/markets?type=stocks&exchange=cn" className="block px-3 py-2 text-sm hover:bg-slate-100 rounded-md dark:hover:bg-slate-700 pl-6">- China Market</Link>
-                <Link to="/markets?type=stocks&exchange=in" className="block px-3 py-2 text-sm hover:bg-slate-100 rounded-md dark:hover:bg-slate-700 pl-6">- Indian Market</Link>
+                <Link to="/us-market" className="block px-3 py-2 text-sm hover:bg-slate-100 rounded-md dark:hover:bg-slate-700 pl-6">- US Market</Link>
+                <Link to="/european-market" className="block px-3 py-2 text-sm hover:bg-slate-100 rounded-md dark:hover:bg-slate-700 pl-6">- European Market</Link>
+                <Link to="/china-market" className="block px-3 py-2 text-sm hover:bg-slate-100 rounded-md dark:hover:bg-slate-700 pl-6">- China Market</Link>
+                <Link to="/indian-market" className="block px-3 py-2 text-sm hover:bg-slate-100 rounded-md dark:hover:bg-slate-700 pl-6">- Indian Market</Link>
                 <Link to="/markets?type=etfs" className="block px-3 py-2 text-sm hover:bg-slate-100 rounded-md dark:hover:bg-slate-700">ETFs</Link>
                 <Link to="/markets?type=crypto" className="block px-3 py-2 text-sm hover:bg-slate-100 rounded-md dark:hover:bg-slate-700">Crypto</Link>
                 <Link to="/markets?type=movers" className="block px-3 py-2 text-sm hover:bg-slate-100 rounded-md dark:hover:bg-slate-700">Market Movers</Link>

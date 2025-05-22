@@ -29,8 +29,8 @@ serve(async (req) => {
     const eodhPath = '/' + pathParts.slice(2).join('/'); // Skip the function name part
     
     // Get API key from environment
-    const API_KEY = Deno.env.get('EODHD_API_KEY');
-    if (!API_KEY) {
+    const EODHD_API_KEY = Deno.env.get('EODHD_API_KEY');
+    if (!EODHD_API_KEY) {
       return new Response(
         JSON.stringify({ error: 'EODHD_API_KEY not set in environment variables.' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -40,7 +40,7 @@ serve(async (req) => {
     // Create a new URL with searchParams
     const queryParams = new URLSearchParams(url.search);
     // Always set api_token from environment, ignore what frontend sends
-    queryParams.set('api_token', API_KEY);
+    queryParams.set('api_token', EODHD_API_KEY);
     
     // Construct the target EODHD URL
     const targetUrl = `${EODHD_BASE_URL}${eodhPath}?${queryParams.toString()}`;
