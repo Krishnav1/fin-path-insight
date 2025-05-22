@@ -13,15 +13,16 @@ const corsHeaders = {
 };
 
 // Initialize Supabase client
-const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
-const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+const supabaseUrl = Deno.env.get('SUPABASE_URL');
+const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+const EODHD_API_KEY = Deno.env.get('EODHD_API_KEY');
+const ADMIN_API_KEY = Deno.env.get('ADMIN_API_KEY');
+
+if (!supabaseUrl || !supabaseKey || !EODHD_API_KEY || !ADMIN_API_KEY) {
+  throw new Error('One or more required environment variables are missing: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, EODHD_API_KEY, ADMIN_API_KEY');
+}
+
 const supabase = createClient(supabaseUrl, supabaseKey);
-
-// EODHD API key
-const EODHD_API_KEY = Deno.env.get('EODHD_API_KEY') || '';
-
-// Admin API key for secure access
-const ADMIN_API_KEY = Deno.env.get('ADMIN_API_KEY') || '';
 
 interface Company {
   id: string;

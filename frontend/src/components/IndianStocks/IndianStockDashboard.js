@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { fetchStocks, fetchGainersLosers, fetchSectorPerformance } from '../../services/stockApi';
+import { fetchStocks, fetchGainersLosers, fetchSectorPerformance, fetchIndianMarketStocks } from '../../services/stockApi';
 import './IndianStockDashboard.css';
 
 const IndianStockDashboard = () => {
@@ -7,7 +7,8 @@ const IndianStockDashboard = () => {
   const [topGainersLosers, setTopGainersLosers] = useState({ gainers: [], losers: [] });
   const [sectorPerformance, setSectorPerformance] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
+  const [indianStocks, setIndianStocks] = useState([]);
+  const [displayLimit, setDisplayLimit] = useState(20);
   const [selectedStock, setSelectedStock] = useState(null);
   const [stockData, setStockData] = useState(null);
   const [loading, setLoading] = useState({
@@ -25,32 +26,29 @@ const IndianStockDashboard = () => {
     stockData: null
   });
 
-  // Fetch market indices on component mount
+  // Fetch Indian market stocks on mount and when search/displayLimit changes
   useEffect(() => {
-    const fetchMarketIndices = async () => {
+    const fetchMarket = async () => {
+      setLoading(prev => ({ ...prev, indices: true }));
       try {
-        // Use EODHD-backed API: fetch NIFTY, SENSEX, etc.
-        const indices = ['^NSEI', '^BSESN'];
-        const data = await fetchStocks({ symbols: indices, market: 'indian' });
-        // Map to expected structure
+        const stocks = await fetchIndianMarketStocks({ search: searchQuery, limit: displayLimit });
+        setIndianStocks(stocks);
+        // Optionally, map indices for NIFTY/SENSEX
         const mapped = {};
-        indices.forEach((symbol, idx) => {
-          mapped[symbol] = {
-            company: { name: symbol === '^NSEI' ? 'NIFTY 50' : 'SENSEX' },
-            currentPrice: data[idx]?.currentPrice,
-            dayChangePct: data[idx]?.changePercent,
-          };
+        stocks.forEach(stock => {
+          if (stock.symbol === '^NSEI') mapped['^NSEI'] = { company: { name: 'NIFTY 50' }, currentPrice: stock.currentPrice, dayChangePct: stock.changePercent };
+          else if (stock.symbol === '^BSESN') mapped['^BSESN'] = { company: { name: 'SENSEX' }, currentPrice: stock.currentPrice, dayChangePct: stock.changePercent };
         });
         setMarketIndices(mapped);
         setLoading(prev => ({ ...prev, indices: false }));
       } catch (err) {
-        console.error('Error fetching market indices:', err);
-        setError(prev => ({ ...prev, indices: 'Failed to load market indices' }));
+        console.error('Error fetching Indian market stocks:', err);
+        setError(prev => ({ ...prev, indices: 'Failed to load Indian market stocks' }));
         setLoading(prev => ({ ...prev, indices: false }));
       }
     };
-    fetchMarketIndices();
-  }, []);
+    fetchMarket();
+  }, [searchQuery, displayLimit]);
 
   // Fetch top gainers and losers on component mount
   useEffect(() => {
@@ -87,24 +85,12 @@ const IndianStockDashboard = () => {
   // Handle search input change
   const handleSearchChange = (e) => {
     setSearchQuery(e.target.value);
+    setDisplayLimit(20); // Reset pagination on new search
   };
 
-  // Search for stocks
-  const handleSearch = async (e) => {
-    e.preventDefault();
-    if (!searchQuery.trim()) return;
-    setLoading(prev => ({ ...prev, search: true }));
-    setError(prev => ({ ...prev, search: null }));
-    try {
-      // For demo: search by symbol. In production, use a backend search endpoint or EODHD screener API.
-      const data = await fetchStocks({ symbols: [searchQuery.toUpperCase() + '.NSE'], market: 'indian' });
-      setSearchResults(data.map(stock => ({ ticker: stock.symbol, name: stock.name })));
-      setLoading(prev => ({ ...prev, search: false }));
-    } catch (err) {
-      console.error('Error searching stocks:', err);
-      setError(prev => ({ ...prev, search: 'Failed to search stocks' }));
-      setLoading(prev => ({ ...prev, search: false }));
-    }
+  // Load more stocks
+  const handleLoadMore = () => {
+    setDisplayLimit(prev => prev + 20);
   };
 
 
@@ -114,7 +100,8 @@ const IndianStockDashboard = () => {
     setLoading(prev => ({ ...prev, stockData: true }));
     setError(prev => ({ ...prev, stockData: null }));
     try {
-      const data = await fetchStocks({ symbols: [ticker], market: 'indian' });
+      // Use fetchIndianMarketStocks for single stock (search param)
+      const data = await fetchIndianMarketStocks({ search: ticker, limit: 1 });
       setStockData({
         company: { name: data[0]?.name, sector: 'N/A', industry: 'N/A', marketCap: null },
         currentPrice: data[0]?.currentPrice,
@@ -259,38 +246,48 @@ const IndianStockDashboard = () => {
     );
   };
 
-  // Render search results
-  const renderSearchResults = () => {
-    if (!searchQuery.trim() && searchResults.length === 0) return null;
-    if (loading.search) return <div className="loading">Searching...</div>;
-    if (error.search) return <div className="error">{error.search}</div>;
-    
+  // Render Indian stocks table
+  const renderIndianStocksTable = () => {
+    if (loading.indices) return <div className="loading">Loading stocks...</div>;
+    if (error.indices) return <div className="error">{error.indices}</div>;
+    if (!indianStocks.length) return <div className="no-results">No stocks found{searchQuery ? ` for "${searchQuery}"` : ''}.</div>;
+
     return (
-      <div className="search-results">
-        <h3>Search Results</h3>
-        {searchResults.length === 0 ? (
-          <p>No stocks found matching "{searchQuery}"</p>
-        ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Symbol</th>
-                <th>Name</th>
+      <div className="indian-stocks-table">
+        <table className="themed-table">
+          <thead>
+            <tr>
+              <th>Symbol</th>
+              <th>Name</th>
+              <th>Price</th>
+              <th>Change</th>
+              <th>Change %</th>
+              <th>Volume</th>
+            </tr>
+          </thead>
+          <tbody>
+            {indianStocks.map(stock => (
+              <tr key={stock.symbol} onClick={() => handleStockSelect(stock.symbol)} className="stock-row">
+                <td>{stock.symbol}</td>
+                <td>{stock.name}</td>
+                <td>{formatPrice(stock.currentPrice)}</td>
+                <td className={stock.change > 0 ? 'positive' : stock.change < 0 ? 'negative' : ''}>{stock.change}</td>
+                <td className={stock.changePercent > 0 ? 'positive' : stock.changePercent < 0 ? 'negative' : ''}>{formatPercentage(stock.changePercent)}</td>
+                <td>{stock.volume?.toLocaleString('en-IN') || 'N/A'}</td>
               </tr>
-            </thead>
-            <tbody>
-              {searchResults.map((stock) => (
-                <tr key={stock.ticker} onClick={() => handleStockSelect(stock.ticker)}>
-                  <td>{stock.ticker}</td>
-                  <td>{stock.name}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+            ))}
+          </tbody>
+        </table>
+        <div className="table-controls">
+          {indianStocks.length === displayLimit && (
+            <button className="load-more" onClick={handleLoadMore}>Load More</button>
+          )}
+        </div>
       </div>
     );
   };
+
+  // --- END TABLE RENDER ---
 
   // Render stock details
   const renderStockDetails = () => {

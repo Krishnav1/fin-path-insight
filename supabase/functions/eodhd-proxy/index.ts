@@ -29,21 +29,18 @@ serve(async (req) => {
     const eodhPath = '/' + pathParts.slice(2).join('/'); // Skip the function name part
     
     // Get API key from environment
-    let API_KEY = Deno.env.get('EODHD_API_KEY');
-    
-    // Use fallback if not available
+    const API_KEY = Deno.env.get('EODHD_API_KEY');
     if (!API_KEY) {
-      console.warn('EODHD_API_KEY not found in environment, using fallback key');
-      API_KEY = '682ab8a9176503.56947213'; // Default fallback
+      return new Response(
+        JSON.stringify({ error: 'EODHD_API_KEY not set in environment variables.' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
     
     // Create a new URL with searchParams
     const queryParams = new URLSearchParams(url.search);
-    
-    // Don't override API key if it's already in the request
-    if (!queryParams.has('api_token')) {
-      queryParams.set('api_token', API_KEY);
-    }
+    // Always set api_token from environment, ignore what frontend sends
+    queryParams.set('api_token', API_KEY);
     
     // Construct the target EODHD URL
     const targetUrl = `${EODHD_BASE_URL}${eodhPath}?${queryParams.toString()}`;

@@ -73,12 +73,9 @@ async function fetchYahooFinanceData(ticker: string) {
 async function fetchEodhdData(eodhdTicker: string, endpointType: string, params: Record<string, any> = {}) {
   try {
     // Get API key from environment
-    let API_KEY = Deno.env.get('EODHD_API_KEY');
-    
-    // Use fallback if not available
+    const API_KEY = Deno.env.get('EODHD_API_KEY');
     if (!API_KEY) {
-      console.warn('EODHD_API_KEY not found in environment, using fallback key');
-      API_KEY = '682ab8a9176503.56947213'; // Default fallback
+      throw new Error('EODHD_API_KEY not set in environment variables.');
     }
     
     // Determine the endpoint based on the requested data type

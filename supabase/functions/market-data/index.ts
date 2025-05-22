@@ -19,16 +19,20 @@ interface MarketDataItem {
   change: number;
   changePercent: number;
   lastUpdated: Date | string;
+  volume?: number;
+  marketCap?: number;
+  aum?: string;
+  expense?: number;
+  category?: string;
   [key: string]: any;
 }
 
 // Function to fetch stock data from EODHD API
 async function fetchStockData(symbols: string[] = ['AAPL.US', 'MSFT.US', 'GOOGL.US', 'AMZN.US']): Promise<MarketDataItem[]> {
   try {
-    let API_KEY = Deno.env.get('EODHD_API_KEY');
+    const API_KEY = Deno.env.get('EODHD_API_KEY');
     if (!API_KEY) {
-      console.warn('EODHD_API_KEY not found in environment, using fallback key');
-      API_KEY = 'demo'; // Use your fallback or demo key if needed
+      throw new Error('EODHD_API_KEY not set in environment variables.');
     }
     const results: MarketDataItem[] = [];
 
@@ -134,6 +138,7 @@ async function fetchETFData(): Promise<MarketDataItem[]> {
 
 async function fetchEodhdScreener(sort: string, limit = 5) {
   const API_KEY = Deno.env.get('EODHD_API_KEY');
+  if (!API_KEY) throw new Error('EODHD_API_KEY not set in environment variables.');
   const url = `https://eodhd.com/api/screener?filters=[{"field":"exchange","operator":"=","value":"NSE"},{"field":"is_primary","operator":"=","value":true}]&sort=${sort}&limit=${limit}&api_token=${API_KEY}&fmt=json`;
   const res = await fetch(url);
   if (!res.ok) throw new Error('Failed to fetch screener data');
@@ -142,6 +147,7 @@ async function fetchEodhdScreener(sort: string, limit = 5) {
 
 async function fetchEodhdScreenerBulk(limit = 100) {
   const API_KEY = Deno.env.get('EODHD_API_KEY');
+  if (!API_KEY) throw new Error('EODHD_API_KEY not set in environment variables.');
   const url = `https://eodhd.com/api/screener?filters=[{"field":"exchange","operator":"=","value":"NSE"},{"field":"is_primary","operator":"=","value":true}]&limit=${limit}&api_token=${API_KEY}&fmt=json`;
   const res = await fetch(url);
   if (!res.ok) throw new Error('Failed to fetch screener data');
@@ -149,6 +155,58 @@ async function fetchEodhdScreenerBulk(limit = 100) {
 }
 
 serve(async (req) => {
+  // --- Custom endpoint for Indian Market ---
+  if (req.method === 'GET' && new URL(req.url).pathname.endsWith('/indian-market')) {
+    try {
+      const API_KEY = Deno.env.get('EODHD_API_KEY');
+      if (!API_KEY) {
+        return new Response(JSON.stringify({ error: 'EODHD_API_KEY not set in environment variables.' }), { status: 500 });
+      }
+      const urlObj = new URL(req.url);
+      const search = urlObj.searchParams.get('search')?.toUpperCase() || '';
+      const limit = Number(urlObj.searchParams.get('limit')) || 50;
+      // Fetch a list of Indian stocks using the EODHD screener API
+      const screenerUrl = `https://eodhd.com/api/screener?filters=[{"field":"exchange","operator":"=","value":"NSE"},{"field":"is_primary","operator":"=","value":true}]&limit=${limit}&api_token=${API_KEY}&fmt=json`;
+      const screenerRes = await fetch(screenerUrl);
+      if (!screenerRes.ok) throw new Error('Failed to fetch screener data');
+      const screenerData = await screenerRes.json();
+      let stocks = screenerData.data || [];
+      // Filter by search query if provided
+      if (search) {
+        stocks = stocks.filter((item: any) =>
+          item.Code?.toUpperCase().includes(search) ||
+          item.Name?.toUpperCase().includes(search)
+        );
+      }
+      // Fetch real-time data for filtered symbols, up to 20 at a time for performance
+      const batch = stocks.slice(0, 20);
+      const results: MarketDataItem[] = [];
+      for (const item of batch) {
+        const symbol = item.Code;
+        const url = `https://eodhd.com/api/real-time/${symbol}.NSE?api_token=${API_KEY}&fmt=json`;
+        const response = await fetch(url);
+        if (!response.ok) continue;
+        const data = await response.json();
+        if (data && data.code) {
+          // Remove .NSE suffix from symbol
+          const cleanSymbol = data.code.replace(/\.NSE$/, '');
+          results.push({
+            type: 'stock',
+            symbol: cleanSymbol,
+            name: data.name || cleanSymbol,
+            price: data.close,
+            change: data.change,
+            changePercent: data.change_p,
+            lastUpdated: data.timestamp ? new Date(data.timestamp * 1000).toISOString() : new Date().toISOString(),
+            volume: data.volume
+          });
+        }
+      }
+      return new Response(JSON.stringify({ stocks: results }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    } catch (err) {
+      return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+    }
+  }
   // Handle CORS preflight request
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })

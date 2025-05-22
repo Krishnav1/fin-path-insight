@@ -53,4 +53,24 @@ export async function fetchSectorPerformance() {
     throw error;
   }
 }
+// Fetch Indian market stocks from the new backend endpoint
+export async function fetchIndianMarketStocks({ search = '', limit = 20 } = {}) {
+  try {
+    const params = [];
+    if (search) params.push(`search=${encodeURIComponent(search)}`);
+    if (limit) params.push(`limit=${limit}`);
+    const url = `/functions/v1/indian-market${params.length ? '?' + params.join('&') : ''}`;
+    const response = await axios.get(url);
+    // Response shape: { stocks: [...] }
+    return (response.data.stocks || []).map(item => {
+      // Remove .NSE if present (defensive)
+      const cleanSymbol = item.symbol.replace(/\.NSE$/, '');
+      return { ...mapEodhdStock(item), symbol: cleanSymbol };
+    });
+  } catch (error) {
+    console.error('Error fetching Indian market stocks:', error);
+    throw error;
+  }
+}
+
 // Add more functions as needed for indices, history, etc.
