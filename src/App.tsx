@@ -15,7 +15,7 @@ import FinGenie from "@/components/FinGenie";
 // Core pages (not lazy loaded for better initial load performance)
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
-
+import AdminLogin from "./pages/AdminLogin";
 // Loading component
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-screen">
@@ -42,8 +42,8 @@ const FinWell = lazy(() => import("./pages/FinWell"));
 const Tools = lazy(() => import("./pages/Tools"));
 const CompanyAnalysis = lazy(() => import("./pages/CompanyAnalysis"));
 const FinGeniePage = lazy(() => import("./pages/FinGeniePage"));
-const AdminPanel = lazy(() => import("./pages/AdminPanel"));
 const PortfolioAnalysisPage = lazy(() => import("./pages/tools/portfolio/index"));
+const AdminPanel = lazy(() => import("./pages/AdminPanel"));
 
 // Lazy loaded components
 const StockDetails = lazy(() => import("./components/StockDetails"));
@@ -97,6 +97,11 @@ const App = () => (
                   <Route path="/login" element={
                     <Suspense fallback={<LoadingFallback />}>
                       <Login />
+                    </Suspense>
+                  } />
+                  <Route path="/admin/login" element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <AdminLogin />
                     </Suspense>
                   } />
                   <Route path="/signup" element={
@@ -330,8 +335,8 @@ const App = () => (
                     </ProtectedRoute>
                   } />
                   
-                  {/* Admin Panel - protected route */}
-                  <Route path="/admin/fingenie" element={
+                  {/* Admin Panel - protected routes */}
+                  <Route path="/admin" element={
                     <ProtectedRoute>
                       <Suspense fallback={<LoadingFallback />}>
                         <AdminPanel />

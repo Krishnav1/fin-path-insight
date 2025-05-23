@@ -27,6 +27,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
   const { toast } = useToast()
 
+  // Safety mechanism to ensure loading is never stuck
+  useEffect(() => {
+    // Force loading to false after 3 seconds maximum
+    const safetyTimeout = setTimeout(() => {
+      if (loading) {
+        console.log('Safety timeout: forcing loading to false after timeout');
+        setLoading(false);
+      }
+    }, 3000);
+    
+    return () => clearTimeout(safetyTimeout);
+  }, [loading]);
+
   // Listen for auth state changes
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -36,27 +49,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (currentSession?.user) {
           // Fetch user profile
-          await fetchUserProfile(currentSession.user.id)
+          try {
+            await fetchUserProfile(currentSession.user.id)
+          } catch (e) {
+            console.error('Error in fetchUserProfile during onAuthStateChange:', e)
+          }
         } else {
           setProfile(null)
         }
-
         setLoading(false)
+        console.log('AuthProvider: setLoading(false) after onAuthStateChange')
       }
     )
 
     // Get initial session
     const initializeAuth = async () => {
       setLoading(true)
+      console.log('AuthProvider: setLoading(true) at initializeAuth start')
       const { data: { session: initialSession } } = await supabase.auth.getSession()
       
       if (initialSession) {
         setSession(initialSession)
         setUser(initialSession.user)
-        await fetchUserProfile(initialSession.user.id)
+        try {
+          await fetchUserProfile(initialSession.user.id)
+        } catch (e) {
+          console.error('Error in fetchUserProfile during initializeAuth:', e)
+        }
       }
       
       setLoading(false)
+      console.log('AuthProvider: setLoading(false) after initializeAuth')
     }
 
     initializeAuth()

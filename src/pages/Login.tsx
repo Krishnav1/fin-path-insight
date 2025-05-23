@@ -18,7 +18,11 @@ const loginSchema = z.object({
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
-export default function Login() {
+interface LoginProps {
+  isAdmin?: boolean;
+}
+
+export default function Login({ isAdmin = false }: LoginProps) {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const { signIn, signInWithOAuth } = useAuth()
@@ -39,18 +43,27 @@ export default function Login() {
 
   const onSubmit = async (data: LoginFormValues) => {
     setLoading(true)
+    console.log('Login attempt for:', data.email, 'isAdmin:', isAdmin)
 
     try {
       const { error } = await signIn(data.email, data.password)
       
       if (error) {
+        console.log('Login error:', error)
         // Error is already handled by the auth context with toast
         setLoading(false)
         return
       }
       
-      // Redirect to dashboard on success
-      navigate('/dashboard')
+      console.log('Login successful, redirecting to:', isAdmin ? '/admin' : '/dashboard')
+      // Redirect based on user type
+      if (isAdmin) {
+        setTimeout(() => {
+          window.location.href = '/admin'; // This will force the app to reload and re-initialize the context
+        }, 500);
+      } else {
+        navigate('/dashboard');
+      }
     } catch (error) {
       console.error('Login error:', error)
       toast({
@@ -83,8 +96,14 @@ export default function Login() {
           <p className="text-slate-500 dark:text-slate-400">Sign in to your account</p>
         </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div className="space-y-1">
+        <div className="mb-6">
+          <h2 className="text-2xl font-bold text-center">
+            {isAdmin ? 'Admin Login' : 'User Login'}
+          </h2>
+        </div>
+
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          <div className="space-y-2">
             <Label htmlFor="email" className="block text-sm font-medium">
               Email
             </Label>

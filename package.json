@@ -15,6 +15,7 @@
     "netlify-build": "cross-env NODE_ENV=production vite build"
   },
   "dependencies": {
+    "@ant-design/icons": "^6.0.0",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",
     "@google/generative-ai": "^0.24.1",
@@ -48,9 +49,11 @@
     "@radix-ui/react-toggle": "^1.1.0",
     "@radix-ui/react-toggle-group": "^1.1.0",
     "@radix-ui/react-tooltip": "^1.1.4",
+    "@supabase/auth-helpers-react": "^0.5.0",
     "@supabase/supabase-js": "^2.39.7",
     "@tanstack/react-query": "^5.56.2",
     "@vitejs/plugin-react-swc": "^3.5.0",
+    "antd": "^5.25.2",
     "autoprefixer": "^10.4.20",
     "axios": "^1.9.0",
     "class-variance-authority": "^0.7.1",
