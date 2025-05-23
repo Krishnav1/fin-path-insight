@@ -159,7 +159,7 @@ const IndianMarketPage: React.FC = () => {
       
       // Fetch NSE index data (NIFTY 50) from EODHD
       const niftyResponse = await axios.get(
-        `${EODHD_BASE_URL}/real-time/NIFTY50.INDX?fmt=json&api_token=${EODHD_API_KEY}`
+        `${EODHD_BASE_URL}/real-time/NIFTY50.INDX?fmt=json`
       ).then(response => response.data)
         .catch(err => {
           console.error('Error fetching NIFTY50 data:', err);

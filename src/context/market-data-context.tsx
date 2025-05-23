@@ -77,7 +77,7 @@ export function MarketDataProvider({ children }: { children: ReactNode }) {
         try {
           // Get real-time quote using EODHD API
           const response = await axios.get(
-            `${EODHD_BASE_URL}/real-time/${formattedSymbol}?fmt=json&api_token=${EODHD_API_KEY}`
+            `${EODHD_BASE_URL}/real-time/${formattedSymbol}?fmt=json`
           );
           
           const data = response.data;

@@ -16,7 +16,7 @@ const EODHD_BASE_URL = 'https://eodhd.com/api';
 export const fetchStockData = async (symbol: string) => {
   try {
     const response = await fetch(
-      `${EODHD_BASE_URL}/eod/${symbol}?api_token=${EODHD_API_KEY}&fmt=json`
+      `${EODHD_BASE_URL}/eod/${symbol}?fmt=json`
     );
     
     if (!response.ok) {
@@ -38,7 +38,7 @@ export const fetchStockData = async (symbol: string) => {
 export const fetchFundamentalData = async (symbol: string) => {
   try {
     const response = await fetch(
-      `${EODHD_BASE_URL}/fundamentals/${symbol}?api_token=${EODHD_API_KEY}&fmt=json`
+      `${EODHD_BASE_URL}/fundamentals/${symbol}?fmt=json`
     );
     
     if (!response.ok) {
@@ -79,7 +79,7 @@ export const fetchBulkQuotes = async (symbols: string[]) => {
   try {
     const symbolsStr = symbols.join(',');
     const response = await fetch(
-      `${EODHD_BASE_URL}/real-time/${symbolsStr}?api_token=${EODHD_API_KEY}&fmt=json`
+      `${EODHD_BASE_URL}/real-time/${symbolsStr}?fmt=json`
     );
     
     if (!response.ok) {
@@ -103,7 +103,7 @@ export const fetchBulkQuotes = async (symbols: string[]) => {
 export const fetchHistoricalPrices = async (symbol: string, fromDate: string, toDate: string) => {
   try {
     const response = await fetch(
-      `${EODHD_BASE_URL}/eod/${symbol}?from=${fromDate}&to=${toDate}&api_token=${EODHD_API_KEY}&fmt=json`
+      `${EODHD_BASE_URL}/eod/${symbol}?from=${fromDate}&to=${toDate}&fmt=json`
     );
     
     if (!response.ok) {

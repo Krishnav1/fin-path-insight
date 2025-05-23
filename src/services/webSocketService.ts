@@ -66,24 +66,22 @@ class WebSocketService {
   
   // Get the WebSocket URL based on environment
   private getWebSocketUrl(exchange: string = 'us'): string {
-    // Use a direct connection to EODHD WebSocket API
-    // This avoids the need for a proxy server
-    // Note: In a production app, you would use a secure backend proxy
-    // to handle API keys and authentication
-    const apiToken = this.getApiToken();
+    // Use Supabase Edge Function as a proxy
+    // This approach is better for production as it keeps API keys secure
+    const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
     
     // Different endpoints for different exchanges
     switch (exchange) {
       case 'us':
-        return `wss://ws.eodhistoricaldata.com/ws/us?api_token=${apiToken}`;
+        return `${SUPABASE_URL}/functions/v1/eodhd-proxy/ws/us`;
       case 'eu':
-        return `wss://ws.eodhistoricaldata.com/ws/eu?api_token=${apiToken}`;
+        return `${SUPABASE_URL}/functions/v1/eodhd-proxy/ws/eu`;
       case 'cn':
-        return `wss://ws.eodhistoricaldata.com/ws/cn?api_token=${apiToken}`;
+        return `${SUPABASE_URL}/functions/v1/eodhd-proxy/ws/cn`;
       case 'in':
-        return `wss://ws.eodhistoricaldata.com/ws/in?api_token=${apiToken}`;
+        return `${SUPABASE_URL}/functions/v1/eodhd-proxy/ws/in`;
       default:
-        return `wss://ws.eodhistoricaldata.com/ws/us?api_token=${apiToken}`;
+        return `${SUPABASE_URL}/functions/v1/eodhd-proxy/ws/us`;
     }
   }
   

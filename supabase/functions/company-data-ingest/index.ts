@@ -87,32 +87,93 @@ serve(async (req) => {
     // If symbol is provided, update just that company
     if (symbol && symbol.trim() !== '') {
       console.log(`Processing symbol: ${symbol}`);
-      const result = await updateCompanyData(symbol, type);
-      return new Response(
-        JSON.stringify({ results: [result] }), // always returns an array
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      try {
+        const result = await updateCompanyData(symbol, type);
+        return new Response(
+          JSON.stringify({ results: [result] }), // always returns an array
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } catch (err: any) {
+        console.error(`Error processing symbol ${symbol}:`, err);
+        return new Response(
+          JSON.stringify({ 
+            results: [], 
+            error: err.message,
+            symbol: symbol
+          }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     } else {
-      console.log('No symbol parameter provided or empty symbol');
-      // Check URL to help with debugging
-      console.log('URL object:', {
-        href: url.href,
-        origin: url.origin,
-        pathname: url.pathname,
-        search: url.search
-      });
+      // No symbol provided - process all tracked companies (batch mode)
+      console.log('No symbol provided - running in batch mode to update all tracked companies');
       
-      return new Response(
-        JSON.stringify({ 
-          results: [], 
-          message: "Please provide a symbol parameter",
-          debug: {
-            url: req.url,
-            params: Object.fromEntries(url.searchParams.entries())
+      try {
+        // Get all tracked companies
+        const { data: companies, error } = await supabase
+          .from('companies')
+          .select('id, symbol, exchange')
+          .eq('is_tracked', true)
+          .limit(100); // Limit to 100 companies per batch for safety
+        
+        if (error) {
+          throw error;
+        }
+        
+        if (!companies || companies.length === 0) {
+          return new Response(
+            JSON.stringify({ 
+              results: [], 
+              message: "No tracked companies found. Mark companies as tracked first."
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        console.log(`Found ${companies.length} tracked companies to update`);
+        
+        // Define result type for the array
+        interface CompanyResult {
+          symbol: string;
+          status: string;
+          data?: any;
+          error?: string;
+        }
+        
+        const results: CompanyResult[] = [];
+        for (const company of companies) {
+          try {
+            console.log(`Batch processing company: ${company.symbol}`);
+            const result = await updateCompanyData(company.symbol, type);
+            results.push({ symbol: company.symbol, status: 'success', data: result });
+          } catch (err: any) {
+            console.error(`Error in batch processing for ${company.symbol}:`, err);
+            results.push({ symbol: company.symbol, status: 'error', error: err.message });
           }
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+          
+          // Add a small delay between requests to avoid rate limiting
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+        
+        return new Response(
+          JSON.stringify({ 
+            results,
+            total: companies.length,
+            success: results.filter(r => r.status === 'success').length,
+            failed: results.filter(r => r.status === 'error').length
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } catch (err: any) {
+        console.error('Error in batch processing:', err);
+        return new Response(
+          JSON.stringify({ 
+            error: err.message,
+            message: "Failed to process batch update"
+          }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
     
     // Otherwise, update all tracked companies
@@ -260,7 +321,6 @@ async function updateCompanyData(symbol: string, type: string = 'all'): Promise<
     console.log(`[updateCompanyData] Updating fundamentals for ${companyRecord.symbol}...`);
     try {
       const fundamentalsData = await fetchEODHDData(`/fundamentals/${fullSymbolForEODHD}`);
-      // console.log(`[updateCompanyData] Fundamentals data for ${companyRecord.symbol}:`, fundamentalsData);
       
       const { error: updateError } = await supabase
         .from('companies')
@@ -272,15 +332,14 @@ async function updateCompanyData(symbol: string, type: string = 'all'): Promise<
           logo_url: fundamentalsData.General?.LogoURL || null,
           website: fundamentalsData.General?.WebURL || null,
           employee_count: fundamentalsData.General?.FullTimeEmployees || null,
-          ceo: fundamentalsData.General?.Officers?.[0]?.Name || null, // EODHD has Officers as an array
-          founded_year: fundamentalsData.General?.IPODate ? new Date(fundamentalsData.General.IPODate).getFullYear() : null,
+          ceo: fundamentalsData.General?.CEO || null,
           market_cap: fundamentalsData.Highlights?.MarketCapitalization || null,
           updated_at: new Date().toISOString()
         })
         .eq('id', companyRecord.id);
       
       if (updateError) {
-        console.error(`[updateCompanyData] Error updating fundamentals for ${companyRecord.symbol}:`, updateError);
+        console.error(`[updateCompanyData] Error updating company fundamentals for ${companyRecord.symbol}:`, updateError);
         throw updateError;
       }
       
@@ -297,7 +356,6 @@ async function updateCompanyData(symbol: string, type: string = 'all'): Promise<
     console.log(`[updateCompanyData] Updating financials for ${companyRecord.symbol}...`);
     try {
       const annualFinancials = await fetchEODHDData(`/fundamentals/${fullSymbolForEODHD}?filter=Financials::Balance_Sheet::yearly,Financials::Income_Statement::yearly,Financials::Cash_Flow::yearly`);
-      // console.log(`[updateCompanyData] Annual financials for ${companyRecord.symbol}:`, annualFinancials);
       
       if (annualFinancials.Financials) {
         if (annualFinancials.Financials.Income_Statement?.yearly) {

@@ -39,7 +39,9 @@ serve(async (req) => {
     
     // Create a new URL with searchParams
     const queryParams = new URLSearchParams(url.search);
-    // Always set api_token from environment, ignore what frontend sends
+    // Remove any client-provided api_token to prevent empty token issues
+    queryParams.delete('api_token');
+    // Add the server-side API key
     queryParams.set('api_token', EODHD_API_KEY);
     
     // Construct the target EODHD URL

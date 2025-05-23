@@ -180,7 +180,7 @@ const ETFsMarket = () => {
         try {
           // Get real-time quote using EODHD API
           const response = await axios.get(
-            `${EODHD_BASE_URL}/real-time/${symbol}?fmt=json&api_token=${EODHD_API_KEY}`
+            `${EODHD_BASE_URL}/real-time/${symbol}?fmt=json`
           );
           
           const data = response.data;

@@ -1027,7 +1027,7 @@ async function getStockQuote(symbol: string): Promise<any> {
   const cachedData = apiCache.get(cacheKey);
   if (cachedData) return Promise.resolve(cachedData);
   
-  return axios.get(`${EODHD_BASE_URL}/real-time/${symbol}?fmt=json&api_token=${EODHD_API_KEY}`)
+  return axios.get(`${EODHD_BASE_URL}/real-time/${symbol}?fmt=json`)
     .then(response => {
       apiCache.set(cacheKey, response.data);
       return response.data;
@@ -1149,12 +1149,12 @@ export async function getComprehensiveStockData(symbol: string, isIndian: boolea
     
     // 1. Company Overview - contains fundamental data
     const overviewResponse = await axios.get(
-      `${EODHD_BASE_URL}/fundamentals/${apiSymbol}?api_token=${EODHD_API_KEY}`
+      `${EODHD_BASE_URL}/fundamentals/${apiSymbol}?fmt=json`
     );
     
     // 2. Quote Data - for current price, change, etc.
     const quoteResponse = await axios.get(
-      `${EODHD_BASE_URL}/real-time/${apiSymbol}?fmt=json&api_token=${EODHD_API_KEY}`
+      `${EODHD_BASE_URL}/real-time/${apiSymbol}?fmt=json`
     );
     
     // Add small delay to avoid API rate limits
@@ -1162,7 +1162,7 @@ export async function getComprehensiveStockData(symbol: string, isIndian: boolea
     
     // 3. Daily Time Series - for charts (last 100 data points)
     const timeSeriesResponse = await axios.get(
-      `${EODHD_BASE_URL}/eod/${apiSymbol}?period=d&fmt=json&order=d&limit=100&api_token=${EODHD_API_KEY}`
+      `${EODHD_BASE_URL}/eod/${apiSymbol}?period=d&fmt=json&order=d&limit=100`
     );
     
     // Add small delay to avoid API rate limits
@@ -1170,7 +1170,7 @@ export async function getComprehensiveStockData(symbol: string, isIndian: boolea
     
     // 4. Income Statement - for financials
     const incomeResponse = await axios.get(
-      `${EODHD_BASE_URL}/fundamentals/${apiSymbol}?filter=Income_Statement&api_token=${EODHD_API_KEY}`
+      `${EODHD_BASE_URL}/fundamentals/${apiSymbol}?filter=Income_Statement&fmt=json`
     );
     
     // Define company info type
