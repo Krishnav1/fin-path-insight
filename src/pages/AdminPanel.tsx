@@ -98,18 +98,46 @@ const AdminPanel: React.FC = () => {
       if (user) {
         try {
           // IMPORTANT: Force admin to true for this user to bypass any potential RLS issues
-          // This is a temporary fix - you should fix the RLS policies properly later
-          if (user.email === 'kvarma00011@gmail.com') {
-            console.log('Setting admin status directly for known admin user');
-            setIsAdmin(true);
-            // Fetch initial data for admin
-            try {
+          // Query user role from Supabase admin_users table
+          // IMPORTANT: Make sure the admin_users table has RLS enabled with a policy such as:
+          //   CREATE POLICY "Allow admin to read own role" ON public.admin_users
+          //     FOR SELECT USING (auth.uid() = id);
+          // This ensures only the authenticated user can check their own admin status.
+          console.log('Querying admin_users table with ID:', user.id);
+          const { data, error } = await supabase
+            .from('admin_users')
+            .select('role')
+            .eq('id', user.id)
+            .single();
+          
+          console.log('Admin query result:', { data, error });
+          
+          if (error) {
+            console.error('Error checking admin status:', error);
+            setIsAdmin(false);
+          } else {
+            // Check if user is an admin
+            const hasAdminRole = data?.role === 'admin';
+            console.log('Has admin role:', hasAdminRole, 'Role value:', data?.role);
+            setIsAdmin(hasAdminRole);
+            
+            // If not admin, redirect to home
+            if (!hasAdminRole) {
+              setMessage({
+                type: 'error',
+                text: 'You do not have permission to access the admin panel.'
+              });
+              
+              // Redirect after a short delay
+              setTimeout(() => {
+                navigate('/');
+              }, 3000);
+            } else {
+              // Fetch initial data for admin
               fetchStatus();
               fetchTrackedCompanies();
-            } catch (e) {
-              console.error('Error fetching initial data:', e);
             }
-          } else {
+          }
             // Get user role from Supabase admin_users table
             console.log('Querying admin_users table with ID:', user.id);
             const { data, error } = await supabase
@@ -274,21 +302,47 @@ const AdminPanel: React.FC = () => {
     });
     
     try {
-      // Simulate successful update with Supabase
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Make a real API call to update the knowledge base
+      const apiUrl = import.meta.env.VITE_SUPABASE_URL || '';
+      const response = await fetch(
+        `${apiUrl}/functions/v1/fingenie-oracle`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ action: 'update_knowledge_base' })
+        }
+      );
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API error: ${response.status} - ${errorText}`);
+      }
+      
+      const result = await response.json();
+      console.log('Knowledge base update result:', result);
       
       setMessage({
         type: 'success',
-        text: 'Knowledge base update completed successfully.'
+        text: result.message || 'Knowledge base update completed successfully.'
       });
       
-      // Refresh status
-      fetchStatus();
+      // Refresh status with actual data
+      const newStatus = {
+        status: 'active',
+        documents_count: result.documents_count || 0,
+        last_updated: new Date().toISOString(),
+        embeddings_model: result.model || 'text-embedding-ada-002',
+        vector_store: 'supabase'
+      };
+      
+      setStatus(newStatus);
     } catch (error) {
       console.error('Error updating knowledge base:', error);
       setMessage({
         type: 'error',
-        text: 'Failed to update knowledge base. Please try again.'
+        text: `Failed to update knowledge base: ${error instanceof Error ? error.message : 'Unknown error'}`
       });
     } finally {
       setUpdateRunning(false);
@@ -376,6 +430,51 @@ const AdminPanel: React.FC = () => {
       setMessage({
         type: 'error',
         text: "Failed to update company details"
+      });
+    } finally {
+      setUpdatingCompany(null);
+    }
+  };
+
+  // Refresh company data
+  const refreshCompanyData = async (symbol: string) => {
+    try {
+      setUpdatingCompany(`refresh-${symbol}`);
+      setMessage({
+        type: 'info',
+        text: `Refreshing data for ${symbol}...`
+      });
+      
+      const apiUrl = import.meta.env.VITE_SUPABASE_URL || '';
+      const response = await fetch(
+        `${apiUrl}/functions/v1/refresh-company-data?symbol=${symbol}&force=true`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      
+      if (!response.ok) {
+        throw new Error(`Failed to refresh data: ${response.statusText}`);
+      }
+      
+      const result = await response.json();
+      console.log('Refresh result:', result);
+      
+      setMessage({
+        type: 'success',
+        text: `Data for ${symbol} refreshed successfully`
+      });
+      
+      // Refresh the list to show updated timestamps
+      fetchTrackedCompanies();
+    } catch (error) {
+      console.error("Error refreshing company data:", error);
+      setMessage({
+        type: 'error',
+        text: `Failed to refresh data for ${symbol}`
       });
     } finally {
       setUpdatingCompany(null);
@@ -649,6 +748,10 @@ const AdminPanel: React.FC = () => {
                   Company Tracker
                 </h2>
                 <div className="flex gap-2">
+                  <div className="text-xs text-slate-500 dark:text-slate-400 mr-2 flex items-center">
+                    <Database className="h-3 w-3 mr-1" />
+                    {trackedCompanies.length} companies tracked
+                  </div>
                   <Button
                     variant="outlined"
                     size="small"
@@ -775,34 +878,59 @@ const AdminPanel: React.FC = () => {
                         <TableHead>Exchange</TableHead>
                         <TableHead>Sector</TableHead>
                         <TableHead>Country</TableHead>
+                        <TableHead>Last Updated</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {trackedCompanies.map((company) => (
-                        <TableRow key={company.symbol}>
+                        <TableRow key={company.symbol} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                           <TableCell className="font-medium">
                             {company.symbol}
                           </TableCell>
-                          <TableCell>{company.name}</TableCell>
+                          <TableCell>
+                            <div className="font-medium">{company.name}</div>
+                            {company.industry && (
+                              <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">{company.industry}</div>
+                            )}
+                          </TableCell>
                           <TableCell>{company.exchange}</TableCell>
-                          <TableCell>{company.sector || "N/A"}</TableCell>
+                          <TableCell>
+                            {company.sector ? (
+                              <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10 dark:bg-blue-900/20 dark:text-blue-400 dark:ring-blue-400/20">
+                                {company.sector}
+                              </span>
+                            ) : "N/A"}
+                          </TableCell>
                           <TableCell>{company.country}</TableCell>
+                          <TableCell>
+                            {company.updated_at ? (
+                              <div className="flex flex-col">
+                                <span className="text-xs text-slate-500 dark:text-slate-400">
+                                  {new Date(company.updated_at).toLocaleDateString()}
+                                </span>
+                                <span className="text-xs text-slate-400 dark:text-slate-500">
+                                  {new Date(company.updated_at).toLocaleTimeString()}
+                                </span>
+                              </div>
+                            ) : "Never"}
+                          </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-2">
                               <Button
                                 variant="outlined"
                                 ghost
                                 size="small"
-                                onClick={() => updateCompanyData(company.symbol)}
-                                disabled={updatingCompany === company.symbol}
+                                onClick={() => refreshCompanyData(company.symbol)}
+                                disabled={updatingCompany === `refresh-${company.symbol}`}
+                                title="Refresh company data from API"
                               >
-                                {updatingCompany === company.symbol ? (
+                                {updatingCompany === `refresh-${company.symbol}` ? (
                                   <Loader2 className="h-4 w-4 animate-spin" />
                                 ) : (
                                   <RefreshCw className="h-4 w-4" />
                                 )}
-                                <span className="sr-only">Update data</span>
+                                <span className="sr-only">Refresh data</span>
                               </Button>
                               <Button
                                 variant="outlined"

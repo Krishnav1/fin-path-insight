@@ -30,9 +30,23 @@ serve(async (req) => {
     
     // Get API key from environment
     const EODHD_API_KEY = Deno.env.get('EODHD_API_KEY');
+    
+    // Log whether we have an API key (without exposing the actual key)
+    console.log(`EODHD_API_KEY present: ${Boolean(EODHD_API_KEY)}`);
+    
     if (!EODHD_API_KEY) {
+      console.error('EODHD_API_KEY not set in environment variables');
       return new Response(
         JSON.stringify({ error: 'EODHD_API_KEY not set in environment variables.' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    // Check if the API key is valid (not just empty string)
+    if (EODHD_API_KEY.trim() === '') {
+      console.error('EODHD_API_KEY is empty');
+      return new Response(
+        JSON.stringify({ error: 'EODHD_API_KEY is empty.' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

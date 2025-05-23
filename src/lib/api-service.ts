@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { supabase } from '@/lib/supabase';
 
 // API Keys - for a production app, use environment variables
 const ALPHA_VANTAGE_API_KEY = '6LXHJ0IQFYHN4LOW'; // Alpha Vantage API key
@@ -1066,12 +1067,29 @@ async function getLiveStockPrices(symbols: string | string[]): Promise<any> {
     }
     
     // Call the Supabase Edge Function
+    console.log(`Calling EODHD API via Edge Function: ${url.toString()}`);
     const response = await fetch(url.toString(), {
       headers: getSupabaseHeaders()
     });
     
     if (!response.ok) {
-      throw new Error(`Failed to fetch live stock prices: ${response.statusText}`);
+      // Try to get more detailed error information
+      let errorDetail = response.statusText;
+      try {
+        const errorJson = await response.json();
+        errorDetail = errorJson.error || errorJson.message || errorDetail;
+        console.error('EODHD API error details:', errorJson);
+      } catch (e) {
+        // If we can't parse JSON, try to get text
+        try {
+          errorDetail = await response.text();
+        } catch (textError) {
+          // If we can't get text either, just use the status text
+        }
+      }
+      
+      console.error(`EODHD API error (${response.status}): ${errorDetail}`);
+      throw new Error(`Failed to fetch live stock prices: ${response.status} - ${errorDetail}`);
     }
     
     const data = await response.json();
@@ -1131,6 +1149,9 @@ export async function getComprehensiveStockData(symbol: string, isIndian: boolea
   // Format the symbol based on market
   let apiSymbol = symbol;
   
+  // Get clean display symbol (without .NS for Indian stocks)
+  const cleanSymbol = isIndian ? symbol.replace('.NS', '') : symbol;
+  
   // For Indian stocks, add .NSE suffix if not already present
   if (isIndian && !symbol.includes('.NS') && !symbol.includes('.NSE')) {
     apiSymbol = `${symbol}.NSE`;
@@ -1138,6 +1159,106 @@ export async function getComprehensiveStockData(symbol: string, isIndian: boolea
   
   // Check cache first (cache for 15 minutes)
   const cacheKey = `${apiSymbol}_data`;
+  // First, check if we have the data in the database
+  try {
+    // Check if we have the company data in the database - using the cleanSymbol variable defined above
+    
+    // Try to get the company data from Supabase
+    const { data: companyData, error: companyError } = await supabase
+      .from('companies')
+      .select('*')
+      .eq('symbol', cleanSymbol)
+      .maybeSingle();
+    
+    if (companyData && !companyError) {
+      console.log(`Found company data in database for ${cleanSymbol}`);
+      
+      // Check if we need to refresh the data
+      const apiUrl = import.meta.env.VITE_SUPABASE_URL || '';
+      const refreshResponse = await fetch(
+        `${apiUrl}/functions/v1/refresh-company-data?symbol=${cleanSymbol}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      
+      if (refreshResponse.ok) {
+        const refreshResult = await refreshResponse.json();
+        console.log(`Refresh check result for ${cleanSymbol}:`, refreshResult);
+        
+        // If data was refreshed, we'll continue to use the database data
+        // The refresh happens asynchronously in the background
+      }
+      
+      // Get financial metrics
+      const { data: financialMetrics, error: metricsError } = await supabase
+        .from('financial_metrics')
+        .select('*')
+        .eq('company_id', companyData.id)
+        .eq('period_type', 'annual')
+        .order('period', { ascending: false });
+      
+      // Get financial statements
+      const { data: incomeStatements, error: incomeError } = await supabase
+        .from('financial_statements')
+        .select('*')
+        .eq('company_id', companyData.id)
+        .eq('statement_type', 'income')
+        .eq('period_type', 'annual')
+        .order('period', { ascending: false });
+      
+      // Get peer comparison
+      const { data: peerComparison, error: peerError } = await supabase
+        .from('peer_comparisons')
+        .select('*')
+        .eq('company_id', companyData.id)
+        .maybeSingle();
+      
+      if (financialMetrics && incomeStatements) {
+        console.log(`Using database data for ${cleanSymbol}`);
+        
+        // We still need to get the current price from EODHD
+        const quoteResponse = await axios.get(
+          `${EODHD_BASE_URL}/real-time/${apiSymbol}?fmt=json`
+        );
+        
+        // Construct a response object from the database data
+        const dbData = {
+          symbol: cleanSymbol,
+          name: companyData.name,
+          price: quoteResponse.data?.['Global Quote']?.['05. price'] || 0,
+          change: quoteResponse.data?.['Global Quote']?.['09. change'] || 0,
+          changePercent: quoteResponse.data?.['Global Quote']?.['10. change percent'] || '0%',
+          volume: quoteResponse.data?.['Global Quote']?.['06. volume'] || 0,
+          marketCap: companyData.market_cap,
+          sector: companyData.sector,
+          industry: companyData.industry,
+          description: companyData.description,
+          website: companyData.website,
+          ceo: companyData.ceo,
+          employees: companyData.employee_count,
+          foundedYear: companyData.founded_year,
+          financials: financialMetrics,
+          incomeStatement: incomeStatements,
+          peers: peerComparison?.peer_data || [],
+          // Add other fields as needed
+        };
+        
+        // Cache the data
+        apiCache.set(cacheKey, dbData, 15 * 60 * 1000); // 15 minutes
+        
+        return dbData;
+      }
+    }
+  } catch (dbError) {
+    console.error('Error fetching from database:', dbError);
+    // Continue with API call if database fetch fails
+  }
+  
+  // If we don't have the data in the database or there was an error, fall back to API call
   const cachedData = apiCache.get(cacheKey);
   if (cachedData) {
     console.log(`Using cached data for ${apiSymbol}`);
@@ -1297,19 +1418,21 @@ export async function getComprehensiveStockData(symbol: string, isIndian: boolea
     // Check if we got valid data
     if (!quoteResponse.data || !quoteResponse.data['Global Quote'] || Object.keys(quoteResponse.data['Global Quote']).length === 0) {
       console.log(`No quote data found for ${apiSymbol}`);
-      // If no real data, return mock data based on market type
-      const mockData = isIndian ? generateIndianStockFallbackData(symbol) : generateGlobalStockFallbackData(symbol);
+      // Log the error and return an error object instead of mock data
+      console.error(`Error fetching data for ${apiSymbol}: No valid quote data returned from API`);
       
-      // Add the company info to the mock data
-      const enhancedMockData = {
-        ...mockData,
+      // Use the original symbol for the error case
+      return {
+        symbol: symbol,
+        error: true,
+        errorMessage: `Failed to fetch data for ${symbol}. Please try again later.`,
+        // Include minimal data for UI to handle gracefully
+        name: isIndian ? symbol.replace('.NS', '') : symbol,
+        price: 0,
+        change: 0,
+        changePercent: '0%',
         ...companyInfo
       };
-      
-      // Cache the data for 15 minutes
-      apiCache.set(cacheKey, enhancedMockData, 15 * 60 * 1000);
-      
-      return enhancedMockData;
     }
     
     // Process the data
