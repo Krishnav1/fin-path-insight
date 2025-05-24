@@ -5,7 +5,7 @@
 
 // This is a placeholder API key - should be replaced with environment variable
 // In production, this should be stored in environment variables
-const EODHD_API_KEY = process.env.EODHD_API_KEY || 'your-api-key';
+const EODHD_API_KEY = process.env.EODHD_API_KEY || '682ab8a9176503.56947213';
 const EODHD_BASE_URL = 'https://eodhd.com/api';
 
 /**
@@ -13,10 +13,29 @@ const EODHD_BASE_URL = 'https://eodhd.com/api';
  * @param symbol Stock symbol (e.g., AAPL, MSFT)
  * @returns Promise with stock data
  */
+import { supabase } from '@/lib/supabase';
+
 export const fetchStockData = async (symbol: string) => {
+  // Get Supabase access token
+  let accessToken: string | null = null;
+  if (supabase.auth && typeof supabase.auth.getSession === 'function') {
+    const { data } = await supabase.auth.getSession();
+    accessToken = data?.session?.access_token || null;
+  }
+  // Log the token and headers
+  const headers = {
+    ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
+  };
+  console.log('[fetchStockData] accessToken:', accessToken);
+  console.log('[fetchStockData] headers:', headers);
   try {
     const response = await fetch(
-      `${EODHD_BASE_URL}/eod/${symbol}?fmt=json`
+      `${EODHD_BASE_URL}/eod/${symbol}?fmt=json`,
+      {
+        headers: {
+          ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
+        }
+      }
     );
     
     if (!response.ok) {
@@ -36,9 +55,24 @@ export const fetchStockData = async (symbol: string) => {
  * @returns Promise with fundamental data
  */
 export const fetchFundamentalData = async (symbol: string) => {
+  let accessToken: string | null = null;
+  if (supabase.auth && typeof supabase.auth.getSession === 'function') {
+    const { data } = await supabase.auth.getSession();
+    accessToken = data?.session?.access_token || null;
+  }
+  const headers = {
+    ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
+  };
+  console.log('[fetchFundamentalData] accessToken:', accessToken);
+  console.log('[fetchFundamentalData] headers:', headers);
   try {
     const response = await fetch(
-      `${EODHD_BASE_URL}/fundamentals/${symbol}?fmt=json`
+      `${EODHD_BASE_URL}/fundamentals/${symbol}?fmt=json`,
+      {
+        headers: {
+          ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
+        }
+      }
     );
     
     if (!response.ok) {
@@ -76,10 +110,25 @@ export const calculatePortfolioMetrics = (holdings: any[]) => {
  * @returns Promise with real-time quotes
  */
 export const fetchBulkQuotes = async (symbols: string[]) => {
+  let accessToken: string | null = null;
+  if (supabase.auth && typeof supabase.auth.getSession === 'function') {
+    const { data } = await supabase.auth.getSession();
+    accessToken = data?.session?.access_token || null;
+  }
+  const headers = {
+    ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
+  };
+  console.log('[fetchBulkQuotes] accessToken:', accessToken);
+  console.log('[fetchBulkQuotes] headers:', headers);
   try {
     const symbolsStr = symbols.join(',');
     const response = await fetch(
-      `${EODHD_BASE_URL}/real-time/${symbolsStr}?fmt=json`
+      `${EODHD_BASE_URL}/real-time/${symbolsStr}?fmt=json`,
+      {
+        headers: {
+          ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
+        }
+      }
     );
     
     if (!response.ok) {
@@ -94,6 +143,47 @@ export const fetchBulkQuotes = async (symbols: string[]) => {
 };
 
 /**
+ * Fetches news from the EODHD API via the proxy
+ * @param params Object with parameters (e.g., symbols, limit, etc.)
+ * @returns Promise with news data array
+ */
+export const fetchNews = async (params: { symbols?: string[]; limit?: number; offset?: number; sort?: string; order?: string; market?: string; }) => {
+  let accessToken: string | null = null;
+  if (supabase.auth && typeof supabase.auth.getSession === 'function') {
+    const { data } = await supabase.auth.getSession();
+    accessToken = data?.session?.access_token || null;
+  }
+  const headers = {
+    ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
+  };
+  const EODHD_BASE_URL = '/api/eodhd-proxy';
+  const searchParams = new URLSearchParams();
+  if (params.limit) searchParams.append('limit', params.limit.toString());
+  if (params.offset) searchParams.append('offset', params.offset.toString());
+  if (params.sort) searchParams.append('sort', params.sort);
+  if (params.order) searchParams.append('order', params.order);
+  searchParams.append('fmt', 'json');
+  // Add symbols for specific markets if provided
+  if (params.symbols && params.symbols.length > 0) {
+    searchParams.append('s', params.symbols.join(','));
+  }
+  // Optionally add market-specific logic here if needed
+  try {
+    const response = await fetch(
+      `${EODHD_BASE_URL}/news?${searchParams.toString()}`,
+      { headers }
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to fetch news: ${response.statusText}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching news:', error);
+    throw error;
+  }
+};
+
+/**
  * Fetches historical prices for a symbol within a date range
  * @param symbol Stock symbol
  * @param fromDate Start date in format 'YYYY-MM-DD'
@@ -101,9 +191,24 @@ export const fetchBulkQuotes = async (symbols: string[]) => {
  * @returns Promise with historical price data
  */
 export const fetchHistoricalPrices = async (symbol: string, fromDate: string, toDate: string) => {
+  let accessToken: string | null = null;
+  if (supabase.auth && typeof supabase.auth.getSession === 'function') {
+    const { data } = await supabase.auth.getSession();
+    accessToken = data?.session?.access_token || null;
+  }
+  const headers = {
+    ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
+  };
+  console.log('[fetchHistoricalPrices] accessToken:', accessToken);
+  console.log('[fetchHistoricalPrices] headers:', headers);
   try {
     const response = await fetch(
-      `${EODHD_BASE_URL}/eod/${symbol}?from=${fromDate}&to=${toDate}&fmt=json`
+      `${EODHD_BASE_URL}/eod/${symbol}?from=${fromDate}&to=${toDate}&fmt=json`,
+      {
+        headers: {
+          ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
+        }
+      }
     );
     
     if (!response.ok) {

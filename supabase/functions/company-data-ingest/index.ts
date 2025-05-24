@@ -1,3 +1,5 @@
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+
 // Supabase Edge Function for company data ingestion
 // This function fetches and stores company data from EODHD API
 // It can be triggered manually from the admin panel or run on a schedule

@@ -8,8 +8,8 @@ import PortfolioOverview from './components/PortfolioOverview';
 import PortfolioMetrics from './components/PortfolioMetrics';
 import PortfolioAllocation from './components/PortfolioAllocation';
 import PortfolioHoldings from './components/PortfolioHoldings';
-// FinGenieInsights component has been removed
 import ValueAddTools from './components/ValueAddTools';
+import PortfolioIntelligence from '@/components/PortfolioIntelligence';
 import { mockPortfolioData } from './data/mockData';
 import { portfolioService, GeminiAnalysis } from '@/services/portfolio-service';
 import { useAuth } from '@/context/AuthContext';
@@ -228,80 +228,12 @@ export default function PortfolioAnalysisPage() {
               </div>
             )}
           </div>
-          
-          <Tabs defaultValue="overview" onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 mb-8">
-              <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="metrics">Risk & Return</TabsTrigger>
-              <TabsTrigger value="allocation">Allocation</TabsTrigger>
-              <TabsTrigger value="holdings">Holdings</TabsTrigger>
-              <TabsTrigger value="insights">FinGenie Insights</TabsTrigger>
-              <TabsTrigger value="tools">Smart Tools</TabsTrigger>
-            </TabsList>
-            
+          <Tabs>
             <TabsContent value="overview">
-              {isLoading ? (
-                <div className="flex items-center justify-center h-64">
-                  <Loader2 className="h-8 w-8 animate-spin text-fin-primary" />
-                </div>
-              ) : (
-                <PortfolioOverview portfolioData={portfolioData} analysisData={analysisData} />
-              )}
+              <ValueAddTools portfolioData={portfolioData} analysisData={analysisData} />
             </TabsContent>
-            
-            <TabsContent value="metrics">
-              {isLoading ? (
-                <div className="flex items-center justify-center h-64">
-                  <Loader2 className="h-8 w-8 animate-spin text-fin-primary" />
-                </div>
-              ) : (
-                <PortfolioMetrics portfolioData={portfolioData} analysisData={analysisData} />
-              )}
-            </TabsContent>
-            
-            <TabsContent value="allocation">
-              {isLoading ? (
-                <div className="flex items-center justify-center h-64">
-                  <Loader2 className="h-8 w-8 animate-spin text-fin-primary" />
-                </div>
-              ) : (
-                <PortfolioAllocation portfolioData={portfolioData} analysisData={analysisData} />
-              )}
-            </TabsContent>
-            
-            <TabsContent value="holdings">
-              <PortfolioHoldings 
-                portfolioData={portfolioData} 
-                setPortfolioData={setPortfolioData} 
-                onSave={handlePortfolioAction} 
-                isAnalyzing={isAnalyzing} 
-              />
-            </TabsContent>
-            
-            <TabsContent value="insights">
-              <div className="flex flex-col items-center justify-center p-8 bg-white dark:bg-slate-800 rounded-lg shadow-sm">
-                <h2 className="text-2xl font-bold mb-4">AI Insights Coming Soon</h2>
-                <p className="text-slate-600 dark:text-slate-400 text-center mb-6">
-                  We're enhancing our AI-powered portfolio analysis features.
-                  Check back soon for personalized insights about your investments.
-                </p>
-                <div className="p-4 bg-blue-50 dark:bg-blue-900/30 rounded-lg max-w-2xl">
-                  <p className="text-sm text-slate-700 dark:text-slate-300">
-                    Our AI assistant will analyze your portfolio for risk factors, diversification opportunities, 
-                    and personalized recommendations based on your investment goals.
-                  </p>
-                </div>
-              </div>
-            </TabsContent>
-            
-            <TabsContent value="tools">
-              {isLoading ? (
-                <div className="flex items-center justify-center h-64">
-                  <Loader2 className="h-8 w-8 animate-spin text-fin-primary" />
-                </div>
-              ) : (
-                <ValueAddTools portfolioData={portfolioData} analysisData={analysisData} />
-              )}
+            <TabsContent value="intelligence">
+              <PortfolioIntelligence />
             </TabsContent>
           </Tabs>
         </div>

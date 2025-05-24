@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useMarket } from "@/hooks/use-market";
 import { Link } from "react-router-dom";
-import axios from "axios";
+import { fetchBulkQuotes } from "@/utils/eodhd-api"; // Use shared utility for proxy calls
+// Removed axios import
 
 // Define types for ETF data
 type ETFData = {
@@ -170,82 +171,38 @@ const ETFsMarket = () => {
   const fetchEtfData = async () => {
     setIsLoading(true);
     setError(null);
-    
     try {
       // Select ETF symbols based on current market
       const symbols = market === 'india' ? INDIA_ETFS : GLOBAL_ETFS;
-      
-      // Fetch data for each ETF
-      const etfPromises = symbols.map(async (symbol) => {
-        try {
-          // Get real-time quote using EODHD API
-          const response = await axios.get(
-            `${EODHD_BASE_URL}/real-time/${symbol}?fmt=json`
-          );
-          
-          const data = response.data;
-          if (!data) return null;
-          
-          // Extract the base symbol without the exchange suffix
-          const baseSymbol = symbol.split('.')[0];
-          
-          // Determine the appropriate category based on the ETF's focus
-          let category = "Equity";
-          if (symbol.includes('BOND') || symbol === 'AGG.US' || symbol === 'BND.US' || symbol === 'LQD.US') {
-            category = "Fixed Income";
-          } else if (symbol.includes('BANK') || symbol === 'SETFBANK.NSE' || symbol === 'SETFNIFBK.NSE') {
-            category = "Banking";
-          } else if (symbol.includes('GOLD')) {
-            category = "Commodity";
-          } else if (symbol === 'VWO.US') {
-            category = "Emerging Markets";
-          } else if (symbol === 'IEFA.US' || symbol === 'VEA.US') {
-            category = "International";
-          }
-          
-          // Create ETF data object
-          return {
-            symbol: baseSymbol,
-            name: data.name || baseSymbol,
-            price: data.close || data.previousClose || 0,
-            change: data.change || 0,
-            changePercent: data.changePercent || 0,
-            aum: data.aum || (Math.random() * 100000000000 + 1000000000), // Estimated if not available
-            expense: data.expenseRatio || (Math.random() * 0.25 + 0.03), // Estimated if not available
-            category: category,
-            market: market as 'global' | 'india'
-          } as ETFData;
-          
-        } catch (error) {
-          console.error(`Error fetching data for ${symbol}:`, error);
-          return null;
-        }
-      });
-      
-      // Wait for all ETF data to be fetched
-      const results = await Promise.all(etfPromises);
-      const validResults = results.filter(result => result !== null) as ETFData[];
-      
+      // Fetch data for each ETF using shared utility
+      const quotes = await fetchBulkQuotes(symbols);
+      const validResults: ETFData[] = quotes.map((data: any) => ({
+        symbol: data.code,
+        name: data.name || data.code,
+        price: data.close || data.previousClose || 0,
+        change: data.change || 0,
+        changePercent: data.change_p || 0,
+        aum: data.aum || (Math.random() * 100000000000 + 1000000000), // Estimated if not available
+        expense: data.expenseRatio || (Math.random() * 0.25 + 0.03), // Estimated if not available
+        category: data.category || 'Other',
+        market: market
+      }));
       if (validResults.length === 0) {
         throw new Error('No ETF data available');
       }
-      
       setEtfData(validResults);
       setLastUpdated(new Date());
-      
     } catch (err: any) {
       console.error('Error fetching ETF data:', err);
       setError(err.message || 'Failed to fetch ETF data');
-      // Keep existing data if available
       if (etfData.length === 0) {
-        // Use mock data as fallback only if no data is available
         setEtfData(mockETFs.filter(etf => etf.market === market));
       }
     } finally {
       setIsLoading(false);
     }
   };
-  
+
   // Fetch data on initial load and when market changes
   useEffect(() => {
     fetchEtfData();
@@ -455,3 +412,27 @@ const ETFsMarket = () => {
 };
 
 export default ETFsMarket; 
+
+function setEtfData(validResults: ETFData[]) {
+  throw new Error("Function not implemented.");
+}
+
+
+function setLastUpdated(arg0: Date) {
+  throw new Error("Function not implemented.");
+}
+
+
+function setError(arg0: any) {
+  throw new Error("Function not implemented.");
+}
+
+
+function setIsLoading(arg0: boolean) {
+  throw new Error("Function not implemented.");
+}
+
+
+function fetchEtfData() {
+  throw new Error("Function not implemented.");
+}

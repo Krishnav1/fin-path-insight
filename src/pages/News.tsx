@@ -4,8 +4,9 @@ import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useMarket } from "@/hooks/use-market";
-import axios from "axios";
+import { fetchNews } from "@/utils/eodhd-api";
 import { format, parseISO } from "date-fns";
+import { any } from "node_modules/zod/lib/external";
 
 interface NewsItem {
   id?: number;
@@ -44,43 +45,20 @@ export default function News() {
 
   // Fetch news data when component mounts or when market/category changes
   useEffect(() => {
-    const fetchNews = async () => {
+    const fetchNewsData = async () => {
       setLoading(true);
       setError(null);
-      
       try {
-        // EODHD API configuration
-        const EODHD_BASE_URL = '/api/eodhd-proxy'; // Uses the proxy through the backend
-        const EODHD_API_KEY = import.meta.env.VITE_EODHD_API_KEY || '682ab8a9176503.56947213';
-        
-        // Parameters for EODHD news API
-        const params = new URLSearchParams({
-          api_token: EODHD_API_KEY,
-          limit: '30', // Fetch more news to have enough after filtering
-          offset: '0',
+        const fetchParams: any = {
+          limit: 30,
+          offset: 0,
           sort: 'publishedAt',
           order: 'desc',
-          fmt: 'json'
-        });
-        
-        // Add market-specific parameters
+        };
         if (market === 'india') {
-          // For Indian market, fetch news for Indian stocks
-          params.append('s', 'RELIANCE.NSE,TCS.NSE,HDFCBANK.NSE,INFY.NSE');
+          fetchParams.symbols = ['RELIANCE.NSE', 'TCS.NSE', 'HDFCBANK.NSE', 'INFY.NSE'];
         }
-        
-        // Get news from EODHD API
-        const url = `${EODHD_BASE_URL}/news?${params.toString()}`;
-        const response = await axios.get(url);
-        
-        if (!response.data) {
-          throw new Error('Failed to fetch news from EODHD API');
-        }
-        
-        // Ensure response.data is an array before mapping
-        const newsData = Array.isArray(response.data) ? response.data : [];
-        console.log('News data type:', typeof response.data, 'Is array:', Array.isArray(response.data));
-        
+        const newsData = await fetchNews(fetchParams);
         // Map the EODHD news data to our NewsItem format
         const apiNewsItems: NewsItem[] = newsData.map((article: any) => ({
           title: article.title,
@@ -132,6 +110,7 @@ export default function News() {
       }
     };
     
+    // Only call fetchNewsData
     fetchNews();
   }, [market, activeCategory]);
 
