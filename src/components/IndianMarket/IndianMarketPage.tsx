@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import ErrorDisplay from '@/components/common/ErrorDisplay';
 import * as apiService from '@/services/apiService';
-import { getMultiSourceStockData, getComprehensiveStockData } from '@/lib/api-service';
+import { getComprehensiveStockData } from '@/lib/api-service';
 import useRealTimeStock, { RealTimeStockData } from '@/hooks/useRealTimeStock';
 import { ConnectionState } from '@/services/webSocketService';
 import { ERROR_TYPES } from '@/utils/errorHandler';
@@ -571,3 +571,8 @@ const IndianMarketPage: React.FC = () => {
 };
 
 export default IndianMarketPage;
+
+async function getMultiSourceStockData(symbol: string, _arg1: string): Promise<any> {
+  const response = await apiService.getStockData(symbol);
+  return response;
+}

@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useState, useEffect } from "react";
 import { companyService } from "@/services/company-service";
-import { getPeerComparison } from "@/lib/api-service";
+import { getPeerComparison } from "@/services/apiService";
 import { TrendingUp, TrendingDown, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {

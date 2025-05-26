@@ -18,7 +18,8 @@ import AIAnalysis from "@/components/company/AIAnalysis";
 import { Loader2, ArrowLeft, RefreshCw, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useMarket } from "@/hooks/use-market";
-import { getMultiSourceStockData, getComprehensiveStockData, getYFStockFinancials, getYFStockChart, getCompanyNews, getPeerComparison } from '@/lib/api-service';
+import { getComprehensiveStockData } from "@/lib/api-service";
+import { getPeerComparison } from "@/services/apiService";
 // Import html2pdf and declare its type to include the 'from' method
 import html2pdfLib from 'html2pdf.js';
 // Use a type assertion to tell TypeScript that the library has the methods we need

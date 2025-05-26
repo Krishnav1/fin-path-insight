@@ -42,7 +42,6 @@ const FinWell = lazy(() => import("./pages/FinWell"));
 const Tools = lazy(() => import("./pages/Tools"));
 const CompanyAnalysis = lazy(() => import("./pages/CompanyAnalysis"));
 const FinGeniePage = lazy(() => import("./pages/FinGeniePage"));
-const PortfolioAnalysisPage = lazy(() => import("./pages/tools/portfolio/index"));
 const AdminPanel = lazy(() => import("./pages/AdminPanel"));
 
 // Lazy loaded components
@@ -61,8 +60,8 @@ const PrivacyPage = lazy(() => import("./pages/privacy/index"));
 
 // Lazy loaded tool pages
 const StockScreenerPage = lazy(() => import("./pages/tools/stock-screener/index"));
-const PortfolioAnalyzerPage = lazy(() => import("./pages/tools/portfolio-analyzer/index"));
 const TechnicalAnalysisPage = lazy(() => import("./pages/tools/technical-analysis/index"));
+const PortfolioAnalyzerPage = lazy(() => import("./pages/tools/portfolio-analyzer/index"));
 const FinGenieToolPage = lazy(() => import("./pages/tools/fingenie/index"));
 
 // Optimized React Query client with caching and retry configuration
@@ -241,7 +240,7 @@ const App = () => (
                   } />
                   <Route path="/portfolio" element={
                     <Suspense fallback={<LoadingFallback />}>
-                      <PortfolioAnalysisPage />
+                      <PortfolioAnalyzerPage />
                     </Suspense>
                   } />
                   <Route path="/tools/technical-analysis" element={

@@ -59,6 +59,11 @@ export default function News() {
           fetchParams.symbols = ['RELIANCE.NSE', 'TCS.NSE', 'HDFCBANK.NSE', 'INFY.NSE'];
         }
         const newsData = await fetchNews(fetchParams);
+        if (!Array.isArray(newsData)) {
+          setNewsItems([]);
+          setLoading(false);
+          return;
+        }
         // Map the EODHD news data to our NewsItem format
         const apiNewsItems: NewsItem[] = newsData.map((article: any) => ({
           title: article.title,

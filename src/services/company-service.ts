@@ -1,11 +1,8 @@
-import { createClient } from '@supabase/supabase-js';
+// NOTE: Ensure Supabase RLS (Row Level Security) policies allow access for all tables used below for the current user/session.
+import { supabase } from '@/lib/supabase';
 import { callEdgeFunction, EdgeFunctionErrorType } from '@/lib/edge-function-client';
 import { API_ENDPOINTS } from '@/config/api-config';
 
-// Initialize Supabase client
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
 const ADMIN_API_KEY = import.meta.env.VITE_ADMIN_API_KEY;
 
 // Define interfaces for company data

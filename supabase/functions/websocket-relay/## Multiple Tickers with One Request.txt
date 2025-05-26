@@ -1,0 +1,85 @@
+## Multiple Tickers with One Request
+Add the ‘s=’ parameter to your URL, and you will be able to retrieve data for multiple tickers in a single request. All tickers should be separated by a comma. For example, you can request data for AAPL.US, VTI, and EUR.FOREX with the following URL:
+
+```
+https://eodhd.com/api/real-time/AAPL.US?s=VTI,EUR.FOREX&api_token=demo&fmt=json
+```
+
+[Sign up](https://eodhd.com/register)
+
+```
+curl --location "https://eodhd.com/api/real-time/AAPL.US?s=VTI,EUR.FOREX&api_token=demo&fmt=json"
+```
+
+[Sign up](https://eodhd.com/register)
+
+```
+$curl = curl_init();
+
+curl_setopt_array($curl, array(
+    CURLOPT_URL => 'https://eodhd.com/api/real-time/AAPL.US?s=VTI,EUR.FOREX&api_token=demo&fmt=json',
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_ENCODING => '',
+    CURLOPT_MAXREDIRS => 10,
+    CURLOPT_TIMEOUT => 0,
+    CURLOPT_FOLLOWLOCATION => true,
+    CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+    CURLOPT_CUSTOMREQUEST => 'GET',
+));
+
+$data = curl_exec($curl);
+curl_close($curl);
+
+try {
+    $data = json_decode($data, true, 512, JSON_THROW_ON_ERROR);
+    var_dump($data);
+} catch (Exception $e) {
+    echo 'Error. '.$e->getMessage();
+}
+```
+
+[Sign up](https://eodhd.com/register)
+
+```
+import requests
+
+url = f'https://eodhd.com/api/real-time/AAPL.US?s=VTI,EUR.FOREX&api_token=demo&fmt=json'
+data = requests.get(url).json()
+
+print(data)
+```
+
+[Sign up](https://eodhd.com/register)
+
+```
+library(httr)
+library(jsonlite)
+
+url <- 'https://eodhd.com/api/real-time/AAPL.US?s=VTI,EUR.FOREX&api_token=demo&fmt=json'
+response <- GET(url)
+
+if (http_type(response) == "application/json") {
+    content <- content(response, "text", encoding = "UTF-8")
+    cat(content)
+} else {
+    cat("Error while receiving data\n")
+}
+```
+
+[Sign up](https://eodhd.com/register)
+[Try it now (it's free)!](https://eodhd.com/lp/eodhd-chatgpt)
+[How to use it (YouTube)](https://www.youtube.com/watch?v=QVWiLukag7o)
+Please note that ‘AAPL.US’ is used here at the beginning, and additional tickers are added with the ‘s=’ parameter.
+
+## JSON and CSV formats
+We support live (delayed) stock price data in both JSON and CSV formats. If you prefer CSV output, simply change ‘fmt=json’ to ‘fmt=csv’ or remove this parameter altogether.
+
+## Daily limits
+Our API has a limit of 100,000 requests per day, with each symbol request counting as 1 API call. For instance, a request for multiple tickers with 10 symbols will consume 10 API calls.
+
+## Live data via Excel and Google Sheets
+Access live data through our free Excel and Google Sheets add-ons. Learn more about them and download them here. With these add-ons, financial data for stocks, ETFs, mutual funds, and FOREX markets is now available on any device without coding. Additionally, we provide [Excel support for Webservice](https://eodhd.com/financial-apis/wp-admin/post.php?post=77&action=edit).
+
+## Conclusion
+EODHD provides one of the best solutions for integrating live finance data into decision-making projects, offering stock market data with real-time streaming and historical data API capabilities across global markets. Explore our [pricing plans](https://eodhd.com/pricing) to explore all avalible features for your financial projects. We recommend checking out our Live (Delayed) Data API, which complements our offerings with free real-time and historical stock market data, empowering users with insights for their trading strategies.
+[Sign up & Get Data](https://eodhd.com/register)

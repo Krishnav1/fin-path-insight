@@ -98,7 +98,7 @@ export async function getEnhancedChartData(
   indicators: string[] = []
 ) {
   try {
-    const data = await getIntradayPrices(symbol, interval, range);
+    const data = await getIntradayPricesEODHD(symbol, interval, range);
     
     if (!data || data.length === 0) {
       return { labels: [], datasets: [] };

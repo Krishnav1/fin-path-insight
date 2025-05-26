@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
@@ -26,24 +26,601 @@ import {
   Edit,
   Plus
 } from 'lucide-react';
+import { Modal } from 'antd';
+import { createClient } from '@supabase/supabase-js';
+import { useAuth } from '@/context/AuthContext';
+import { toast } from '@/components/ui/use-toast';
+
+// Supabase client setup
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+// EODHD API key
+const EODHD_API_KEY = import.meta.env.VITE_EODHD_API_KEY || process.env.VITE_EODHD_API_KEY;
+
+// Define GeminiAnalysis interface for portfolio analysis results
+interface GeminiAnalysis {
+  overview: {
+    total_invested: string;
+    market_value: string;
+    absolute_return: string;
+    percent_return: string;
+    top_gainer: string;
+    worst_performer: string;
+  };
+  stock_breakdown: Array<{
+    symbol: string;
+    sector: string;
+    percent_gain: string;
+    recommendation: string;
+  }>;
+  diversification: {
+    sector_breakdown: Record<string, string>;
+    risk_flag: 'High' | 'Medium' | 'Low';
+  };
+  recommendations: string[];
+  summary: string;
+}
 
 export default function PortfolioAnalyzerPage() {
+  const { user } = useAuth();
   const navigate = useNavigate();
+
+  // Check user existence in Supabase after login
+  useEffect(() => {
+    const checkUserInSupabase = async () => {
+      if (!user) return;
+      const { data, error } = await supabase
+        .from('users') // Change to 'admin_users' if admin-only
+        .select('*')
+        .eq('id', user.id)
+        .single();
+      if (error || !data) {
+        toast({
+          title: 'User Not Found',
+          description: 'Your account could not be found in our database. Please contact support.',
+          variant: 'destructive'
+        });
+        navigate('/login');
+      }
+    };
+    checkUserInSupabase();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+  const [showAddStockModal, setShowAddStockModal] = useState(false);
+  const [showEditStockModal, setShowEditStockModal] = useState(false);
+  const [newStock, setNewStock] = useState({ symbol: '', name: '', quantity: '', buyPrice: '', sector: '' });
+  const [editingStock, setEditingStock] = useState<any>(null);
+  const [stocks, setStocks] = useState<Array<{
+    symbol: string;
+    name: string;
+    quantity: number;
+    buyPrice: number;
+    currentPrice: number;
+    value: number;
+    profit: number;
+    profitPercentage: number;
+    allocation: number;
+    sector: string;
+    id?: string;
+  }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [portfolioId, setPortfolioId] = useState(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<GeminiAnalysis | null>(null);
+  const [analysisCache, setAnalysisCache] = useState<{timestamp: number, data: GeminiAnalysis} | null>(null);
+
+  // Fetch user's portfolio data on component mount
+  useEffect(() => {
+    if (user) {
+      fetchUserPortfolio();
+    }
+  }, [user]);
+  
+  // Set up periodic refresh of stock prices (every 5 minutes)
+  useEffect(() => {
+    if (!stocks.length) return;
+    
+    const refreshInterval = setInterval(() => {
+      refreshStockPrices();
+    }, 5 * 60 * 1000); // 5 minutes
+    
+    return () => clearInterval(refreshInterval);
+  }, [stocks]);
+  
+  // Cache expiration check for analysis results
+  useEffect(() => {
+    if (analysisCache && analysisCache.timestamp) {
+      const cacheAge = Date.now() - analysisCache.timestamp;
+      const cacheExpiryTime = 24 * 60 * 60 * 1000; // 24 hours
+      
+      if (cacheAge < cacheExpiryTime) {
+        setAnalysisResult(analysisCache.data);
+      } else {
+        setAnalysisCache(null);
+      }
+    }
+  }, [analysisCache]);
+
+  // Fetch user's portfolio and holdings
+  const fetchUserPortfolio = async () => {
+    if (!user) {
+      toast({
+        title: 'Not Authenticated',
+        description: 'Please log in to view your portfolio.',
+        variant: 'destructive'
+      });
+      setLoading(false);
+      return;
+    }
+    try {
+      setLoading(true);
+      // 1. Get or create user's portfolio
+      const { data: portfolios, error: portfolioError } = await supabase
+        .from('portfolios')
+        .select('id')
+        .eq('user_id', user.id)
+        .limit(1);
+
+      let currentPortfolioId;
+
+      if (portfolioError) throw portfolioError;
+
+      if (portfolios && portfolios.length > 0) {
+        currentPortfolioId = portfolios[0].id;
+      } else {
+        // Create a portfolio if none exists
+        if (!user) {
+          toast({
+            title: 'Not Authenticated',
+            description: 'Please log in to create a portfolio.',
+            variant: 'destructive'
+          });
+          return;
+        }
+        const { data: newPortfolio, error: createError } = await supabase
+          .from('portfolios')
+          .insert([{ 
+            user_id: user.id, 
+            name: 'My Portfolio', 
+            description: 'My investment portfolio',
+            is_public: false
+          }])
+          .select();
+
+        if (createError) throw createError;
+        currentPortfolioId = newPortfolio[0].id;
+      }
+
+      setPortfolioId(currentPortfolioId);
+
+      // 2. Get portfolio holdings
+      const { data: holdings, error: holdingsError } = await supabase
+        .from('portfolio_holdings')
+        .select('*')
+        .eq('portfolio_id', currentPortfolioId);
+
+      if (holdingsError) throw holdingsError;
+
+      if (holdings && holdings.length > 0) {
+        // Format holdings to match the UI state format
+        const formattedStocks = holdings.map(holding => ({
+          symbol: holding.symbol,
+          name: holding.name || holding.symbol,
+          quantity: Number(holding.quantity),
+          buyPrice: Number(holding.buy_price || holding.purchase_price),
+          currentPrice: Number(holding.current_price || holding.buy_price || holding.purchase_price),
+          value: Number(holding.quantity) * Number(holding.current_price || holding.buy_price || holding.purchase_price),
+          profit: Number(holding.current_price - holding.buy_price) * Number(holding.quantity),
+          profitPercentage: ((Number(holding.current_price) / Number(holding.buy_price)) - 1) * 100,
+          allocation: 0, // Will calculate this after getting all holdings
+          sector: holding.sector || 'Other',
+        }));
+
+        // Calculate allocation percentages
+        const totalValue = formattedStocks.reduce((sum, stock) => sum + stock.value, 0);
+        formattedStocks.forEach(stock => {
+          stock.allocation = (stock.value / totalValue) * 100;
+        });
+
+        setStocks(formattedStocks);
+      }
+    } catch (error) {
+      console.error('Error fetching portfolio:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load portfolio data',
+        variant: 'destructive'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch current stock price from EODHD API
+  const fetchStockData = async (symbol) => {
+    try {
+      const response = await fetch(`https://fin-path-insight.netlify.app/api/eodhd-proxy?endpoint=real-time/${symbol}?api_token=${EODHD_API_KEY}`);
+      if (!response.ok) throw new Error('Failed to fetch stock data');
+      const data = await response.json();
+      return data.close || data.previousClose || null;
+    } catch (error) {
+      console.error(`Error fetching data for ${symbol}:`, error);
+      return null;
+    }
+  };
+  
+  // Refresh stock prices periodically
+  const refreshStockPrices = async () => {
+    if (!stocks.length || !user) return;
+    
+    try {
+      setRefreshing(true);
+      const updatedStocks = [...stocks];
+      let hasUpdates = false;
+      
+      // Get fresh prices for all stocks
+      for (const stock of updatedStocks) {
+        const currentPrice = await fetchStockData(stock.symbol);
+        if (currentPrice && currentPrice !== stock.currentPrice) {
+          hasUpdates = true;
+          
+          // Update calculations based on new price
+          stock.currentPrice = currentPrice;
+          stock.value = stock.quantity * currentPrice;
+          stock.profit = (currentPrice - stock.buyPrice) * stock.quantity;
+          stock.profitPercentage = ((currentPrice / stock.buyPrice) - 1) * 100;
+          
+          // Update in Supabase
+          await supabase
+            .from('portfolio_holdings')
+            .update({ current_price: currentPrice })
+            .eq('portfolio_id', portfolioId)
+            .eq('symbol', stock.symbol);
+        }
+      }
+      
+      // Recalculate allocation percentages if any prices changed
+      if (hasUpdates) {
+        const totalValue = updatedStocks.reduce((sum, stock) => sum + stock.value, 0);
+        updatedStocks.forEach(stock => {
+          stock.allocation = (stock.value / totalValue) * 100;
+        });
+        
+        setStocks(updatedStocks);
+        toast({
+          title: 'Prices Updated',
+          description: 'Stock prices have been refreshed',
+          variant: 'default'
+        });
+      }
+    } catch (error) {
+      console.error('Error refreshing stock prices:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  // Handle adding a new stock to portfolio
+  const handleAddStock = async () => {
+    if (!user) {
+      toast({
+        title: 'Not Authenticated',
+        description: 'Please log in to add stocks to your portfolio.',
+        variant: 'destructive'
+      });
+      return;
+    }
+    if (!newStock.symbol || !newStock.name || !newStock.quantity || !newStock.buyPrice) {
+      toast({
+        title: 'Missing Information',
+        description: 'Please fill in all required fields',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      // 1. Get current price from EODHD API
+      const currentPrice = await fetchStockData(newStock.symbol) || Number(newStock.buyPrice);
+      
+      // 2. Insert into Supabase
+      const { data, error } = await supabase
+        .from('portfolio_holdings')
+        .insert([{
+          user_id: user.id,
+          portfolio_id: portfolioId,
+          symbol: newStock.symbol,
+          name: newStock.name,
+          quantity: Number(newStock.quantity),
+          buy_price: Number(newStock.buyPrice),
+          current_price: currentPrice,
+          sector: newStock.sector || 'Other',
+          buy_date: new Date().toISOString().split('T')[0] // Today's date in YYYY-MM-DD format
+        }]);
+
+      if (error) throw error;
+
+      // 3. Update UI state
+      const newStockObj = {
+        symbol: newStock.symbol,
+        name: newStock.name,
+        quantity: Number(newStock.quantity),
+        buyPrice: Number(newStock.buyPrice),
+        currentPrice: currentPrice,
+        value: Number(newStock.quantity) * currentPrice,
+        profit: (currentPrice - Number(newStock.buyPrice)) * Number(newStock.quantity),
+        profitPercentage: ((currentPrice / Number(newStock.buyPrice)) - 1) * 100,
+        allocation: 0, // Will recalculate
+        sector: newStock.sector || 'Other',
+      };
+
+      const updatedStocks = [...stocks, newStockObj];
+      
+      // Recalculate allocations
+      const totalValue = updatedStocks.reduce((sum, stock) => sum + stock.value, 0);
+      updatedStocks.forEach(stock => {
+        stock.allocation = (stock.value / totalValue) * 100;
+      });
+
+      setStocks(updatedStocks);
+      setShowAddStockModal(false);
+      setNewStock({ symbol: '', name: '', quantity: '', buyPrice: '', sector: '' });
+      
+      toast({
+        title: 'Success',
+        description: `${newStock.symbol} added to your portfolio`,
+        variant: 'default'
+      });
+    } catch (error) {
+      console.error('Error adding stock:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to add stock to portfolio',
+        variant: 'destructive'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle editing a stock
+  const handleEditStock = (stock: any) => {
+    setEditingStock(stock);
+    setNewStock({
+      symbol: stock.symbol,
+      name: stock.name,
+      quantity: stock.quantity.toString(),
+      buyPrice: stock.buyPrice.toString(),
+      sector: stock.sector
+    });
+    setShowEditStockModal(true);
+  };
+  
+  // Handle deleting a stock
+  const handleDeleteStock = async (stock: any) => {
+    if (!user || !confirm(`Are you sure you want to delete ${stock.symbol} from your portfolio?`)) return;
+    
+    try {
+      setLoading(true);
+      
+      // Delete from Supabase
+      const { error } = await supabase
+        .from('portfolio_holdings')
+        .delete()
+        .eq('portfolio_id', portfolioId)
+        .eq('symbol', stock.symbol);
+        
+      if (error) throw error;
+      
+      // Update local state
+      const updatedStocks = stocks.filter(s => s.symbol !== stock.symbol);
+      
+      // Recalculate allocations
+      if (updatedStocks.length > 0) {
+        const totalValue = updatedStocks.reduce((sum, s) => sum + s.value, 0);
+        updatedStocks.forEach(s => {
+          s.allocation = (s.value / totalValue) * 100;
+        });
+      }
+      
+      setStocks(updatedStocks);
+      
+      toast({
+        title: 'Stock Removed',
+        description: `${stock.symbol} has been removed from your portfolio`,
+        variant: 'default'
+      });
+    } catch (error) {
+      console.error('Error deleting stock:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to delete stock',
+        variant: 'destructive'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Save edited stock
+  const handleSaveEditedStock = async () => {
+    if (!editingStock || !user) return;
+    
+    if (!newStock.symbol || !newStock.name || !newStock.quantity || !newStock.buyPrice) {
+      toast({
+        title: 'Missing Information',
+        description: 'Please fill in all required fields',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      
+      // Update in Supabase
+      const { error } = await supabase
+        .from('portfolio_holdings')
+        .update({
+          name: newStock.name,
+          quantity: Number(newStock.quantity),
+          buy_price: Number(newStock.buyPrice),
+          sector: newStock.sector || 'Other'
+        })
+        .eq('portfolio_id', portfolioId)
+        .eq('symbol', editingStock.symbol);
+        
+      if (error) throw error;
+      
+      // Get current price
+      const currentPrice = editingStock.currentPrice;
+      
+      // Update local state
+      const updatedStocks = stocks.map(stock => {
+        if (stock.symbol === editingStock.symbol) {
+          const updatedStock = {
+            ...stock,
+            name: newStock.name,
+            quantity: Number(newStock.quantity),
+            buyPrice: Number(newStock.buyPrice),
+            sector: newStock.sector || 'Other',
+            value: Number(newStock.quantity) * currentPrice,
+            profit: (currentPrice - Number(newStock.buyPrice)) * Number(newStock.quantity),
+            profitPercentage: ((currentPrice / Number(newStock.buyPrice)) - 1) * 100
+          };
+          return updatedStock;
+        }
+        return stock;
+      });
+      
+      // Recalculate allocations
+      const totalValue = updatedStocks.reduce((sum, stock) => sum + stock.value, 0);
+      updatedStocks.forEach(stock => {
+        stock.allocation = (stock.value / totalValue) * 100;
+      });
+      
+      setStocks(updatedStocks);
+      setShowEditStockModal(false);
+      setEditingStock(null);
+      setNewStock({ symbol: '', name: '', quantity: '', buyPrice: '', sector: '' });
+      
+      toast({
+        title: 'Stock Updated',
+        description: `${editingStock.symbol} has been updated`,
+        variant: 'default'
+      });
+    } catch (error) {
+      console.error('Error updating stock:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update stock',
+        variant: 'destructive'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Analyze portfolio using Vertex AI with caching
+  const analyzePortfolio = async () => {
+    if (!user) return;
+    
+    if (stocks.length === 0) {
+      toast({
+        title: 'No Stocks',
+        description: 'Please add stocks to your portfolio first',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    // Check if we have a valid cache before making an API call
+    if (analysisCache && analysisCache.timestamp) {
+      const cacheAge = Date.now() - analysisCache.timestamp;
+      const cacheExpiryTime = 6 * 60 * 60 * 1000; // 6 hours
+      
+      if (cacheAge < cacheExpiryTime) {
+        setAnalysisResult(analysisCache.data);
+        toast({
+          title: 'Analysis Loaded',
+          description: 'Using cached analysis results (less than 6 hours old)',
+          variant: 'default'
+        });
+        return;
+      }
+    }
+
+    try {
+      setAnalyzing(true);
+      
+      // Format portfolio data for the analyze-portfolio function
+      const portfolioData = {
+        holdings: stocks.map(stock => ({
+          symbol: stock.symbol,
+          name: stock.name,
+          quantity: stock.quantity,
+          price: stock.currentPrice,
+          value: stock.value,
+          sector: stock.sector
+        }))
+      };
+
+      // Call the analyze-portfolio edge function
+      const response = await fetch('https://fin-path-insight.netlify.app/api/analyze-portfolio', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(portfolioData),
+      });
+
+      if (!response.ok) throw new Error('Failed to analyze portfolio');
+      
+      const analysisData = await response.json();
+      setAnalysisResult(analysisData);
+      
+      // Cache the analysis result
+      setAnalysisCache({
+        timestamp: Date.now(),
+        data: analysisData
+      });
+
+      // Save analysis to Supabase
+      await supabase
+        .from('portfolio_analysis')
+        .insert([{
+          user_id: user.id,
+          portfolio_id: portfolioId,
+          analysis_data: analysisData
+        }]);
+
+      toast({
+        title: 'Analysis Complete',
+        description: 'Your portfolio has been analyzed successfully',
+        variant: 'default'
+      });
+    } catch (error) {
+      console.error('Error analyzing portfolio:', error);
+      toast({
+        title: 'Analysis Failed',
+        description: 'Could not complete portfolio analysis',
+        variant: 'destructive'
+      });
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
   const [activeTab, setActiveTab] = useState('overview');
   const [isDragging, setIsDragging] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
   
-  // Automatically redirect to the functional portfolio page after a short delay
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setRedirecting(true);
-      setTimeout(() => {
-        navigate('/tools/portfolio');
-      }, 2000);
-    }, 3000);
-    
-    return () => clearTimeout(timer);
-  }, [navigate]);
+  
   
   // Mock portfolio data
   const portfolioData = {
@@ -177,35 +754,175 @@ export default function PortfolioAnalyzerPage() {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    // Handle file drop logic here
+    
+    // Get dropped files
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      // Create a synthetic event to reuse handleFileChange
+      const syntheticEvent = {
+        target: {
+          files: files
+        }
+      } as React.ChangeEvent<HTMLInputElement>;
+      
+      handleFileChange(syntheticEvent);
+    }
   };
   
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Handle file selection logic here
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || !e.target.files[0] || !user) return;
+    
+    const file = e.target.files[0];
+    if (file.type !== 'text/csv') {
+      toast({
+        title: 'Invalid File Type',
+        description: 'Please upload a CSV file',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      
+      // Read the CSV file
+      const fileText = await file.text();
+      const rows = fileText.split('\n').filter(row => row.trim());
+      
+      // Parse header row to find column indexes
+      const headers = rows[0].split(',').map(header => header.trim().toLowerCase());
+      const symbolIndex = headers.indexOf('symbol');
+      const nameIndex = headers.indexOf('name');
+      const quantityIndex = headers.indexOf('quantity');
+      const buyPriceIndex = headers.indexOf('buyprice') !== -1 ? headers.indexOf('buyprice') : headers.indexOf('buy price');
+      const sectorIndex = headers.indexOf('sector');
+      
+      if (symbolIndex === -1 || quantityIndex === -1 || buyPriceIndex === -1) {
+        toast({
+          title: 'Invalid CSV Format',
+          description: 'CSV must include symbol, quantity, and buy price columns',
+          variant: 'destructive'
+        });
+        return;
+      }
+      
+      // Process data rows
+      const newStocks: Array<{symbol: string; name: string; quantity: number; buyPrice: number; sector: string}> = [];
+      for (let i = 1; i < rows.length; i++) {
+        const cells = rows[i].split(',').map(cell => cell.trim());
+        
+        const symbol = cells[symbolIndex];
+        const name = nameIndex !== -1 ? cells[nameIndex] : symbol;
+        const quantity = parseFloat(cells[quantityIndex]);
+        const buyPrice = parseFloat(cells[buyPriceIndex]);
+        const sector = sectorIndex !== -1 ? cells[sectorIndex] : 'Other';
+        
+        if (!symbol || isNaN(quantity) || isNaN(buyPrice)) continue;
+        
+        newStocks.push({
+          symbol,
+          name,
+          quantity,
+          buyPrice,
+          sector
+        });
+      }
+      
+      if (newStocks.length === 0) {
+        toast({
+          title: 'No Valid Data',
+          description: 'No valid stock data found in the CSV',
+          variant: 'destructive'
+        });
+        return;
+      }
+      
+      // Add stocks to portfolio in Supabase and update UI
+      let addedCount = 0;
+      for (const stock of newStocks) {
+        // Get current price
+        const currentPrice = await fetchStockData(stock.symbol) || stock.buyPrice;
+        
+        // Add to Supabase
+        const { error } = await supabase
+          .from('portfolio_holdings')
+          .insert([{
+            user_id: user.id,
+            portfolio_id: portfolioId,
+            symbol: stock.symbol,
+            name: stock.name,
+            quantity: stock.quantity,
+            buy_price: stock.buyPrice,
+            current_price: currentPrice,
+            sector: stock.sector,
+            buy_date: new Date().toISOString().split('T')[0]
+          }]);
+          
+        if (!error) addedCount++;
+      }
+      
+      // Refresh portfolio to update UI
+      await fetchUserPortfolio();
+      
+      toast({
+        title: 'CSV Import Complete',
+        description: `Added ${addedCount} stocks to your portfolio`,
+        variant: 'default'
+      });
+    } catch (error) {
+      console.error('Error importing CSV:', error);
+      toast({
+        title: 'Import Failed',
+        description: 'Failed to import CSV data',
+        variant: 'destructive'
+      });
+    } finally {
+      setLoading(false);
+      // Reset file input
+      e.target.value = '';
+    }
   };
+
+  function handleInputChange(event: React.ChangeEvent<HTMLInputElement>) {
+  const { name, value } = event.target;
+  setNewStock(prev => ({ ...prev, [name]: value }));
+}
+
+function handleQuantityChange(event: React.ChangeEvent<HTMLInputElement>) {
+  const value = event.target.value.replace(/[^0-9]/g, '');
+  setNewStock(prev => ({ ...prev, quantity: value }));
+}
+
+function handleBuyPriceChange(event: React.ChangeEvent<HTMLInputElement>) {
+  const value = event.target.value.replace(/[^0-9.]/g, '');
+  setNewStock(prev => ({ ...prev, buyPrice: value }));
+}
+
+function handleCancelAddStock() {
+  setShowAddStockModal(false);
+  setNewStock({ symbol: '', name: '', quantity: '', buyPrice: '', sector: '' });
+}
+
+// --- Supabase Insert Example (user to fill table name/config) ---
+// import { createClient } from '@supabase/supabase-js';
+// const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
+//
+// async function insertStockToSupabase(stock) {
+//   const { data, error } = await supabase.from('your_table_name').insert([stock]);
+//   if (error) {
+//     console.error('Supabase insert error:', error);
+//   }
+// }
+//
+// In handleAddStock, after setStocks([...]), call:
+// insertStockToSupabase(newStock);
+
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <Header />
       
-      {/* Prototype Banner */}
-      <div className="bg-amber-100 border-l-4 border-amber-500 text-amber-700 p-4 sticky top-0 z-50">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center">
-            <AlertTriangle className="h-5 w-5 mr-2" />
-            <p>
-              <strong>Prototype Version:</strong> This is a non-functional prototype. You are being redirected to the actual portfolio tool{redirecting ? '...' : ''}
-            </p>
-          </div>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => navigate('/tools/portfolio')}
-          >
-            Go to Portfolio Tool Now
-          </Button>
-        </div>
-      </div>
+
       
       <main className="flex-grow container mx-auto px-4 py-8">
         <div className="max-w-7xl mx-auto">
@@ -272,15 +989,129 @@ export default function PortfolioAnalyzerPage() {
               </div>
             </CardContent>
             <CardFooter className="flex justify-between">
-              <Button variant="outline">
+              <Button variant="outline" onClick={() => setShowAddStockModal(true)}>
                 <Plus className="mr-2 h-4 w-4" />
                 Add Stocks Manually
               </Button>
-              <Button>Analyze Portfolio</Button>
+              <Button onClick={analyzePortfolio} disabled={analyzing || stocks.length === 0}>
+                {analyzing ? 'Analyzing...' : 'Analyze Portfolio'}
+              </Button>
             </CardFooter>
           </Card>
           
           {/* Portfolio Analysis Tabs */}
+          
+          <Modal 
+            title="Add Stock" 
+            open={showAddStockModal} 
+            onCancel={handleCancelAddStock}
+            footer={[
+              <Button key="cancel" variant="ghost" onClick={handleCancelAddStock}>Cancel</Button>,
+              <Button key="add" onClick={handleAddStock}>Add</Button>
+            ]}
+          >
+
+            <div className="space-y-4">
+              <Input
+                type="text"
+                name="symbol"
+                value={newStock.symbol}
+                onChange={handleInputChange}
+                placeholder="Symbol"
+              />
+              <Input
+                type="text"
+                name="name"
+                value={newStock.name}
+                onChange={handleInputChange}
+                placeholder="Name"
+              />
+              <Input
+                type="number"
+                name="quantity"
+                value={newStock.quantity}
+                onChange={handleQuantityChange}
+                placeholder="Quantity"
+              />
+              <Input
+                type="number"
+                name="buyPrice"
+                value={newStock.buyPrice}
+                onChange={handleBuyPriceChange}
+                placeholder="Buy Price"
+              />
+              <Input
+                type="text"
+                name="sector"
+                value={newStock.sector}
+                onChange={handleInputChange}
+                placeholder="Sector"
+              />
+            </div>
+          </Modal>
+          
+          {/* Edit Stock Modal */}
+          <Modal
+            title="Edit Stock"
+            open={showEditStockModal}
+            onCancel={() => {
+              setShowEditStockModal(false);
+              setEditingStock(null);
+              setNewStock({ symbol: '', name: '', quantity: '', buyPrice: '', sector: '' });
+            }}
+            footer={[
+              <Button 
+                key="cancel" 
+                variant="ghost" 
+                onClick={() => {
+                  setShowEditStockModal(false);
+                  setEditingStock(null);
+                  setNewStock({ symbol: '', name: '', quantity: '', buyPrice: '', sector: '' });
+                }}
+              >
+                Cancel
+              </Button>,
+              <Button key="save" onClick={handleSaveEditedStock}>Save</Button>
+            ]}
+          >
+            <div className="space-y-4">
+              <Input
+                type="text"
+                name="symbol"
+                value={newStock.symbol}
+                disabled={true}
+                placeholder="Symbol"
+              />
+              <Input
+                type="text"
+                name="name"
+                value={newStock.name}
+                onChange={handleInputChange}
+                placeholder="Name"
+              />
+              <Input
+                type="number"
+                name="quantity"
+                value={newStock.quantity}
+                onChange={handleQuantityChange}
+                placeholder="Quantity"
+              />
+              <Input
+                type="number"
+                name="buyPrice"
+                value={newStock.buyPrice}
+                onChange={handleBuyPriceChange}
+                placeholder="Buy Price"
+              />
+              <Input
+                type="text"
+                name="sector"
+                value={newStock.sector}
+                onChange={handleInputChange}
+                placeholder="Sector"
+              />
+            </div>
+          </Modal>
           <Tabs defaultValue="overview" onValueChange={setActiveTab} className="mb-8">
             <TabsList className="grid grid-cols-4">
               <TabsTrigger value="overview">Overview</TabsTrigger>
@@ -322,9 +1153,9 @@ export default function PortfolioAnalyzerPage() {
                     <CardTitle className="text-lg">Holdings</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-3xl font-bold">{portfolioData.stocks.length}</div>
+                    <div className="text-3xl font-bold">{stocks.length}</div>
                     <p className="text-slate-500 dark:text-slate-400 text-sm">
-                      Across {new Set(portfolioData.stocks.map(stock => stock.sector)).size} sectors
+                      Across {new Set(stocks.map(stock => stock.sector)).size} sectors
                     </p>
                   </CardContent>
                 </Card>
@@ -361,7 +1192,7 @@ export default function PortfolioAnalyzerPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {portfolioData.stocks.map((stock) => (
+                        {stocks.map((stock) => (
                           <TableRow key={stock.symbol}>
                             <TableCell className="font-medium">
                               <div>
@@ -393,10 +1224,10 @@ export default function PortfolioAnalyzerPage() {
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-2">
-                                <Button variant="ghost" size="icon">
+                                <Button variant="ghost" size="icon" onClick={() => handleEditStock(stock)}>
                                   <Edit className="h-4 w-4" />
                                 </Button>
-                                <Button variant="ghost" size="icon">
+                                <Button variant="ghost" size="icon" onClick={() => handleDeleteStock(stock)}>
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
                               </div>
@@ -493,7 +1324,7 @@ export default function PortfolioAnalyzerPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      {portfolioData.stocks
+                      {stocks
                         .sort((a, b) => b.profitPercentage - a.profitPercentage)
                         .slice(0, 3)
                         .map((stock, index) => (
@@ -520,7 +1351,7 @@ export default function PortfolioAnalyzerPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      {portfolioData.stocks
+                      {stocks
                         .sort((a, b) => a.profitPercentage - b.profitPercentage)
                         .slice(0, 3)
                         .map((stock, index) => (
