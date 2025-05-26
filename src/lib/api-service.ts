@@ -1023,28 +1023,19 @@ export async function getFMPStockData(symbol: string): Promise<any> {
 }
 
 // Get stock quote using EODHD API via Edge Function
-async function getStockQuote(symbol: string): Promise<any> {
+export async function getStockQuote(symbol: string): Promise<any> {
   const cacheKey = `quote-${symbol}`;
   const cachedData = apiCache.get(cacheKey);
   if (cachedData) return Promise.resolve(cachedData);
-  
   try {
-    // Import the Edge Function client
-    const { callEdgeFunction } = await import('@/lib/edge-function-client');
-    
-    // Build the URL with proper path and query parameters
+    // Use Edge Function client
     const url = new URL(`${EODHD_BASE_URL}/real-time/${symbol}`);
     url.searchParams.append('fmt', 'json');
-    
-    // Call the Edge Function with proper authentication
     const { data, error } = await callEdgeFunction(url.toString(), 'GET');
-    
     if (error) {
       console.error('Error from EODHD Edge Function:', error);
       throw new Error(`Failed to fetch stock quote: ${error.message}`);
     }
-    
-    // Cache the successful response
     apiCache.set(cacheKey, data);
     return data;
   } catch (error) {
@@ -1055,7 +1046,7 @@ async function getStockQuote(symbol: string): Promise<any> {
 
 // Get live (delayed) stock prices using the EODHD API
 // This uses our Supabase Edge Function to avoid exposing API keys
-async function getLiveStockPrices(symbols: string | string[]): Promise<any> {
+export async function getLiveStockPrices(symbols: string | string[]): Promise<any> {
   // Convert single symbol to array for consistent handling
   const symbolArray = Array.isArray(symbols) ? symbols : [symbols];
   const symbolsStr = symbolArray.join(',');
@@ -1118,22 +1109,18 @@ async function getLiveStockPrices(symbols: string | string[]): Promise<any> {
   }
 }
 
-// Get fundamental data for a stock using EODHD API via Supabase Edge Function
-async function getFundamentalData(symbol: string, type: string = 'general'): Promise<any> {
-  const cacheKey = `fundamental_${symbol}_${type}`;
-  const cachedData = apiCache.get<any>(cacheKey);
-  if (cachedData) return cachedData;
-  
+// Get stock quote using EODHD API via Edge Function
+export async function getStockQuote(symbol: string): Promise<any> {
+  const cacheKey = `quote-${symbol}`;
+  const cachedData = apiCache.get(cacheKey);
+  if (cachedData) return Promise.resolve(cachedData);
   try {
-    const response = await fetch(`${EODHD_FUNDAMENTALS_URL}?symbol=${symbol}&type=${type}`, {
-      headers: getSupabaseHeaders()
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Failed to fetch fundamental data: ${response.statusText}`);
+    // Use Edge Function client
+    const url = `${EODHD_BASE_URL}/real-time/${symbol}?fmt=json`;
+    const { data, error } = await callEdgeFunction(url, 'GET');
+    if (error) {
+      throw new Error(`Failed to fetch fundamental data: ${error.message}`);
     }
-    
-    const data = await response.json();
     apiCache.set(cacheKey, data, 24 * 60 * 60 * 1000); // Cache for 24 hours
     return data;
   } catch (error) {
