@@ -72,17 +72,60 @@ export default function PortfolioAnalyzerPage() {
     const checkUserInSupabase = async () => {
       if (!user) return;
       const { data, error } = await supabase
-        .from('users') // Change to 'admin_users' if admin-only
+        .from('profiles') // Changed from 'users' to 'profiles' which is the correct table
         .select('*')
         .eq('id', user.id)
         .single();
       if (error || !data) {
-        toast({
-          title: 'User Not Found',
-          description: 'Your account could not be found in our database. Please contact support.',
-          variant: 'destructive'
-        });
-        navigate('/login');
+        console.error('Error checking user profile:', error);
+        // Try to check if user exists in auth.users first
+        const { data: authData, error: authError } = await supabase.auth.getUser();
+        
+        if (!authError && authData?.user) {
+          // User exists in auth but not in profiles - create profile
+          console.log('User exists in auth but not in profiles. Creating profile...');
+          try {
+            const { error: insertError } = await supabase
+              .from('profiles')
+              .insert([{
+                id: user.id,
+                email: user.email,
+                full_name: user.user_metadata?.full_name || 'User',
+                email_verified: user.confirmed_at !== null
+              }]);
+              
+            if (insertError) {
+              console.error('Error creating user profile:', insertError);
+              toast({
+                title: 'Profile Creation Failed',
+                description: 'Could not create your profile. Please contact support.',
+                variant: 'destructive'
+              });
+              navigate('/login');
+            } else {
+              // Profile created successfully, continue with app
+              console.log('Profile created successfully.');
+              // Directly proceed to fetch portfolio (no need to navigate away)
+              fetchUserPortfolio();
+            }
+          } catch (e) {
+            console.error('Exception creating profile:', e);
+            toast({
+              title: 'Profile Creation Failed',
+              description: 'Could not create your profile. Please contact support.',
+              variant: 'destructive'
+            });
+            navigate('/login');
+          }
+        } else {
+          // User doesn't exist in auth either
+          toast({
+            title: 'User Not Found',
+            description: 'Your account could not be found in our database. Please contact support.',
+            variant: 'destructive'
+          });
+          navigate('/login');
+        }
       }
     };
     checkUserInSupabase();
@@ -90,8 +133,10 @@ export default function PortfolioAnalyzerPage() {
   }, [user]);
   const [showAddStockModal, setShowAddStockModal] = useState(false);
   const [showEditStockModal, setShowEditStockModal] = useState(false);
+  const [showCsvPreviewModal, setShowCsvPreviewModal] = useState(false);
   const [newStock, setNewStock] = useState({ symbol: '', name: '', quantity: '', buyPrice: '', sector: '', currentPrice: '' });
   const [editingStock, setEditingStock] = useState<any>(null);
+  const [csvPreviewData, setCsvPreviewData] = useState<Array<{symbol: string; name: string; quantity: string; buyPrice: string; sector: string; currentPrice: string}>>([]);
   const [stocks, setStocks] = useState<Array<{
     symbol: string;
     name: string;
@@ -768,11 +813,69 @@ export default function PortfolioAnalyzerPage() {
     }
   };
   
+  // Handle saving CSV preview data to portfolio
+  const handleSaveCsvData = async () => {
+    if (!user || !csvPreviewData.length) return;
+    
+    try {
+      setLoading(true);
+      
+      // Add stocks to portfolio in Supabase and update UI
+      let addedCount = 0;
+      for (const stock of csvPreviewData) {
+        // Get current price if not already set
+        let currentPrice = stock.currentPrice ? Number(stock.currentPrice) : null;
+        if (!currentPrice) {
+          currentPrice = await fetchStockData(stock.symbol) || Number(stock.buyPrice);
+        }
+        
+        // Add to Supabase
+        const { error } = await supabase
+          .from('portfolio_holdings')
+          .insert([{
+            user_id: user.id,
+            portfolio_id: portfolioId,
+            symbol: stock.symbol,
+            name: stock.name,
+            quantity: Number(stock.quantity),
+            buy_price: Number(stock.buyPrice),
+            current_price: currentPrice,
+            sector: stock.sector,
+            buy_date: new Date().toISOString().split('T')[0]
+          }]);
+          
+        if (!error) addedCount++;
+      }
+      
+      // Refresh portfolio to update UI
+      await fetchUserPortfolio();
+      
+      // Close the preview modal and clear data
+      setShowCsvPreviewModal(false);
+      setCsvPreviewData([]);
+      
+      toast({
+        title: 'Import Complete',
+        description: `Added ${addedCount} stocks to your portfolio`,
+        variant: 'default'
+      });
+    } catch (error) {
+      console.error('Error saving CSV data:', error);
+      toast({
+        title: 'Import Failed',
+        description: 'Failed to save portfolio data',
+        variant: 'destructive'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+  
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || !e.target.files[0] || !user) return;
     
     const file = e.target.files[0];
-    if (file.type !== 'text/csv') {
+    if (file.type !== 'text/csv' && !file.name.endsWith('.csv')) {
       toast({
         title: 'Invalid File Type',
         description: 'Please upload a CSV file',
@@ -806,28 +909,29 @@ export default function PortfolioAnalyzerPage() {
       }
       
       // Process data rows
-      const newStocks: Array<{symbol: string; name: string; quantity: number; buyPrice: number; sector: string}> = [];
+      const previewData: Array<{symbol: string; name: string; quantity: string; buyPrice: string; sector: string; currentPrice: string}> = [];
       for (let i = 1; i < rows.length; i++) {
         const cells = rows[i].split(',').map(cell => cell.trim());
         
         const symbol = cells[symbolIndex];
         const name = nameIndex !== -1 ? cells[nameIndex] : symbol;
-        const quantity = parseFloat(cells[quantityIndex]);
-        const buyPrice = parseFloat(cells[buyPriceIndex]);
+        const quantity = cells[quantityIndex];
+        const buyPrice = cells[buyPriceIndex];
         const sector = sectorIndex !== -1 ? cells[sectorIndex] : 'Other';
         
-        if (!symbol || isNaN(quantity) || isNaN(buyPrice)) continue;
+        if (!symbol || isNaN(parseFloat(quantity)) || isNaN(parseFloat(buyPrice))) continue;
         
-        newStocks.push({
+        previewData.push({
           symbol,
           name,
           quantity,
           buyPrice,
-          sector
+          sector,
+          currentPrice: ''
         });
       }
       
-      if (newStocks.length === 0) {
+      if (previewData.length === 0) {
         toast({
           title: 'No Valid Data',
           description: 'No valid stock data found in the CSV',
@@ -836,36 +940,25 @@ export default function PortfolioAnalyzerPage() {
         return;
       }
       
-      // Add stocks to portfolio in Supabase and update UI
-      let addedCount = 0;
-      for (const stock of newStocks) {
-        // Get current price
-        const currentPrice = await fetchStockData(stock.symbol) || stock.buyPrice;
-        
-        // Add to Supabase
-        const { error } = await supabase
-          .from('portfolio_holdings')
-          .insert([{
-            user_id: user.id,
-            portfolio_id: portfolioId,
-            symbol: stock.symbol,
-            name: stock.name,
-            quantity: stock.quantity,
-            buy_price: stock.buyPrice,
-            current_price: currentPrice,
-            sector: stock.sector,
-            buy_date: new Date().toISOString().split('T')[0]
-          }]);
-          
-        if (!error) addedCount++;
+      // Fetch current prices for preview
+      for (const stock of previewData) {
+        try {
+          const currentPrice = await fetchStockData(stock.symbol);
+          if (currentPrice) {
+            stock.currentPrice = currentPrice.toString();
+          }
+        } catch (error) {
+          console.error(`Error fetching price for ${stock.symbol}:`, error);
+        }
       }
       
-      // Refresh portfolio to update UI
-      await fetchUserPortfolio();
+      // Set preview data and show modal
+      setCsvPreviewData(previewData);
+      setShowCsvPreviewModal(true);
       
       toast({
-        title: 'CSV Import Complete',
-        description: `Added ${addedCount} stocks to your portfolio`,
+        title: 'CSV Loaded',
+        description: `Found ${previewData.length} stocks in the CSV file`,
         variant: 'default'
       });
     } catch (error) {
@@ -880,6 +973,20 @@ export default function PortfolioAnalyzerPage() {
       // Reset file input
       e.target.value = '';
     }
+  };
+  
+  // Handle updating a stock in the CSV preview
+  const handleUpdateCsvStock = (index: number, field: string, value: string) => {
+    const updatedData = [...csvPreviewData];
+    updatedData[index] = { ...updatedData[index], [field]: value };
+    setCsvPreviewData(updatedData);
+  };
+  
+  // Handle removing a stock from the CSV preview
+  const handleRemoveCsvStock = (index: number) => {
+    const updatedData = [...csvPreviewData];
+    updatedData.splice(index, 1);
+    setCsvPreviewData(updatedData);
   };
 
   function handleInputChange(event: React.ChangeEvent<HTMLInputElement>) {
@@ -906,6 +1013,35 @@ function handleCancelAddStock() {
   setShowAddStockModal(false);
   setNewStock({ symbol: '', name: '', quantity: '', buyPrice: '', sector: '', currentPrice: '' });
 }
+
+// Function to download CSV template
+const downloadTemplate = () => {
+  // Create CSV content
+  const csvContent = 'symbol,name,quantity,buy_price,sector\nRELIANCE.NS,Reliance Industries Ltd.,10,2500,Energy\nTCS.NS,Tata Consultancy Services Ltd.,5,3200,Technology\n';
+  
+  // Create a Blob with the CSV content
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  
+  // Create a download link
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  
+  // Set link properties
+  link.setAttribute('href', url);
+  link.setAttribute('download', 'portfolio_template.csv');
+  link.style.visibility = 'hidden';
+  
+  // Add to document, trigger download, and remove
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  
+  toast({
+    title: 'Template Downloaded',
+    description: 'CSV template has been downloaded successfully',
+    variant: 'default'
+  });
+};
 
 // --- Supabase Insert Example (user to fill table name/config) ---
 // import { createClient } from '@supabase/supabase-js';
@@ -984,7 +1120,7 @@ function handleCancelAddStock() {
                       <li>Purchase price per share</li>
                       <li>Purchase date (optional)</li>
                     </ul>
-                    <Button variant="outline" className="flex items-center">
+                    <Button variant="outline" className="flex items-center" onClick={downloadTemplate}>
                       <FileText className="mr-2 h-4 w-4" />
                       Download Template
                     </Button>
@@ -1334,6 +1470,333 @@ function handleCancelAddStock() {
       </main>
       
       <Footer />
+      
+      {/* CSV Preview Modal */}
+      <Modal
+        title="Review CSV Import"
+        open={showCsvPreviewModal}
+        onCancel={() => {
+          setShowCsvPreviewModal(false);
+          setCsvPreviewData([]);
+        }}
+        width={1000}
+        footer={null}
+      >
+        <div className="py-4">
+          <div className="mb-4">
+            <p className="text-slate-600 dark:text-slate-400 mb-2">
+              Review your portfolio data before importing. You can edit values directly in the table.
+            </p>
+          </div>
+          
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Symbol</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Quantity</TableHead>
+                  <TableHead>Buy Price</TableHead>
+                  <TableHead>Current Price</TableHead>
+                  <TableHead>Sector</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {csvPreviewData.map((stock, index) => (
+                  <TableRow key={index}>
+                    <TableCell>{stock.symbol}</TableCell>
+                    <TableCell>
+                      <Input 
+                        value={stock.name} 
+                        onChange={(e) => handleUpdateCsvStock(index, 'name', e.target.value)}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input 
+                        value={stock.quantity} 
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/[^0-9]/g, '');
+                          handleUpdateCsvStock(index, 'quantity', value);
+                        }}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input 
+                        value={stock.buyPrice} 
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/[^0-9.]/g, '');
+                          handleUpdateCsvStock(index, 'buyPrice', value);
+                        }}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex space-x-2">
+                        <Input 
+                          value={stock.currentPrice} 
+                          onChange={(e) => {
+                            const value = e.target.value.replace(/[^0-9.]/g, '');
+                            handleUpdateCsvStock(index, 'currentPrice', value);
+                          }}
+                        />
+                        <Button 
+                          variant="outline" 
+                          size="icon" 
+                          onClick={async () => {
+                            try {
+                              const price = await fetchStockData(stock.symbol);
+                              if (price) {
+                                handleUpdateCsvStock(index, 'currentPrice', price.toString());
+                              }
+                            } catch (error) {
+                              console.error(`Error fetching price for ${stock.symbol}:`, error);
+                            }
+                          }}
+                          disabled={loading}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                        </Button>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Input 
+                        value={stock.sector} 
+                        onChange={(e) => handleUpdateCsvStock(index, 'sector', e.target.value)}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={() => handleRemoveCsvStock(index)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          
+          <div className="flex justify-end space-x-2 mt-6">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowCsvPreviewModal(false);
+                setCsvPreviewData([]);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSaveCsvData} 
+              disabled={loading || csvPreviewData.length === 0}
+            >
+              {loading ? 'Importing...' : 'Import to Portfolio'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+      
+      {/* Add Stock Modal */}
+      <Modal
+        title="Add Stock to Portfolio"
+        open={showAddStockModal}
+        onCancel={handleCancelAddStock}
+        footer={null}
+      >
+        <div className="space-y-4 py-2">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="symbol">Symbol</Label>
+              <Input 
+                id="symbol" 
+                name="symbol" 
+                placeholder="e.g., RELIANCE.NS" 
+                value={newStock.symbol} 
+                onChange={handleInputChange} 
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="name">Company Name</Label>
+              <Input 
+                id="name" 
+                name="name" 
+                placeholder="e.g., Reliance Industries Ltd." 
+                value={newStock.name} 
+                onChange={handleInputChange} 
+              />
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="quantity">Quantity</Label>
+              <Input 
+                id="quantity" 
+                name="quantity" 
+                placeholder="e.g., 10" 
+                value={newStock.quantity} 
+                onChange={handleQuantityChange} 
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="buyPrice">Buy Price</Label>
+              <Input 
+                id="buyPrice" 
+                name="buyPrice" 
+                placeholder="e.g., 2500" 
+                value={newStock.buyPrice} 
+                onChange={handleBuyPriceChange} 
+              />
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="sector">Sector</Label>
+              <Input 
+                id="sector" 
+                name="sector" 
+                placeholder="e.g., Technology" 
+                value={newStock.sector} 
+                onChange={handleInputChange} 
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="currentPrice">Current Price (Optional)</Label>
+              <div className="flex space-x-2">
+                <Input 
+                  id="currentPrice" 
+                  name="currentPrice" 
+                  placeholder="e.g., 2600" 
+                  value={newStock.currentPrice} 
+                  onChange={handleCurrentPriceChange} 
+                />
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  onClick={handleRefreshCurrentPrice}
+                  disabled={loading || !newStock.symbol}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </Button>
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex justify-end space-x-2 pt-4">
+            <Button variant="outline" onClick={handleCancelAddStock}>Cancel</Button>
+            <Button onClick={handleAddStock} disabled={loading}>Add Stock</Button>
+          </div>
+        </div>
+      </Modal>
+      
+      {/* Edit Stock Modal */}
+      <Modal
+        title="Edit Stock"
+        open={showEditStockModal}
+        onCancel={() => {
+          setShowEditStockModal(false);
+          setEditingStock(null);
+        }}
+        footer={null}
+      >
+        <div className="space-y-4 py-2">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-symbol">Symbol</Label>
+              <Input 
+                id="edit-symbol" 
+                name="symbol" 
+                value={newStock.symbol} 
+                disabled 
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-name">Company Name</Label>
+              <Input 
+                id="edit-name" 
+                name="name" 
+                value={newStock.name} 
+                onChange={handleInputChange} 
+              />
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-quantity">Quantity</Label>
+              <Input 
+                id="edit-quantity" 
+                name="quantity" 
+                value={newStock.quantity} 
+                onChange={handleQuantityChange} 
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-buyPrice">Buy Price</Label>
+              <Input 
+                id="edit-buyPrice" 
+                name="buyPrice" 
+                value={newStock.buyPrice} 
+                onChange={handleBuyPriceChange} 
+              />
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-sector">Sector</Label>
+              <Input 
+                id="edit-sector" 
+                name="sector" 
+                value={newStock.sector} 
+                onChange={handleInputChange} 
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-currentPrice">Current Price</Label>
+              <div className="flex space-x-2">
+                <Input 
+                  id="edit-currentPrice" 
+                  name="currentPrice" 
+                  value={newStock.currentPrice} 
+                  onChange={handleCurrentPriceChange} 
+                />
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  onClick={handleRefreshCurrentPrice}
+                  disabled={loading || !newStock.symbol}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </Button>
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex justify-end space-x-2 pt-4">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowEditStockModal(false);
+                setEditingStock(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleSaveEditedStock} disabled={loading}>Save Changes</Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
