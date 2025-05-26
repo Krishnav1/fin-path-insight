@@ -1022,21 +1022,35 @@ export async function getFMPStockData(symbol: string): Promise<any> {
   }
 }
 
-// Get stock quote using EODHD API
+// Get stock quote using EODHD API via Edge Function
 async function getStockQuote(symbol: string): Promise<any> {
   const cacheKey = `quote-${symbol}`;
   const cachedData = apiCache.get(cacheKey);
   if (cachedData) return Promise.resolve(cachedData);
   
-  return axios.get(`${EODHD_BASE_URL}/real-time/${symbol}?fmt=json`)
-    .then(response => {
-      apiCache.set(cacheKey, response.data);
-      return response.data;
-    })
-    .catch(error => {
-      console.error('Error fetching stock quote:', error);
-      return null;
-    });
+  try {
+    // Import the Edge Function client
+    const { callEdgeFunction } = await import('@/lib/edge-function-client');
+    
+    // Build the URL with proper path and query parameters
+    const url = new URL(`${EODHD_BASE_URL}/real-time/${symbol}`);
+    url.searchParams.append('fmt', 'json');
+    
+    // Call the Edge Function with proper authentication
+    const { data, error } = await callEdgeFunction(url.toString(), 'GET');
+    
+    if (error) {
+      console.error('Error from EODHD Edge Function:', error);
+      throw new Error(`Failed to fetch stock quote: ${error.message}`);
+    }
+    
+    // Cache the successful response
+    apiCache.set(cacheKey, data);
+    return data;
+  } catch (error) {
+    console.error('Error fetching stock quote:', error);
+    return null;
+  }
 }
 
 // Get live (delayed) stock prices using the EODHD API

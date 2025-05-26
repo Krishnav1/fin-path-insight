@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,8 +28,22 @@ import {
 } from 'lucide-react';
 
 export default function PortfolioAnalyzerPage() {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('overview');
   const [isDragging, setIsDragging] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
+  
+  // Automatically redirect to the functional portfolio page after a short delay
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setRedirecting(true);
+      setTimeout(() => {
+        navigate('/tools/portfolio');
+      }, 2000);
+    }, 3000);
+    
+    return () => clearTimeout(timer);
+  }, [navigate]);
   
   // Mock portfolio data
   const portfolioData = {
@@ -170,8 +185,27 @@ export default function PortfolioAnalyzerPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <Header />
+      
+      {/* Prototype Banner */}
+      <div className="bg-amber-100 border-l-4 border-amber-500 text-amber-700 p-4 sticky top-0 z-50">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center">
+            <AlertTriangle className="h-5 w-5 mr-2" />
+            <p>
+              <strong>Prototype Version:</strong> This is a non-functional prototype. You are being redirected to the actual portfolio tool{redirecting ? '...' : ''}
+            </p>
+          </div>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => navigate('/tools/portfolio')}
+          >
+            Go to Portfolio Tool Now
+          </Button>
+        </div>
+      </div>
       
       <main className="flex-grow container mx-auto px-4 py-8">
         <div className="max-w-7xl mx-auto">

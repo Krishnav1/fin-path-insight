@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { Portfolio, StockHolding } from '@/types/portfolio';
+import { callEdgeFunction, EdgeFunctionErrorType } from '@/lib/edge-function-client';
+import { API_ENDPOINTS } from '@/config/api-config';
 
 // Initialize Supabase client
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -296,10 +298,10 @@ export const portfolioService = {
     return true;
   },
   
-  // Analyze portfolio with Gemini
-  async analyzePortfolio(holdings: StockHolding[]): Promise<GeminiAnalysis> {
+  // Analyze portfolio with Gemini/Vertex AI
+  async analyzePortfolio(holdings: StockHolding[]): Promise<{ analysis: GeminiAnalysis | null; error: any | null }> {
     try {
-      console.log('Analyzing portfolio with Gemini...', holdings);
+      console.log('Analyzing portfolio with AI...', holdings);
       
       // Filter out empty or incomplete holdings
       const validHoldings = holdings.filter(h => 
@@ -309,7 +311,13 @@ export const portfolioService = {
       console.log('Valid holdings:', validHoldings);
       
       if (validHoldings.length === 0) {
-        throw new Error('No valid holdings to analyze. Please add complete holdings with symbol, quantity, buy price and current price.');
+        return {
+          analysis: null,
+          error: {
+            type: EdgeFunctionErrorType.VALIDATION,
+            message: 'No valid holdings to analyze. Please add complete holdings with symbol, quantity, buy price and current price.'
+          }
+        };
       }
       
       // Format holdings data for the API - CRITICAL: ensure proper field naming
@@ -323,72 +331,54 @@ export const portfolioService = {
         buy_date: holding.buyDate || new Date().toISOString().split('T')[0]
       }));
       
-      console.log('Calling API with holdings:', JSON.stringify(formattedHoldings));
+      // Call the Edge Function using our centralized client
+      const { data, error } = await callEdgeFunction(API_ENDPOINTS.ANALYZE_PORTFOLIO, 'POST', {
+        holdings: formattedHoldings
+      }, {
+        timeout: 30000, // 30 second timeout
+        retries: 1 // One retry attempt
+      });
       
-      try {
-        // Import API configuration
-        const { API_ENDPOINTS, API_KEYS, getSupabaseHeaders } = await import('@/config/api-config');
-        const apiKey = API_KEYS.GEMINI_API_KEY;
-        
-        console.log(`Using Supabase Edge Function: ${API_ENDPOINTS.ANALYZE_PORTFOLIO}`);
-        
-        // Set up timeout
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-        
-        // Make the API call to Supabase Edge Function
-        const response = await fetch(API_ENDPOINTS.ANALYZE_PORTFOLIO, {
-          method: 'POST',
-          headers: {
-            ...getSupabaseHeaders(),
-          },
-          body: JSON.stringify({
-            holdings: formattedHoldings,
-            api_key: apiKey
-          }),
-          signal: controller.signal
-        });
-        
-        clearTimeout(timeoutId);
-        
-        if (!response.ok) {
-          console.error(`API Error (${response.status}): ${response.statusText}`);
-          throw new Error(`Analysis failed: ${response.statusText}`);
-        }
-        
-        const data = await response.json();
-        console.log('API response data received');
-        
-        if (data && data.analysis) {
-          // Save analysis results to Supabase
-          try {
-            const portfolios = await this.getPortfolios();
-            if (portfolios && portfolios.length > 0) {
-              const portfolioId = portfolios[0].id;
-              await this.saveAnalysisResults(portfolioId, data.analysis);
-              console.log('Analysis results saved to Supabase');
-            }
-          } catch (dbError) {
-            console.error('Failed to save analysis to database:', dbError);
-          }
-          
-          return data.analysis;
-        } else {
-          console.error('Invalid API response format:', data);
-          throw new Error('Invalid API response format');
-        }
-      } catch (apiError) {
-        console.error('API call failed:', apiError);
-        console.warn('Falling back to mock analysis');
-        
-        // Use mock analysis as fallback
-        return this.createMockAnalysis(holdings);
+      if (error) {
+        console.error('Portfolio analysis failed:', error);
+        return { analysis: null, error };
       }
-    } catch (error) {
-      console.error('Error analyzing portfolio:', error);
       
-      // Final fallback - always return mock data rather than failing the user flow
-      return this.createMockAnalysis(holdings);
+      if (data && data.analysis) {
+        // Save analysis results to Supabase
+        try {
+          const portfolios = await this.getPortfolios();
+          if (portfolios && portfolios.length > 0) {
+            const portfolioId = portfolios[0].id;
+            await this.saveAnalysisResults(portfolioId, data.analysis);
+            console.log('Analysis results saved to Supabase');
+          }
+        } catch (dbError) {
+          console.error('Failed to save analysis to database:', dbError);
+          // Continue even if saving fails - this is non-critical
+        }
+        
+        return { analysis: data.analysis, error: null };
+      } else {
+        console.error('Invalid API response format:', data);
+        return {
+          analysis: null,
+          error: {
+            type: EdgeFunctionErrorType.SERVER,
+            message: 'The server returned an invalid response format.'
+          }
+        };
+      }
+    } catch (error: any) {
+      console.error('Error analyzing portfolio:', error);
+      return {
+        analysis: null,
+        error: {
+          type: EdgeFunctionErrorType.UNKNOWN,
+          message: error.message || 'An unexpected error occurred while analyzing your portfolio.',
+          originalError: error
+        }
+      };
     }
   },
   // Create mock analysis data for development/testing

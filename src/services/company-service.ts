@@ -1,4 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
+import { callEdgeFunction, EdgeFunctionErrorType } from '@/lib/edge-function-client';
+import { API_ENDPOINTS } from '@/config/api-config';
 
 // Initialize Supabase client
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -291,24 +293,26 @@ export const companyService = {
   // For admin: Trigger data update for a company
   async triggerCompanyDataUpdate(symbol: string, updateType: 'fundamentals' | 'financials' | 'peers' | 'all' = 'all') {
     try {
-      const apiUrl = import.meta.env.VITE_SUPABASE_URL || '';
-      const response = await fetch(
-        `${apiUrl}/functions/v1/company-data-ingest?symbol=${symbol}&type=${updateType}`,
+      // Use the centralized Edge Function client with the proper endpoint
+      const { data, error } = await callEdgeFunction(
+        API_ENDPOINTS.COMPANY_DATA_INGEST,
+        'POST',
+        { symbol, type: updateType },
         {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
+          customHeaders: {
             'Authorization': `Bearer ${ADMIN_API_KEY}`
-          }
+          },
+          timeout: 30000 // 30 second timeout
         }
       );
       
-      if (!response.ok) {
-        throw new Error(`Failed to trigger update: ${response.statusText}`);
+      if (error) {
+        console.error('Error triggering company data update:', error);
+        throw new Error(`Failed to trigger update: ${error.message}`);
       }
       
-      return await response.json();
-    } catch (error) {
+      return data;
+    } catch (error: any) {
       console.error('Error triggering company data update:', error);
       throw error;
     }

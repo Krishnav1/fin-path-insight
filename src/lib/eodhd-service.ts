@@ -1,14 +1,16 @@
 // EODHD API Service
-// This service provides functions to interact with the EODHD API through our Deno backend
+// This service provides functions to interact with the EODHD API through our Supabase Edge Functions
 // Enhanced with Supabase-based company data storage
 
 import axios from 'axios';
 import { companyService } from '@/services/company-service';
+import { callEdgeFunction } from '@/lib/edge-function-client';
+import { API_ENDPOINTS } from '@/config/api-config';
 
-// Base URL for EODHD API endpoints
-const EODHD_FUNDAMENTALS_URL = '/api/eodhd-fundamentals';
-const EODHD_PROXY_URL = '/api/eodhd-proxy';
-const EODHD_REALTIME_URL = '/api/eodhd-realtime';
+// Use the centralized API endpoints
+const EODHD_FUNDAMENTALS_URL = API_ENDPOINTS.EODHD_FUNDAMENTALS;
+const EODHD_PROXY_URL = API_ENDPOINTS.EODHD_PROXY;
+const EODHD_REALTIME_URL = API_ENDPOINTS.EODHD_REALTIME;
 
 // Cache for API responses to reduce redundant calls
 const apiCache: Record<string, { data: any; timestamp: number }> = {};
@@ -29,20 +31,26 @@ export async function getCompanyFundamentals(symbol: string) {
   }
   
   try {
-    const response = await axios.get(EODHD_FUNDAMENTALS_URL, {
-      params: {
-        symbol,
-        type: 'general'
-      }
-    });
+    // Build the URL with query parameters
+    const url = new URL(EODHD_FUNDAMENTALS_URL);
+    url.searchParams.append('symbol', symbol);
+    url.searchParams.append('type', 'general');
+    
+    // Call the Edge Function with proper authentication
+    const { data, error } = await callEdgeFunction(url.toString(), 'GET');
+    
+    if (error) {
+      console.error('Error from EODHD Fundamentals Edge Function:', error);
+      throw new Error(`Failed to fetch company fundamentals: ${error.message}`);
+    }
     
     // Cache the response
     apiCache[cacheKey] = {
-      data: response.data,
+      data: data,
       timestamp: Date.now()
     };
     
-    return response.data;
+    return data;
   } catch (error) {
     console.error('Error fetching company fundamentals:', error);
     throw error;
@@ -97,20 +105,26 @@ export async function getCompanyFinancials(symbol: string) {
   }
   
   try {
-    const response = await axios.get(EODHD_FUNDAMENTALS_URL, {
-      params: {
-        symbol,
-        type: 'financials'
-      }
-    });
+    // Build the URL with query parameters
+    const url = new URL(EODHD_FUNDAMENTALS_URL);
+    url.searchParams.append('symbol', symbol);
+    url.searchParams.append('type', 'financials');
+    
+    // Call the Edge Function with proper authentication
+    const { data, error } = await callEdgeFunction(url.toString(), 'GET');
+    
+    if (error) {
+      console.error('Error from EODHD Fundamentals Edge Function:', error);
+      throw new Error(`Failed to fetch company financials: ${error.message}`);
+    }
     
     // Cache the response
     apiCache[cacheKey] = {
-      data: response.data,
+      data: data,
       timestamp: Date.now()
     };
     
-    return response.data;
+    return data;
   } catch (error) {
     console.error('Error fetching company financials:', error);
     throw error;
@@ -123,7 +137,7 @@ export async function getCompanyFinancials(symbol: string) {
  * @returns Company balance sheet data
  */
 export async function getCompanyBalanceSheet(symbol: string) {
-  const cacheKey = `fundamentals-balancesheet-${symbol}`;
+  const cacheKey = `fundamentals-balance-sheet-${symbol}`;
   
   // Check cache first
   if (apiCache[cacheKey] && Date.now() - apiCache[cacheKey].timestamp < CACHE_TTL) {
@@ -131,20 +145,26 @@ export async function getCompanyBalanceSheet(symbol: string) {
   }
   
   try {
-    const response = await axios.get(EODHD_FUNDAMENTALS_URL, {
-      params: {
-        symbol,
-        type: 'balancesheet'
-      }
-    });
+    // Build the URL with query parameters
+    const url = new URL(EODHD_FUNDAMENTALS_URL);
+    url.searchParams.append('symbol', symbol);
+    url.searchParams.append('type', 'balance-sheet');
+    
+    // Call the Edge Function with proper authentication
+    const { data, error } = await callEdgeFunction(url.toString(), 'GET');
+    
+    if (error) {
+      console.error('Error from EODHD Fundamentals Edge Function:', error);
+      throw new Error(`Failed to fetch company balance sheet: ${error.message}`);
+    }
     
     // Cache the response
     apiCache[cacheKey] = {
-      data: response.data,
+      data: data,
       timestamp: Date.now()
     };
     
-    return response.data;
+    return data;
   } catch (error) {
     console.error('Error fetching company balance sheet:', error);
     throw error;
@@ -157,7 +177,7 @@ export async function getCompanyBalanceSheet(symbol: string) {
  * @returns Company income statement data
  */
 export async function getCompanyIncomeStatement(symbol: string) {
-  const cacheKey = `fundamentals-income-${symbol}`;
+  const cacheKey = `fundamentals-income-statement-${symbol}`;
   
   // Check cache first
   if (apiCache[cacheKey] && Date.now() - apiCache[cacheKey].timestamp < CACHE_TTL) {
@@ -165,20 +185,26 @@ export async function getCompanyIncomeStatement(symbol: string) {
   }
   
   try {
-    const response = await axios.get(EODHD_FUNDAMENTALS_URL, {
-      params: {
-        symbol,
-        type: 'income'
-      }
-    });
+    // Build the URL with query parameters
+    const url = new URL(EODHD_FUNDAMENTALS_URL);
+    url.searchParams.append('symbol', symbol);
+    url.searchParams.append('type', 'income-statement');
+    
+    // Call the Edge Function with proper authentication
+    const { data, error } = await callEdgeFunction(url.toString(), 'GET');
+    
+    if (error) {
+      console.error('Error from EODHD Fundamentals Edge Function:', error);
+      throw new Error(`Failed to fetch company income statement: ${error.message}`);
+    }
     
     // Cache the response
     apiCache[cacheKey] = {
-      data: response.data,
+      data: data,
       timestamp: Date.now()
     };
     
-    return response.data;
+    return data;
   } catch (error) {
     console.error('Error fetching company income statement:', error);
     throw error;
@@ -191,7 +217,7 @@ export async function getCompanyIncomeStatement(symbol: string) {
  * @returns Company cash flow statement data
  */
 export async function getCompanyCashFlow(symbol: string) {
-  const cacheKey = `fundamentals-cashflow-${symbol}`;
+  const cacheKey = `fundamentals-cash-flow-${symbol}`;
   
   // Check cache first
   if (apiCache[cacheKey] && Date.now() - apiCache[cacheKey].timestamp < CACHE_TTL) {
@@ -199,20 +225,26 @@ export async function getCompanyCashFlow(symbol: string) {
   }
   
   try {
-    const response = await axios.get(EODHD_FUNDAMENTALS_URL, {
-      params: {
-        symbol,
-        type: 'cashflow'
-      }
-    });
+    // Build the URL with query parameters
+    const url = new URL(EODHD_FUNDAMENTALS_URL);
+    url.searchParams.append('symbol', symbol);
+    url.searchParams.append('type', 'cash-flow');
+    
+    // Call the Edge Function with proper authentication
+    const { data, error } = await callEdgeFunction(url.toString(), 'GET');
+    
+    if (error) {
+      console.error('Error from EODHD Fundamentals Edge Function:', error);
+      throw new Error(`Failed to fetch company cash flow: ${error.message}`);
+    }
     
     // Cache the response
     apiCache[cacheKey] = {
-      data: response.data,
+      data: data,
       timestamp: Date.now()
     };
     
-    return response.data;
+    return data;
   } catch (error) {
     console.error('Error fetching company cash flow:', error);
     throw error;
@@ -233,20 +265,26 @@ export async function getCompanyEarnings(symbol: string) {
   }
   
   try {
-    const response = await axios.get(EODHD_FUNDAMENTALS_URL, {
-      params: {
-        symbol,
-        type: 'earnings'
-      }
-    });
+    // Build the URL with query parameters
+    const url = new URL(EODHD_FUNDAMENTALS_URL);
+    url.searchParams.append('symbol', symbol);
+    url.searchParams.append('type', 'earnings');
+    
+    // Call the Edge Function with proper authentication
+    const { data, error } = await callEdgeFunction(url.toString(), 'GET');
+    
+    if (error) {
+      console.error('Error from EODHD Fundamentals Edge Function:', error);
+      throw new Error(`Failed to fetch company earnings: ${error.message}`);
+    }
     
     // Cache the response
     apiCache[cacheKey] = {
-      data: response.data,
+      data: data,
       timestamp: Date.now()
     };
     
-    return response.data;
+    return data;
   } catch (error) {
     console.error('Error fetching company earnings:', error);
     throw error;
@@ -267,20 +305,26 @@ export async function getCompanyDividends(symbol: string) {
   }
   
   try {
-    const response = await axios.get(EODHD_FUNDAMENTALS_URL, {
-      params: {
-        symbol,
-        type: 'dividends'
-      }
-    });
+    // Build the URL with query parameters
+    const url = new URL(EODHD_FUNDAMENTALS_URL);
+    url.searchParams.append('symbol', symbol);
+    url.searchParams.append('type', 'dividends');
+    
+    // Call the Edge Function with proper authentication
+    const { data, error } = await callEdgeFunction(url.toString(), 'GET');
+    
+    if (error) {
+      console.error('Error from EODHD Fundamentals Edge Function:', error);
+      throw new Error(`Failed to fetch company dividends: ${error.message}`);
+    }
     
     // Cache the response
     apiCache[cacheKey] = {
-      data: response.data,
+      data: data,
       timestamp: Date.now()
     };
     
-    return response.data;
+    return data;
   } catch (error) {
     console.error('Error fetching company dividends:', error);
     throw error;
@@ -301,20 +345,26 @@ export async function getCompanyInsiders(symbol: string) {
   }
   
   try {
-    const response = await axios.get(EODHD_FUNDAMENTALS_URL, {
-      params: {
-        symbol,
-        type: 'insiders'
-      }
-    });
+    // Build the URL with query parameters
+    const url = new URL(EODHD_FUNDAMENTALS_URL);
+    url.searchParams.append('symbol', symbol);
+    url.searchParams.append('type', 'insiders');
+    
+    // Call the Edge Function with proper authentication
+    const { data, error } = await callEdgeFunction(url.toString(), 'GET');
+    
+    if (error) {
+      console.error('Error from EODHD Fundamentals Edge Function:', error);
+      throw new Error(`Failed to fetch company insiders: ${error.message}`);
+    }
     
     // Cache the response
     apiCache[cacheKey] = {
-      data: response.data,
+      data: data,
       timestamp: Date.now()
     };
     
-    return response.data;
+    return data;
   } catch (error) {
     console.error('Error fetching company insiders:', error);
     throw error;
@@ -344,20 +394,34 @@ export async function getLiveStockPrice(symbols: string | string[]) {
     const primarySymbol = symbolArray[0];
     const additionalSymbols = symbolArray.length > 1 ? symbolArray.slice(1).join(',') : '';
     
-    const params: Record<string, string> = { fmt: 'json' };
+    // Use the centralized Edge Function client to ensure proper authentication
+    const endpoint = `${EODHD_REALTIME_URL}/real-time/${primarySymbol}`;
+    const queryParams: Record<string, string> = { fmt: 'json' };
     if (additionalSymbols) {
-      params.s = additionalSymbols;
+      queryParams.s = additionalSymbols;
     }
     
-    const response = await axios.get(`${EODHD_REALTIME_URL}/${primarySymbol}`, { params });
+    // Build the URL with query parameters
+    const url = new URL(endpoint);
+    Object.entries(queryParams).forEach(([key, value]) => {
+      url.searchParams.append(key, value);
+    });
+    
+    // Call the Edge Function with proper authentication
+    const { data, error } = await callEdgeFunction(url.toString(), 'GET');
+    
+    if (error) {
+      console.error('Error from EODHD Edge Function:', error);
+      throw new Error(`Failed to fetch stock data: ${error.message}`);
+    }
     
     // Cache the response with shorter TTL
     apiCache[cacheKey] = {
-      data: response.data,
+      data: data,
       timestamp: Date.now()
     };
     
-    return response.data;
+    return data;
   } catch (error) {
     console.error('Error fetching live stock prices:', error);
     throw error;

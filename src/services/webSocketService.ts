@@ -69,20 +69,32 @@ class WebSocketService {
     // Use Supabase Edge Function as a proxy
     // This approach is better for production as it keeps API keys secure
     const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
+    const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
     
     // Different endpoints for different exchanges
+    let baseUrl = '';
     switch (exchange) {
       case 'us':
-        return `${SUPABASE_URL}/functions/v1/eodhd-proxy/ws/us`;
+        baseUrl = `${SUPABASE_URL}/functions/v1/eodhd-proxy/ws/us`;
+        break;
       case 'eu':
-        return `${SUPABASE_URL}/functions/v1/eodhd-proxy/ws/eu`;
+        baseUrl = `${SUPABASE_URL}/functions/v1/eodhd-proxy/ws/eu`;
+        break;
       case 'cn':
-        return `${SUPABASE_URL}/functions/v1/eodhd-proxy/ws/cn`;
+        baseUrl = `${SUPABASE_URL}/functions/v1/eodhd-proxy/ws/cn`;
+        break;
       case 'in':
-        return `${SUPABASE_URL}/functions/v1/eodhd-proxy/ws/in`;
+        baseUrl = `${SUPABASE_URL}/functions/v1/eodhd-proxy/ws/in`;
+        break;
       default:
-        return `${SUPABASE_URL}/functions/v1/eodhd-proxy/ws/us`;
+        baseUrl = `${SUPABASE_URL}/functions/v1/eodhd-proxy/ws/us`;
     }
+    
+    // Add authentication to the WebSocket URL
+    const url = new URL(baseUrl);
+    url.searchParams.append('apikey', SUPABASE_ANON_KEY);
+    
+    return url.toString();
   }
   
   // Get API token from environment or use a fallback for development
@@ -110,12 +122,17 @@ class WebSocketService {
     try {
       const wsUrl = this.getWebSocketUrl(exchange);
       console.log(`Connecting to WebSocket for ${exchange} exchange: ${wsUrl}`);
+      
+      // Create WebSocket with authentication in the URL
       this.socket = new WebSocket(wsUrl);
       
+      // Set up event handlers
       this.socket.onopen = this.handleOpen.bind(this);
       this.socket.onmessage = this.handleMessage.bind(this);
       this.socket.onerror = this.handleError.bind(this);
       this.socket.onclose = this.handleClose.bind(this);
+      
+      console.log('WebSocket connection initiated with authentication');
     } catch (error) {
       console.error('Error connecting to WebSocket:', error);
       this.setConnectionState(ConnectionState.ERROR);

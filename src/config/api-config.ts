@@ -6,6 +6,9 @@ export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://your-p
 
 // Supabase API endpoints
 export const API_ENDPOINTS = {
+  // Base URL
+  SUPABASE_URL: SUPABASE_URL,
+  
   // Edge Function endpoints
   ANALYZE_PORTFOLIO: `${SUPABASE_URL}/functions/v1/analyze-portfolio`,
   MARKET_DATA: `${SUPABASE_URL}/functions/v1/market-data`,
@@ -15,6 +18,8 @@ export const API_ENDPOINTS = {
   FINGENIE_CHAT: `${SUPABASE_URL}/functions/v1/fingenie-chat`,
   FINGENIE_ORACLE: `${SUPABASE_URL}/functions/v1/fingenie-oracle`,
   INVESTMENT_REPORT: `${SUPABASE_URL}/functions/v1/investment-report`,
+  COMPANY_DATA_INGEST: `${SUPABASE_URL}/functions/v1/company-data-ingest`,
+  REFRESH_COMPANY_DATA: `${SUPABASE_URL}/functions/v1/refresh-company-data`,
 };
 
 // API Keys - these should be stored in environment variables
@@ -33,22 +38,20 @@ export const getSupabaseHeaders = () => {
   };
 };
 
-// Helper function to make API calls to Supabase Edge Functions
+// NOTE: Do not use this function directly. Use the centralized edge-function-client.ts instead.
+// This is kept for backward compatibility only.
+// @deprecated - Use callEdgeFunction from @/lib/edge-function-client instead
 export const callEdgeFunction = async (endpoint: string, method: string = 'GET', body?: any) => {
-  try {
-    const response = await fetch(endpoint, {
-      method,
-      headers: getSupabaseHeaders(),
-      body: body ? JSON.stringify(body) : undefined,
-    });
-
-    if (!response.ok) {
-      throw new Error(`API Error (${response.status}): ${response.statusText}`);
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error(`Error calling edge function at ${endpoint}:`, error);
-    throw error;
+  console.warn(
+    'DEPRECATED: Using old callEdgeFunction. Please update to use the new edge-function-client.ts instead.'
+  );
+  
+  const { callEdgeFunction: newCallEdgeFunction } = await import('@/lib/edge-function-client');
+  const result = await newCallEdgeFunction(endpoint, method as any, body);
+  
+  if (result.error) {
+    throw new Error(result.error.message);
   }
+  
+  return result.data;
 };

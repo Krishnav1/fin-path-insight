@@ -3,7 +3,7 @@ import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2 } from 'lucide-react';
+import { Loader2, RefreshCw } from 'lucide-react';
 import PortfolioOverview from './components/PortfolioOverview';
 import PortfolioMetrics from './components/PortfolioMetrics';
 import PortfolioAllocation from './components/PortfolioAllocation';
@@ -13,6 +13,9 @@ import PortfolioIntelligence from '@/components/PortfolioIntelligence';
 import { mockPortfolioData } from './data/mockData';
 import { portfolioService, GeminiAnalysis } from '@/services/portfolio-service';
 import { useAuth } from '@/context/AuthContext';
+import { ErrorBanner } from '@/components/ui/ErrorBanner';
+import { EdgeFunctionErrorType } from '@/lib/edge-function-client';
+import { Button } from '@/components/ui/button';
 
 export default function PortfolioAnalysisPage() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -21,6 +24,8 @@ export default function PortfolioAnalysisPage() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisData, setAnalysisData] = useState<GeminiAnalysis | null>(null);
   const [analysisTimestamp, setAnalysisTimestamp] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<{type: EdgeFunctionErrorType; message: string} | null>(null);
+  const [analysisError, setAnalysisError] = useState<{type: EdgeFunctionErrorType; message: string} | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
   
@@ -34,6 +39,8 @@ export default function PortfolioAnalysisPage() {
   const loadPortfolioData = async () => {
     try {
       setIsLoading(true);
+      setLoadError(null);
+      
       // In a real app, you would get the portfolio ID from the URL or user selection
       // For now, we'll use the first portfolio found for the user
       const portfolios = await portfolioService.getPortfolios();
@@ -64,8 +71,13 @@ export default function PortfolioAnalysisPage() {
           setAnalysisTimestamp(new Date(analysis.created_at).toLocaleString());
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading portfolio data:', error);
+      setLoadError({
+        type: EdgeFunctionErrorType.UNKNOWN,
+        message: error.message || 'Failed to load portfolio data. Please try again.'
+      });
+      
       toast({
         title: 'Error',
         description: 'Failed to load portfolio data. Please try again.',
@@ -161,10 +173,11 @@ export default function PortfolioAnalysisPage() {
     }
   };
   
-  // Analyze portfolio with Gemini
+  // Analyze portfolio with AI (Gemini/Vertex)
   const analyzePortfolio = async () => {
     try {
       setIsAnalyzing(true);
+      setAnalysisError(null);
       
       // First save the portfolio to ensure we have the latest data
       await savePortfolio();
@@ -176,20 +189,42 @@ export default function PortfolioAnalysisPage() {
       }
       const portfolioId = portfolios[0].id;
       
-      // Analyze portfolio with Gemini (analysis is automatically saved to Supabase within the service)
-      const analysis = await portfolioService.analyzePortfolio(portfolioData.holdings);
-      setAnalysisData(analysis);
-      setAnalysisTimestamp(new Date().toLocaleString());
+      // Analyze portfolio with AI (analysis is automatically saved to Supabase within the service)
+      const { analysis, error } = await portfolioService.analyzePortfolio(portfolioData.holdings);
       
-      toast({
-        title: 'Success',
-        description: 'Portfolio analyzed successfully.',
+      if (error) {
+        setAnalysisError({
+          type: error.type || EdgeFunctionErrorType.UNKNOWN,
+          message: error.message || 'An error occurred during analysis.'
+        });
+        
+        toast({
+          title: 'Analysis Failed',
+          description: error.message || 'Failed to analyze portfolio. Please try again.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      
+      if (analysis) {
+        setAnalysisData(analysis);
+        setAnalysisTimestamp(new Date().toLocaleString());
+        
+        toast({
+          title: 'Success',
+          description: 'Portfolio analyzed successfully.',
+        });
+        
+        // Switch to overview tab to show analysis results
+        setActiveTab('overview');
+      }
+    } catch (error: any) {
+      console.error('Error analyzing portfolio:', error);
+      setAnalysisError({
+        type: EdgeFunctionErrorType.UNKNOWN,
+        message: error.message || 'An unexpected error occurred during analysis.'
       });
       
-      // Switch to overview tab to show analysis results
-      setActiveTab('overview');
-    } catch (error) {
-      console.error('Error analyzing portfolio:', error);
       toast({
         title: 'Error',
         description: `Failed to analyze portfolio: ${error.message || 'Please try again.'}`,
@@ -213,7 +248,27 @@ export default function PortfolioAnalysisPage() {
     <div className="min-h-screen flex flex-col">
       <Header />
       
-      <main className="flex-grow container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-8">
+        {/* Error banners */}
+        {loadError && (
+          <ErrorBanner
+            title="Failed to Load Portfolio"
+            message={loadError.message}
+            errorType={loadError.type}
+            onDismiss={() => setLoadError(null)}
+            onRetry={loadPortfolioData}
+          />
+        )}
+        
+        {analysisError && (
+          <ErrorBanner
+            title="Analysis Failed"
+            message={analysisError.message}
+            errorType={analysisError.type}
+            onDismiss={() => setAnalysisError(null)}
+            onRetry={analyzePortfolio}
+          />
+        )}
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col md:flex-row md:items-center justify-between mb-6">
             <div>
@@ -233,7 +288,7 @@ export default function PortfolioAnalysisPage() {
               <ValueAddTools portfolioData={portfolioData} analysisData={analysisData} />
             </TabsContent>
             <TabsContent value="intelligence">
-              <PortfolioIntelligence />
+              <PortfolioIntelligence portfolioId={''} />
             </TabsContent>
           </Tabs>
         </div>
