@@ -18,6 +18,34 @@ const CACHE_TTL = 5 * 60 * 1000; // 5 minutes cache TTL
 const REALTIME_CACHE_TTL = 60 * 1000; // 1 minute cache TTL for real-time data
 
 /**
+ * Fetch intraday OHLCV price data from EODHD API
+ * @param symbol Stock symbol (e.g., 'AAPL.US')
+ * @param interval Interval string (e.g., '5m', '15m', '1h', '1d')
+ * @param range Data range (e.g., '1d', '5d', '1m')
+ * @returns Array of OHLCV data points
+ */
+export async function getIntradayPricesEODHD(
+  symbol: string,
+  interval: string = '5m',
+  range: string = '1d'
+): Promise<any[] | null> {
+  const cacheKey = `eodhd-intraday-${symbol}-${interval}-${range}`;
+  if (apiCache[cacheKey] && Date.now() - apiCache[cacheKey].timestamp < CACHE_TTL) {
+    return apiCache[cacheKey].data;
+  }
+  try {
+    const url = `${EODHD_PROXY_URL}/intraday/${symbol}?interval=${interval}&range=${range}&fmt=json`;
+    const { data, error } = await callEdgeFunction(url, 'GET');
+    if (error) throw new Error(`Failed to fetch intraday prices: ${error.message}`);
+    apiCache[cacheKey] = { data, timestamp: Date.now() };
+    return data;
+  } catch (error) {
+    console.error('Error fetching EODHD intraday prices:', error);
+    return null;
+  }
+}
+
+/**
  * Get company general information and fundamentals
  * @param symbol Stock symbol
  * @returns Company general information and fundamentals
