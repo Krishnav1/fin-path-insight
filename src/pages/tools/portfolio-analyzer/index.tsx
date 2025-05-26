@@ -26,7 +26,8 @@ import {
   Edit,
   Plus,
   X,
-  Save
+  Save,
+  RefreshCw
 } from 'lucide-react';
 import { Modal } from 'antd';
 import { createClient } from '@supabase/supabase-js';
@@ -169,7 +170,7 @@ export default function PortfolioAnalyzerPage() {
   }>>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [portfolioId, setPortfolioId] = useState(null);
+  const [portfolioId, setPortfolioId] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<GeminiAnalysis | null>(null);
   const [analysisCache, setAnalysisCache] = useState<{timestamp: number, data: GeminiAnalysis} | null>(null);
@@ -314,12 +315,25 @@ export default function PortfolioAnalyzerPage() {
     }
   };
   
-  // Refresh stock prices periodically
+  // Refresh stock prices manually or periodically
   const refreshStockPrices = async () => {
-    if (!stocks.length || !user) return;
+    if (!stocks.length || !user || !portfolioId) {
+      toast({
+        title: 'Nothing to Refresh',
+        description: 'No stocks found in your portfolio.',
+        variant: 'default'
+      });
+      return;
+    }
     
     try {
       setRefreshing(true);
+      toast({
+        title: 'Refreshing Prices',
+        description: 'Fetching latest stock prices...',
+        variant: 'default'
+      });
+      
       const updatedStocks = [...stocks];
       let hasUpdates = false;
       
@@ -357,6 +371,9 @@ export default function PortfolioAnalyzerPage() {
           description: 'Stock prices have been refreshed',
           variant: 'default'
         });
+        
+        // Automatically re-analyze portfolio with fresh prices
+        analyzePortfolio();
       }
     } catch (error) {
       console.error('Error refreshing stock prices:', error);
@@ -371,6 +388,14 @@ export default function PortfolioAnalyzerPage() {
       toast({
         title: 'Not Authenticated',
         description: 'Please log in to add stocks to your portfolio.',
+        variant: 'destructive'
+      });
+      return;
+    }
+    if (!portfolioId) {
+      toast({
+        title: 'Portfolio Not Found',
+        description: 'Could not find your portfolio. Please refresh the page.',
         variant: 'destructive'
       });
       return;
@@ -632,7 +657,10 @@ export default function PortfolioAnalyzerPage() {
       };
 
       // Call the analyze-portfolio edge function
-      const response = await fetch('https://fin-path-insight.netlify.app/api/analyze-portfolio', {
+      console.log('Sending portfolio data for analysis:', portfolioData);
+      // Use the Supabase edge function URL instead of Netlify
+      const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://ydakwyplcqoshxcdllah.supabase.co';
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/analyze-portfolio`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -640,7 +668,11 @@ export default function PortfolioAnalyzerPage() {
         body: JSON.stringify(portfolioData),
       });
 
-      if (!response.ok) throw new Error('Failed to analyze portfolio');
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API Error Response:', errorText);
+        throw new Error(`Failed to analyze portfolio: ${response.status} ${response.statusText}`);
+      }
       
       const analysisData = await response.json();
       setAnalysisResult(analysisData);
@@ -652,13 +684,19 @@ export default function PortfolioAnalyzerPage() {
       });
 
       // Save analysis to Supabase
-      await supabase
-        .from('portfolio_analysis')
-        .insert([{
-          user_id: user.id,
-          portfolio_id: portfolioId,
-          analysis_data: analysisData
-        }]);
+      try {
+        await supabase
+          .from('portfolio_analysis')
+          .insert([{
+            user_id: user.id,
+            portfolio_id: portfolioId,
+            analysis_data: analysisData,
+            created_at: new Date().toISOString()
+          }]);
+      } catch (dbError) {
+        console.error('Error saving analysis to database:', dbError);
+        // Continue even if database save fails
+      }
 
       toast({
         title: 'Analysis Complete',
@@ -667,11 +705,22 @@ export default function PortfolioAnalyzerPage() {
       });
     } catch (error) {
       console.error('Error analyzing portfolio:', error);
-      toast({
-        title: 'Analysis Failed',
-        description: 'Could not complete portfolio analysis',
-        variant: 'destructive'
-      });
+      
+      // Check if we have a cached analysis to fall back to
+      if (analysisCache && analysisCache.data) {
+        toast({
+          title: 'Analysis Failed - Using Cached Data',
+          description: 'Using previous analysis results due to an error',
+          variant: 'default'
+        });
+        setAnalysisResult(analysisCache.data);
+      } else {
+        toast({
+          title: 'Analysis Failed',
+          description: 'Could not complete portfolio analysis. Please try again later.',
+          variant: 'destructive'
+        });
+      }
     } finally {
       setAnalyzing(false);
     }
@@ -1188,16 +1237,26 @@ function handleCancelAddStock() {
               </div>
             </CardContent>
             <CardFooter className="flex justify-between">
-              <Button 
-                variant="outline" 
-                onClick={() => {
-                  setShowAddStockModal(true);
-                  setNewStock({ symbol: '', name: '', quantity: '', buyPrice: '', sector: '', currentPrice: '' });
-                }}
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Add Stocks Manually
-              </Button>
+              <div className="flex space-x-2">
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setShowAddStockModal(true);
+                    setNewStock({ symbol: '', name: '', quantity: '', buyPrice: '', sector: '', currentPrice: '' });
+                  }}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Stocks Manually
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={refreshStockPrices} 
+                  disabled={refreshing || stocks.length === 0}
+                >
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  {refreshing ? 'Refreshing...' : 'Refresh Prices'}
+                </Button>
+              </div>
               <Button onClick={analyzePortfolio} disabled={analyzing || stocks.length === 0}>
                 {analyzing ? 'Analyzing...' : 'Analyze Portfolio'}
               </Button>
@@ -1207,6 +1266,14 @@ function handleCancelAddStock() {
           {/* Portfolio Analysis Tabs */}
           
           <Tabs defaultValue="overview" onValueChange={setActiveTab} className="mb-8">
+            {!analysisResult && stocks.length > 0 && (
+              <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-md">
+                <p className="text-amber-800 flex items-center">
+                  <AlertTriangle className="h-4 w-4 mr-2" />
+                  Click "Analyze Portfolio" to see detailed insights and recommendations
+                </p>
+              </div>
+            )}
             <TabsList className="grid grid-cols-4">
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="allocation">Allocation</TabsTrigger>
@@ -1222,9 +1289,11 @@ function handleCancelAddStock() {
                     <CardTitle className="text-lg">Total Value</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-3xl font-bold">₹{(portfolioData.totalValue / 100000).toFixed(2)} L</div>
+                    <div className="text-3xl font-bold">
+                      {analysisResult ? analysisResult.overview.market_value : `₹${(stocks.reduce((sum, stock) => sum + stock.value, 0) / 100000).toFixed(2)} L`}
+                    </div>
                     <p className="text-slate-500 dark:text-slate-400 text-sm">
-                      Invested: ₹{(portfolioData.invested / 100000).toFixed(2)} L
+                      Invested: {analysisResult ? analysisResult.overview.total_invested : `₹${(stocks.reduce((sum, stock) => sum + (stock.buyPrice * stock.quantity), 0) / 100000).toFixed(2)} L`}
                     </p>
                   </CardContent>
                 </Card>
@@ -1234,10 +1303,15 @@ function handleCancelAddStock() {
                     <CardTitle className="text-lg">Total Returns</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-3xl font-bold text-green-600">₹{(portfolioData.returns / 100000).toFixed(2)} L</div>
-                    <div className="flex items-center text-green-600">
-                      <TrendingUp className="h-4 w-4 mr-1" />
-                      <span>{portfolioData.returnsPercentage.toFixed(2)}%</span>
+                    <div className={`text-3xl font-bold ${analysisResult && !analysisResult.overview.absolute_return.includes('-') ? 'text-green-600' : 'text-red-600'}`}>
+                      {analysisResult ? analysisResult.overview.absolute_return : `₹${(stocks.reduce((sum, stock) => sum + stock.profit, 0) / 100000).toFixed(2)} L`}
+                    </div>
+                    <div className={`flex items-center ${analysisResult && !analysisResult.overview.percent_return.includes('-') ? 'text-green-600' : 'text-red-600'}`}>
+                      {analysisResult && !analysisResult.overview.percent_return.includes('-') ? 
+                        <TrendingUp className="h-4 w-4 mr-1" /> : 
+                        <TrendingDown className="h-4 w-4 mr-1" />
+                      }
+                      <span>{analysisResult ? analysisResult.overview.percent_return : `${(stocks.reduce((sum, stock) => sum + stock.profit, 0) / stocks.reduce((sum, stock) => sum + (stock.buyPrice * stock.quantity), 0) * 100).toFixed(2)}%`}</span>
                     </div>
                   </CardContent>
                 </Card>
@@ -1349,8 +1423,22 @@ function handleCancelAddStock() {
                   </CardHeader>
                   <CardContent className="h-80">
                     <PieChart 
-                      data={sectorAllocationData}
-                      colors={['#0ea5e9', '#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f97316']}
+                      data={analysisResult && analysisResult.diversification ? 
+                        Object.entries(analysisResult.diversification.sector_breakdown).map(([name, value]) => ({
+                          name,
+                          value: parseFloat(value.replace('%', ''))
+                        })) : 
+                        // Fallback to calculated data from stocks
+                        Object.entries(stocks.reduce((acc, stock) => {
+                          const sector = stock.sector || 'Other';
+                          acc[sector] = (acc[sector] || 0) + stock.value;
+                          return acc;
+                        }, {})).map(([name, value]) => ({
+                          name,
+                          value: Number(((value as number) / stocks.reduce((sum, s) => sum + s.value, 0) * 100).toFixed(1))
+                        }))
+                      }
+                      colors={['#0ea5e9', '#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f97316', '#84cc16', '#14b8a6', '#06b6d4', '#a855f7']}
                     />
                   </CardContent>
                 </Card>
@@ -1365,12 +1453,26 @@ function handleCancelAddStock() {
                       <div>
                         <h3 className="text-lg font-medium mb-3">Sector Breakdown</h3>
                         <div className="space-y-3">
-                          {sectorAllocationData.map((sector, index) => (
+                          {(analysisResult && analysisResult.diversification ? 
+                            Object.entries(analysisResult.diversification.sector_breakdown).map(([name, value]) => ({
+                              name,
+                              value: value.replace('%', '')
+                            })) : 
+                            // Fallback to calculated data from stocks
+                            Object.entries(stocks.reduce((acc, stock) => {
+                              const sector = stock.sector || 'Other';
+                              acc[sector] = (acc[sector] || 0) + stock.value;
+                              return acc;
+                            }, {})).map(([name, value]) => ({
+                              name,
+                              value: ((value as number) / stocks.reduce((sum, s) => sum + s.value, 0) * 100).toFixed(1)
+                            }))
+                          ).map((sector, index) => (
                             <div key={index} className="flex justify-between items-center">
                               <div className="flex items-center">
                                 <div 
                                   className="w-3 h-3 rounded-full mr-2"
-                                  style={{ backgroundColor: ['#0ea5e9', '#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f97316'][index % 6] }}
+                                  style={{ backgroundColor: ['#0ea5e9', '#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f97316', '#84cc16', '#14b8a6', '#06b6d4', '#a855f7'][index % 10] }}
                                 ></div>
                                 <span>{sector.name}</span>
                               </div>
@@ -1383,12 +1485,37 @@ function handleCancelAddStock() {
                       <div>
                         <h3 className="text-lg font-medium mb-3">Allocation Recommendations</h3>
                         <div className="space-y-3">
-                          {recommendations.map((rec, index) => (
-                            <div key={index} className="flex items-start p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
-                              <div className="mr-3 mt-0.5">{rec.icon}</div>
-                              <p className="text-sm">{rec.message}</p>
-                            </div>
-                          ))}
+                          {analysisResult && analysisResult.recommendations ? (
+                            analysisResult.recommendations.map((recommendation, index) => (
+                              <div key={index} className="flex items-start p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                                <div className="mr-3 mt-0.5">
+                                  <CheckCircle className="h-4 w-4 text-green-500" />
+                                </div>
+                                <p className="text-sm">{recommendation}</p>
+                              </div>
+                            ))
+                          ) : (
+                            // Fallback recommendations based on portfolio composition
+                            [
+                              {
+                                icon: <CheckCircle className="h-4 w-4 text-green-500" />,
+                                message: 'Consider diversifying across more sectors to reduce risk.'
+                              },
+                              {
+                                icon: <CheckCircle className="h-4 w-4 text-green-500" />,
+                                message: 'Aim for no more than 10-15% allocation in any single stock.'
+                              },
+                              {
+                                icon: <CheckCircle className="h-4 w-4 text-green-500" />,
+                                message: 'Balance growth stocks with some defensive stocks for stability.'
+                              }
+                            ].map((rec, index) => (
+                              <div key={index} className="flex items-start p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                                <div className="mr-3 mt-0.5">{rec.icon}</div>
+                                <p className="text-sm">{rec.message}</p>
+                              </div>
+                            ))
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1405,12 +1532,44 @@ function handleCancelAddStock() {
                   <CardDescription>Historical performance of your portfolio</CardDescription>
                 </CardHeader>
                 <CardContent className="h-80">
-                  <LineChart 
-                    data={performanceData}
-                    xKey="date"
-                    yKey="value"
-                    color="#0ea5e9"
-                  />
+                  {stocks.length > 0 ? (
+                    <LineChart 
+                      data={analysisResult ? 
+                        // If we have analysis data, we could use it here
+                        // For now, generate some mock performance data based on current holdings
+                        Array.from({ length: 30 }, (_, i) => {
+                          const date = new Date();
+                          date.setDate(date.getDate() - (30 - i));
+                          // Generate a value that trends toward the current total value
+                          const totalValue = stocks.reduce((sum, stock) => sum + stock.value, 0);
+                          const startValue = totalValue * 0.9; // Start at 90% of current value
+                          const randomFactor = 0.98 + Math.random() * 0.04; // Random between 0.98 and 1.02
+                          const value = startValue * (1 + (i/30) * 0.1) * randomFactor;
+                          
+                          return {
+                            date: date.toISOString().split('T')[0],
+                            value: Math.round(value)
+                          };
+                        }) : 
+                        // Fallback to simple mock data
+                        Array.from({ length: 30 }, (_, i) => {
+                          const date = new Date();
+                          date.setDate(date.getDate() - (30 - i));
+                          return {
+                            date: date.toISOString().split('T')[0],
+                            value: Math.round(1000000 * (1 + (i/30) * 0.25 * (0.9 + Math.random() * 0.2)))
+                          };
+                        })
+                      }
+                      xKey="date"
+                      yKey="value"
+                      color="#0ea5e9"
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-full">
+                      <p className="text-slate-500">Add stocks to your portfolio to see performance data</p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
               
@@ -1638,6 +1797,117 @@ function handleCancelAddStock() {
               </TableBody>
             </Table>
           </div>
+        </div>
+      </Modal>
+      
+      {/* Add Stock Modal */}
+      <Modal
+        title="Add Stock to Portfolio"
+        open={showAddStockModal}
+        onCancel={handleCancelAddStock}
+        footer={[
+          <Button key="cancel" variant="outline" onClick={handleCancelAddStock}>
+            Cancel
+          </Button>,
+          <Button 
+            key="submit" 
+            onClick={handleAddStock} 
+            disabled={loading || !newStock.symbol || !newStock.name || !newStock.quantity || !newStock.buyPrice}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            {loading ? 'Adding...' : 'Add Stock'}
+          </Button>
+        ]}
+        width={600}
+      >
+        <div className="py-4 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="symbol">Symbol *</Label>
+              <Input 
+                id="symbol" 
+                name="symbol" 
+                value={newStock.symbol} 
+                onChange={handleInputChange} 
+                placeholder="e.g., RELIANCE.NS"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="name">Company Name *</Label>
+              <Input 
+                id="name" 
+                name="name" 
+                value={newStock.name} 
+                onChange={handleInputChange} 
+                placeholder="e.g., Reliance Industries Ltd"
+                required
+              />
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="quantity">Quantity *</Label>
+              <Input 
+                id="quantity" 
+                name="quantity" 
+                value={newStock.quantity} 
+                onChange={handleQuantityChange} 
+                placeholder="e.g., 10"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="buyPrice">Buy Price (₹) *</Label>
+              <Input 
+                id="buyPrice" 
+                name="buyPrice" 
+                value={newStock.buyPrice} 
+                onChange={handleBuyPriceChange} 
+                placeholder="e.g., 2500"
+                required
+              />
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="sector">Sector</Label>
+              <Input 
+                id="sector" 
+                name="sector" 
+                value={newStock.sector} 
+                onChange={handleInputChange} 
+                placeholder="e.g., Technology"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="currentPrice">Current Price (₹)</Label>
+              <div className="flex space-x-2">
+                <Input 
+                  id="currentPrice" 
+                  name="currentPrice" 
+                  value={newStock.currentPrice} 
+                  onChange={handleCurrentPriceChange} 
+                  placeholder="Auto-fetch or enter manually"
+                />
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  onClick={handleRefreshCurrentPrice}
+                  disabled={loading || !newStock.symbol}
+                  title="Fetch current price"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+          
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            * Required fields
+          </p>
         </div>
       </Modal>
       
