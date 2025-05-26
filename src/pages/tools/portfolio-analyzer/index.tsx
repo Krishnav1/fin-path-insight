@@ -90,7 +90,7 @@ export default function PortfolioAnalyzerPage() {
   }, [user]);
   const [showAddStockModal, setShowAddStockModal] = useState(false);
   const [showEditStockModal, setShowEditStockModal] = useState(false);
-  const [newStock, setNewStock] = useState({ symbol: '', name: '', quantity: '', buyPrice: '', sector: '' });
+  const [newStock, setNewStock] = useState({ symbol: '', name: '', quantity: '', buyPrice: '', sector: '', currentPrice: '' });
   const [editingStock, setEditingStock] = useState<any>(null);
   const [stocks, setStocks] = useState<Array<{
     symbol: string;
@@ -324,12 +324,10 @@ export default function PortfolioAnalyzerPage() {
 
     try {
       setLoading(true);
-      
-      // 1. Get current price from EODHD API
-      const currentPrice = await fetchStockData(newStock.symbol) || Number(newStock.buyPrice);
-      
-      // 2. Insert into Supabase
-      const { data, error } = await supabase
+      // Use manually entered or refreshed currentPrice, fallback to buyPrice if empty
+      const currentPrice = newStock.currentPrice ? Number(newStock.currentPrice) : Number(newStock.buyPrice);
+      // Add to Supabase
+      const { error } = await supabase
         .from('portfolio_holdings')
         .insert([{
           user_id: user.id,
@@ -340,37 +338,13 @@ export default function PortfolioAnalyzerPage() {
           buy_price: Number(newStock.buyPrice),
           current_price: currentPrice,
           sector: newStock.sector || 'Other',
-          buy_date: new Date().toISOString().split('T')[0] // Today's date in YYYY-MM-DD format
+          buy_date: new Date().toISOString().split('T')[0]
         }]);
-
       if (error) throw error;
-
-      // 3. Update UI state
-      const newStockObj = {
-        symbol: newStock.symbol,
-        name: newStock.name,
-        quantity: Number(newStock.quantity),
-        buyPrice: Number(newStock.buyPrice),
-        currentPrice: currentPrice,
-        value: Number(newStock.quantity) * currentPrice,
-        profit: (currentPrice - Number(newStock.buyPrice)) * Number(newStock.quantity),
-        profitPercentage: ((currentPrice / Number(newStock.buyPrice)) - 1) * 100,
-        allocation: 0, // Will recalculate
-        sector: newStock.sector || 'Other',
-      };
-
-      const updatedStocks = [...stocks, newStockObj];
-      
-      // Recalculate allocations
-      const totalValue = updatedStocks.reduce((sum, stock) => sum + stock.value, 0);
-      updatedStocks.forEach(stock => {
-        stock.allocation = (stock.value / totalValue) * 100;
-      });
-
-      setStocks(updatedStocks);
+      // Update UI
+      await fetchUserPortfolio();
       setShowAddStockModal(false);
-      setNewStock({ symbol: '', name: '', quantity: '', buyPrice: '', sector: '' });
-      
+      setNewStock({ symbol: '', name: '', quantity: '', buyPrice: '', sector: '', currentPrice: '' });
       toast({
         title: 'Success',
         description: `${newStock.symbol} added to your portfolio`,
@@ -388,6 +362,28 @@ export default function PortfolioAnalyzerPage() {
     }
   };
 
+  // Handle refreshing current price for Add Stock modal
+  async function handleRefreshCurrentPrice() {
+    if (!newStock.symbol) {
+      toast({ title: 'Symbol Required', description: 'Please enter a symbol first', variant: 'destructive' });
+      return;
+    }
+    setLoading(true);
+    try {
+      const price = await fetchStockData(newStock.symbol);
+      if (price) {
+        setNewStock(prev => ({ ...prev, currentPrice: price.toString() }));
+        toast({ title: 'Price Fetched', description: `Current price: ₹${price}`, variant: 'default' });
+      } else {
+        toast({ title: 'Not Found', description: 'Could not fetch current price', variant: 'destructive' });
+      }
+    } catch (err) {
+      toast({ title: 'Error', description: 'Failed to fetch price', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  }
+
   // Handle editing a stock
   const handleEditStock = (stock: any) => {
     setEditingStock(stock);
@@ -396,7 +392,8 @@ export default function PortfolioAnalyzerPage() {
       name: stock.name,
       quantity: stock.quantity.toString(),
       buyPrice: stock.buyPrice.toString(),
-      sector: stock.sector
+      sector: stock.sector,
+      currentPrice: stock.currentPrice.toString()
     });
     setShowEditStockModal(true);
   };
@@ -470,7 +467,8 @@ export default function PortfolioAnalyzerPage() {
           name: newStock.name,
           quantity: Number(newStock.quantity),
           buy_price: Number(newStock.buyPrice),
-          sector: newStock.sector || 'Other'
+          sector: newStock.sector || 'Other',
+          current_price: Number(newStock.currentPrice)
         })
         .eq('portfolio_id', portfolioId)
         .eq('symbol', editingStock.symbol);
@@ -491,7 +489,8 @@ export default function PortfolioAnalyzerPage() {
             sector: newStock.sector || 'Other',
             value: Number(newStock.quantity) * currentPrice,
             profit: (currentPrice - Number(newStock.buyPrice)) * Number(newStock.quantity),
-            profitPercentage: ((currentPrice / Number(newStock.buyPrice)) - 1) * 100
+            profitPercentage: ((currentPrice / Number(newStock.buyPrice)) - 1) * 100,
+            currentPrice: Number(newStock.currentPrice)
           };
           return updatedStock;
         }
@@ -507,7 +506,7 @@ export default function PortfolioAnalyzerPage() {
       setStocks(updatedStocks);
       setShowEditStockModal(false);
       setEditingStock(null);
-      setNewStock({ symbol: '', name: '', quantity: '', buyPrice: '', sector: '' });
+      setNewStock({ symbol: '', name: '', quantity: '', buyPrice: '', sector: '', currentPrice: '' });
       
       toast({
         title: 'Stock Updated',
@@ -898,9 +897,14 @@ function handleBuyPriceChange(event: React.ChangeEvent<HTMLInputElement>) {
   setNewStock(prev => ({ ...prev, buyPrice: value }));
 }
 
+function handleCurrentPriceChange(event: React.ChangeEvent<HTMLInputElement>) {
+  const value = event.target.value.replace(/[^0-9.]/g, '');
+  setNewStock(prev => ({ ...prev, currentPrice: value }));
+}
+
 function handleCancelAddStock() {
   setShowAddStockModal(false);
-  setNewStock({ symbol: '', name: '', quantity: '', buyPrice: '', sector: '' });
+  setNewStock({ symbol: '', name: '', quantity: '', buyPrice: '', sector: '', currentPrice: '' });
 }
 
 // --- Supabase Insert Example (user to fill table name/config) ---
@@ -1001,117 +1005,6 @@ function handleCancelAddStock() {
           
           {/* Portfolio Analysis Tabs */}
           
-          <Modal 
-            title="Add Stock" 
-            open={showAddStockModal} 
-            onCancel={handleCancelAddStock}
-            footer={[
-              <Button key="cancel" variant="ghost" onClick={handleCancelAddStock}>Cancel</Button>,
-              <Button key="add" onClick={handleAddStock}>Add</Button>
-            ]}
-          >
-
-            <div className="space-y-4">
-              <Input
-                type="text"
-                name="symbol"
-                value={newStock.symbol}
-                onChange={handleInputChange}
-                placeholder="Symbol"
-              />
-              <Input
-                type="text"
-                name="name"
-                value={newStock.name}
-                onChange={handleInputChange}
-                placeholder="Name"
-              />
-              <Input
-                type="number"
-                name="quantity"
-                value={newStock.quantity}
-                onChange={handleQuantityChange}
-                placeholder="Quantity"
-              />
-              <Input
-                type="number"
-                name="buyPrice"
-                value={newStock.buyPrice}
-                onChange={handleBuyPriceChange}
-                placeholder="Buy Price"
-              />
-              <Input
-                type="text"
-                name="sector"
-                value={newStock.sector}
-                onChange={handleInputChange}
-                placeholder="Sector"
-              />
-            </div>
-          </Modal>
-          
-          {/* Edit Stock Modal */}
-          <Modal
-            title="Edit Stock"
-            open={showEditStockModal}
-            onCancel={() => {
-              setShowEditStockModal(false);
-              setEditingStock(null);
-              setNewStock({ symbol: '', name: '', quantity: '', buyPrice: '', sector: '' });
-            }}
-            footer={[
-              <Button 
-                key="cancel" 
-                variant="ghost" 
-                onClick={() => {
-                  setShowEditStockModal(false);
-                  setEditingStock(null);
-                  setNewStock({ symbol: '', name: '', quantity: '', buyPrice: '', sector: '' });
-                }}
-              >
-                Cancel
-              </Button>,
-              <Button key="save" onClick={handleSaveEditedStock}>Save</Button>
-            ]}
-          >
-            <div className="space-y-4">
-              <Input
-                type="text"
-                name="symbol"
-                value={newStock.symbol}
-                disabled={true}
-                placeholder="Symbol"
-              />
-              <Input
-                type="text"
-                name="name"
-                value={newStock.name}
-                onChange={handleInputChange}
-                placeholder="Name"
-              />
-              <Input
-                type="number"
-                name="quantity"
-                value={newStock.quantity}
-                onChange={handleQuantityChange}
-                placeholder="Quantity"
-              />
-              <Input
-                type="number"
-                name="buyPrice"
-                value={newStock.buyPrice}
-                onChange={handleBuyPriceChange}
-                placeholder="Buy Price"
-              />
-              <Input
-                type="text"
-                name="sector"
-                value={newStock.sector}
-                onChange={handleInputChange}
-                placeholder="Sector"
-              />
-            </div>
-          </Modal>
           <Tabs defaultValue="overview" onValueChange={setActiveTab} className="mb-8">
             <TabsList className="grid grid-cols-4">
               <TabsTrigger value="overview">Overview</TabsTrigger>
@@ -1172,6 +1065,10 @@ function handleCancelAddStock() {
                       <Button variant="outline" size="sm">
                         <Download className="h-4 w-4 mr-2" />
                         Export
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={async () => { await refreshStockPrices(); await analyzePortfolio(); }}>
+                        <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-refresh-cw mr-1"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0114.13-3.36L23 10M1 14l5.36 5.36A9 9 0 0020.49 15"></path></svg>
+                        Refresh My Analysis
                       </Button>
                     </div>
                   </div>
