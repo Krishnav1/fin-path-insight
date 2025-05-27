@@ -14,6 +14,28 @@ const corsHeaders = {
 
 const EODHD_BASE_URL = 'https://eodhd.com/api';
 
+// Helper to format symbols correctly for EODHD API
+function formatSymbolForEODHD(symbol: string): string {
+  // If no symbol is provided, return empty
+  if (!symbol) return '';
+  
+  // Convert to uppercase
+  let formattedSymbol = symbol.toUpperCase();
+  
+  // Fix Indian stock symbols: convert .NS (Yahoo Finance) to .NSE (EODHD)
+  if (formattedSymbol.endsWith('.NS')) {
+    return formattedSymbol.replace(/\.NS$/, '.NSE');
+  }
+  
+  // If there's no dot (exchange suffix), assume it's an Indian stock
+  // and add .NSE suffix
+  if (!formattedSymbol.includes('.')) {
+    return `${formattedSymbol}.NSE`;
+  }
+  
+  return formattedSymbol;
+}
+
 // Helper for error responses
 function errorResponse(message: string, status = 400) {
   console.error(`[EODHD-FUNDAMENTALS] ${message}`);
@@ -70,8 +92,12 @@ serve(async (req) => {
     
     // Extract the query parameters
     const url = new URL(req.url);
-    const symbol = url.searchParams.get('symbol');
+    const rawSymbol = url.searchParams.get('symbol');
     const type = url.searchParams.get('type') || 'general'; // Default to general info
+    
+    // Format symbol for EODHD API
+    const symbol = formatSymbolForEODHD(rawSymbol || '');
+    console.log(`[EODHD-FUNDAMENTALS] Original symbol: ${rawSymbol}, Formatted symbol: ${symbol}`);
     
     if (!symbol) {
       return errorResponse('Symbol parameter is required', 400);

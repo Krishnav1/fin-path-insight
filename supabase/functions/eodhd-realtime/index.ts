@@ -14,6 +14,28 @@ const corsHeaders = {
 
 const EODHD_BASE_URL = 'https://eodhd.com/api/real-time';
 
+// Helper to format symbols correctly for EODHD API
+function formatSymbolForEODHD(symbol: string): string {
+  // If no symbol is provided, return empty
+  if (!symbol) return '';
+  
+  // Convert to uppercase
+  let formattedSymbol = symbol.toUpperCase();
+  
+  // Fix Indian stock symbols: convert .NS (Yahoo Finance) to .NSE (EODHD)
+  if (formattedSymbol.endsWith('.NS')) {
+    return formattedSymbol.replace(/\.NS$/, '.NSE');
+  }
+  
+  // If there's no dot (exchange suffix), assume it's an Indian stock
+  // and add .NSE suffix
+  if (!formattedSymbol.includes('.')) {
+    return `${formattedSymbol}.NSE`;
+  }
+  
+  return formattedSymbol;
+}
+
 // Helper for error responses
 function errorResponse(message: string, status = 400) {
   console.error(`[EODHD-REALTIME] ${message}`);
@@ -94,8 +116,12 @@ serve(async (req) => {
       queryParams.set('fmt', 'json');
     }
 
+    // Format symbol for EODHD API
+    const formattedSymbol = formatSymbolForEODHD(symbol);
+    console.log(`[EODHD-REALTIME] Original symbol: ${symbol}, Formatted symbol: ${formattedSymbol}`);
+    
     // Construct the target EODHD URL
-    const targetUrl = `${EODHD_BASE_URL}/${symbol}?${queryParams.toString()}`;
+    const targetUrl = `${EODHD_BASE_URL}/${formattedSymbol}?${queryParams.toString()}`;
     console.log(`[EODHD-REALTIME] Proxying to: ${targetUrl}`);
 
     // Forward the request to EODHD

@@ -128,6 +128,8 @@ async function callGeminiForReport(aggregatedData: any, userQuery: string) {
   try {
     // Get API key from environment
     const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    const vertexRegion = "asia-south1"; // Added for consistency
+
     if (!GEMINI_API_KEY) {
       throw new Error("GEMINI_API_KEY environment variable is not set");
     }

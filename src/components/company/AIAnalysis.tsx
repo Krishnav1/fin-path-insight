@@ -195,7 +195,7 @@ export default function AIAnalysis({ companyData, currencySymbol }: AIAnalysisPr
             {
               name: "Intrinsic Value",
               value: `${currencySymbol}${(companyData.currentPrice * (Math.random() * 0.4 + 0.8)).toFixed(2)}`,
-              currentPrice: `${currencySymbol}${companyData.currentPrice.toFixed(2)}`,
+              currentPrice: `${currencySymbol}${(typeof companyData.currentPrice === 'number' ? companyData.currentPrice : 0).toFixed(2)}`,
               explanation: "A calculated estimate of what the stock is truly worth, based on Damodaran-style discounted cash flow analysis.",
               comparison: companyData.valuation.toLowerCase() === "undervalued" ? "undervalued" : companyData.valuation.toLowerCase() === "overvalued" ? "overvalued" : "fairly-valued"
             }
@@ -485,7 +485,7 @@ export default function AIAnalysis({ companyData, currencySymbol }: AIAnalysisPr
   function generateJustification(data: CompanyData): string[] {
     if (!data) return ["Information not available"];
     
-    const justifications = [];
+    const justifications: string[] = [];
     
     const revenueGrowth = data.revenueGrowth || 0;
     if (revenueGrowth > 10) {
@@ -590,9 +590,7 @@ export default function AIAnalysis({ companyData, currencySymbol }: AIAnalysisPr
             <div className="space-y-8">
               {/* Business Overview Section */}
               <section>
-                <h3 className="text-lg font-semibold mb-3 flex items-center">
-                  🧠 Smart Business Breakdown
-                </h3>
+                <h3 className="text-lg font-semibold mb-3">🧠 Smart Business Breakdown</h3>
                 <div className="bg-slate-50 dark:bg-slate-800 rounded-md p-4">
                   <p className="text-slate-700 dark:text-slate-300">
                     {aiReport.businessOverview.description}

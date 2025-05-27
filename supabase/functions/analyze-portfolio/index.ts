@@ -102,8 +102,9 @@ serve(async (req) => {
     // --- Vertex AI with Service Account (Production) ---
     // 1. Get service account credentials
     const credentials = getGoogleServiceAccount();
-    const projectId = credentials.project_id as string;
-    const vertexRegion = 'us-central1'; // Change if your Vertex AI is in another region
+    // Hardcoded project ID as per user instruction
+    const projectId = 'gen-lang-client-0790586374';
+    const vertexRegion = 'asia-south1'; // Changed from us-central1
     
     // 2. Get OAuth2 access token using service account
     // (Deno-compatible JWT signing)
@@ -151,6 +152,57 @@ serve(async (req) => {
       return tokenJson.access_token;
     }
 
+    // Helper to standardize symbols for analysis
+    function standardizeHoldings(holdings: any[]) {
+      return holdings.map(holding => {
+        // Create a copy to avoid modifying the original
+        const standardized = { ...holding };
+        
+        // Standardize symbol format (remove any exchange suffix for clarity)
+        if (standardized.symbol) {
+          // Remove any exchange suffix (.NS, .NSE, etc.)
+          standardized.symbol = standardized.symbol.split('.')[0];
+        }
+        
+        // Ensure currentPrice is a number
+        if (standardized.currentPrice && typeof standardized.currentPrice !== 'number') {
+          standardized.currentPrice = parseFloat(standardized.currentPrice) || 0;
+        }
+        
+        return standardized;
+      });
+    }
+
+    // Ensures the AI response matches the GeminiAnalysis interface shape
+    function ensureGeminiAnalysisShape(obj: any): any {
+      return {
+        overview: {
+          total_invested: obj?.overview?.total_invested ?? '',
+          market_value: obj?.overview?.market_value ?? '',
+          absolute_return: obj?.overview?.absolute_return ?? '',
+          percent_return: obj?.overview?.percent_return ?? '',
+          top_gainer: obj?.overview?.top_gainer ?? '',
+          worst_performer: obj?.overview?.worst_performer ?? ''
+        },
+        stock_breakdown: Array.isArray(obj?.stock_breakdown) ? obj.stock_breakdown.map((s: any) => ({
+          symbol: s?.symbol ?? '',
+          sector: s?.sector ?? '',
+          percent_gain: s?.percent_gain ?? '',
+          recommendation: s?.recommendation ?? ''
+        })) : [],
+        diversification: {
+          sector_breakdown: typeof obj?.diversification?.sector_breakdown === 'object' && obj.diversification.sector_breakdown !== null ? obj.diversification.sector_breakdown : {},
+          risk_flag: obj?.diversification?.risk_flag ?? 'Medium'
+        },
+        recommendations: Array.isArray(obj?.recommendations) ? obj.recommendations : [],
+        summary: obj?.summary ?? ''
+      };
+    }
+    
+    // Standardize holdings data
+    const standardizedHoldings = standardizeHoldings(holdings);
+    console.log('Standardized holdings for analysis:', JSON.stringify(standardizedHoldings, null, 2));
+    
     // 3. Prepare the prompt
     const prompt = `
 You are a Senior Equity Research Analyst assisting users on a financial platform called FinGenie. A user has entered their portfolio holdings.
@@ -158,7 +210,7 @@ You are a Senior Equity Research Analyst assisting users on a financial platform
 Your job is to analyze the data and provide insightful, personalized, and jargon-free feedback for a retail investor. Use simple language but offer genuine financial intelligence. Base all analysis only on the data below (no external API or live data).
 
 📊 PORTFOLIO HOLDINGS:
-${JSON.stringify(holdings, null, 2)}
+${JSON.stringify(standardizedHoldings, null, 2)}
 
 📊 ANALYSIS TASKS:
 
@@ -229,23 +281,61 @@ Only use the data provided. Don't assume any external or real-time info.
     const accessToken = await getAccessToken();
 
     // 5. Call Vertex AI Text Generation endpoint
-    const apiUrl = `https://${vertexRegion}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${vertexRegion}/publishers/google/models/gemini-1.5-pro:generateContent`;
+    // Updated to use Gemini 1.5 Pro model and the correct project ID
+    const apiUrl = `https://${vertexRegion}-aiplatform.googleapis.com/v1/projects/gen-lang-client-0790586374/locations/${vertexRegion}/publishers/google/models/gemini-1.5-pro:generateContent`;
     const vertexBody = {
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       generationConfig: { temperature: 0.7, maxOutputTokens: 2048 }
     };
-    const vertexResp = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(vertexBody)
-    });
-    const vertexJson = await vertexResp.json();
-    if (!vertexJson.candidates || !vertexJson.candidates[0]?.content?.parts[0]?.text) {
+    console.log('Calling Vertex AI with prompt:', prompt.substring(0, 500) + '... [truncated]');
+    
+    // Variable to store the Vertex AI response
+    let vertexJson;
+    
+    try {
+      const vertexResp = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(vertexBody)
+      });
+      
+      // Check if the response is OK
+      if (!vertexResp.ok) {
+        const errorText = await vertexResp.text();
+        console.error(`Vertex API error (${vertexResp.status}):`, errorText);
+        return new Response(
+          JSON.stringify({ 
+            error: `Vertex AI returned error status: ${vertexResp.status}`, 
+            details: errorText
+          }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      
+      vertexJson = await vertexResp.json();
+      console.log('Vertex AI response structure:', JSON.stringify(Object.keys(vertexJson)));
+      
+      if (!vertexJson.candidates || !vertexJson.candidates[0]?.content?.parts[0]?.text) {
+        console.error('Invalid Vertex AI response structure:', JSON.stringify(vertexJson, null, 2));
+        return new Response(
+          JSON.stringify({ 
+            error: 'Vertex AI did not return a valid response', 
+            details: 'Response missing expected structure',
+            rawResponse: vertexJson 
+          }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    } catch (error) {
+      console.error('Exception calling Vertex AI:', error);
       return new Response(
-        JSON.stringify({ error: 'Vertex AI did not return a valid response', rawResponse: vertexJson }),
+        JSON.stringify({ 
+          error: 'Exception occurred while calling Vertex AI', 
+          details: error instanceof Error ? error.message : String(error) 
+        }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -255,12 +345,15 @@ Only use the data provided. Don't assume any external or real-time info.
     let analysisJson;
     try {
       // Extract JSON from the response if it's wrapped in markdown code blocks
-      if (analysisText.includes('```json')) {
-        analysisText = analysisText.split('```json')[1].split('```')[0].trim();
+      if (analysisText.trim().startsWith('```json')) {
+        analysisText = analysisText.replace(/^```json|```$/g, '').trim();
       } else if (analysisText.includes('```')) {
         analysisText = analysisText.split('```')[1].split('```')[0].trim();
       }
       analysisJson = JSON.parse(analysisText);
+
+      // Validate and fill missing fields to match GeminiAnalysis interface
+      analysisJson = ensureGeminiAnalysisShape(analysisJson);
     } catch (jsonError) {
       console.error('Error parsing Vertex AI response as JSON:', jsonError);
       console.log('Raw response:', analysisText);

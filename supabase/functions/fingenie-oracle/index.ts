@@ -120,17 +120,12 @@ serve(async (req) => {
 
     // Get API key from environment
     const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    const vertexRegion = "asia-south1"; // Added for consistency
+
     if (!GEMINI_API_KEY) {
-      return new Response(
-        JSON.stringify({ error: "GEMINI_API_KEY environment variable is not set" }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
+      throw new Error("GEMINI_API_KEY environment variable is not set");
     }
 
-    // Initialize the Gemini API client
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 
     // Prepare the prompt for Gemini

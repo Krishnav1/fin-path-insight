@@ -150,7 +150,7 @@ const FinGenieInvestmentReport = () => {
             </Typography>
             {stockData?.realTimePrice?.currentPrice && (
               <Typography variant="h5" color={stockData.realTimePrice.dayChange >= 0 ? 'success.main' : 'error.main'}>
-                {stockData.realTimePrice.currentPrice.toFixed(2)} {stockData.realTimePrice.currency || 'USD'} 
+                {(typeof stockData.realTimePrice?.currentPrice === 'number' ? stockData.realTimePrice.currentPrice : 0).toFixed(2)} {stockData.realTimePrice?.currency || 'USD'} 
                 {stockData.realTimePrice.dayChangePercent && (
                   <Typography component="span" variant="h6" color="inherit">
                     {' '}({stockData.realTimePrice.dayChange >= 0 ? '+' : ''}{stockData.realTimePrice.dayChangePercent.toFixed(2)}%)
