@@ -1,8 +1,8 @@
 // API Configuration for Supabase Edge Functions
 // This file centralizes all API endpoints for the application
 
-// Supabase project URL - replace with your actual Supabase project URL
-export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://your-project-id.supabase.co';
+// Supabase project URL - using your actual Supabase project URL
+export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://ydakwyplcqoshxcdllah.supabase.co';
 
 // Supabase API endpoints
 export const API_ENDPOINTS = {

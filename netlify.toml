@@ -3,18 +3,6 @@
   publish = "dist"
   environment = { NODE_VERSION = "18.18.0" }
 
-[functions]
-  node_bundler = "esbuild"
-  external_node_modules = ["@google/generative-ai"]
-
-[functions.fingenieChat]
-  timeout = 60
-
-[functions.getInvestmentReport]
-  timeout = 60
-
-[functions.finGenieOracle]
-  timeout = 60
 
 # API requests can be handled by both Netlify Functions and Deno Deploy
 # Adding redirects for direct API calls to Deno Deploy

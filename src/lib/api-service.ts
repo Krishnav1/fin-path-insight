@@ -57,13 +57,36 @@ setInterval(() => apiCache.clearExpired(), 10 * 60 * 1000);
 
 // 1. Get real-time stock quote
 export async function getStockQuote(symbol: string): Promise<StockQuote | null> {
-  const cacheKey = `quote-${symbol}`;
+  const cacheKey = `stock_quote_${symbol}`;
   const cachedData = apiCache.get<StockQuote>(cacheKey);
   if (cachedData) return cachedData;
   try {
-    const url = `${API_ENDPOINTS.EODHD_REALTIME}/${symbol}?fmt=json`;
-    const { data, error } = await callEdgeFunction(url, 'GET');
-    if (error) throw new Error(`Failed to fetch stock quote: ${error.message}`);
+    // Make sure we're using the correct URL format for Supabase Edge Functions
+    // The Edge Function expects the symbol directly in the path
+    const url = `${API_ENDPOINTS.EODHD_REALTIME}/${symbol}`;
+    console.log(`Fetching stock quote from: ${url}`);
+    
+    // Add proper parameters
+    const params = {
+      fmt: 'json'
+    };
+    
+    // Use the Edge Function client with proper error handling
+    const { data, error } = await callEdgeFunction(url, 'GET', null, {
+      customHeaders: {
+        'Accept': 'application/json'
+      }
+    });
+    
+    if (error) {
+      console.error('Edge function error:', error);
+      throw new Error(`Failed to fetch stock quote: ${error.message}`);
+    }
+    
+    if (!data) {
+      throw new Error('No data returned from API');
+    }
+    
     apiCache.set(cacheKey, data, 60 * 1000); // 1 min cache
     return data;
   } catch (error) {
