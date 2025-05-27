@@ -1,7 +1,10 @@
 // Supabase Edge Function for Portfolio Analysis
 // This function analyzes portfolio holdings using Google's Gemini API
+// Requires authentication since it deals with user portfolio data
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+
 // Helper to get Google service account credentials from environment variables
 function getGoogleServiceAccount(): Record<string, unknown> {
   let rawJson = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_JSON');
@@ -24,21 +27,65 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
 };
 
+// Helper for error responses
+function errorResponse(message: string, status = 400) {
+  console.error(`[ANALYZE-PORTFOLIO] ${message}`);
+  return new Response(
+    JSON.stringify({ error: message }),
+    {
+      status,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    }
+  );
+}
+
+// Get Supabase URL and key from environment variables
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
+const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
+
+// Helper to check authentication - returns user or null
+async function getUserFromToken(authHeader: string | null): Promise<any> {
+  if (!authHeader || !authHeader.startsWith('Bearer ') || !SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    return null;
+  }
+  
+  try {
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const token = authHeader.replace('Bearer ', '');
+    const { data, error } = await supabase.auth.getUser(token);
+    
+    if (error || !data.user) {
+      console.error('[Auth] Invalid token:', error);
+      return null;
+    }
+    
+    return data.user;
+  } catch (error) {
+    console.error('[Auth] Error validating token:', error);
+    return null;
+  }
+}
+
 serve(async (req) => {
   // Handle CORS preflight request
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  // Check authentication - this endpoint requires authentication
+  const authHeader = req.headers.get('Authorization');
+  const user = await getUserFromToken(authHeader);
+  
+  if (!user) {
+    return errorResponse('Authentication required. Please log in.', 401);
+  }
+  
+  // Log authenticated user (but don't expose sensitive details)
+  console.log(`[ANALYZE-PORTFOLIO] Authenticated request from user: ${user.id}`);
+
   // Only accept POST requests
   if (req.method !== "POST") {
-    return new Response(
-      JSON.stringify({ error: "Method Not Allowed" }),
-      {
-        status: 405,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+    return errorResponse("Method Not Allowed", 405);
   }
 
   try {
@@ -49,13 +96,7 @@ serve(async (req) => {
     const { holdings } = body;
 
     if (!holdings || !Array.isArray(holdings) || holdings.length === 0) {
-      return new Response(
-        JSON.stringify({ error: "Missing or invalid holdings data in request body" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
+      return errorResponse("Missing or invalid holdings data in request body", 400);
     }
 
     // --- Vertex AI with Service Account (Production) ---
@@ -229,21 +270,22 @@ Only use the data provided. Don't assume any external or real-time info.
       );
     }
     return new Response(
-      JSON.stringify({ analysis: analysisJson, timestamp: new Date().toISOString() }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({ 
+        analysis: analysisJson, 
+        timestamp: new Date().toISOString(),
+        userId: user.id // Include the user ID for client-side verification
+      }),
+      {
+        status: 200,
+        headers: { 
+          ...corsHeaders, 
+          "Content-Type": "application/json",
+          'X-Auth-Status': 'authenticated'
+        }
+      }
     );
   } catch (error) {
     console.error('Error processing portfolio analysis request:', error);
-    
-    const errorMessage = error instanceof Error ? error.message : 'Unknown server error';
-    return new Response(
-      JSON.stringify({
-        error: `Failed to process portfolio analysis: ${errorMessage}`
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+    return errorResponse(error instanceof Error ? error.message : 'Unknown server error', 500);
   }
 })

@@ -1,7 +1,9 @@
 // Supabase Edge Function for EODHD API Proxy
 // This function forwards requests to the EODHD API
+// Supports both authenticated and unauthenticated requests
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 // CORS headers for Supabase Edge Functions
 const corsHeaders = {
@@ -12,6 +14,45 @@ const corsHeaders = {
 
 const EODHD_BASE_URL = 'https://eodhd.com/api';
 
+// Helper for error responses
+function errorResponse(message: string, status = 400) {
+  console.error(`[EODHD-PROXY] ${message}`);
+  return new Response(
+    JSON.stringify({ error: message }),
+    {
+      status,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    }
+  );
+}
+
+// Get Supabase URL and key from environment variables
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
+const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
+
+// Helper to check authentication
+async function getUserFromToken(authHeader: string | null): Promise<any> {
+  if (!authHeader || !authHeader.startsWith('Bearer ') || !SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    return null;
+  }
+  
+  try {
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const token = authHeader.replace('Bearer ', '');
+    const { data, error } = await supabase.auth.getUser(token);
+    
+    if (error || !data.user) {
+      console.error('[Auth] Invalid token:', error);
+      return null;
+    }
+    
+    return data.user;
+  } catch (error) {
+    console.error('[Auth] Error validating token:', error);
+    return null;
+  }
+}
+
 serve(async (req) => {
   // Handle CORS preflight request
   if (req.method === 'OPTIONS') {
@@ -19,6 +60,14 @@ serve(async (req) => {
   }
 
   try {
+    // Check authentication
+    const authHeader = req.headers.get('Authorization');
+    const user = await getUserFromToken(authHeader);
+    const isAuthenticated = !!user;
+    
+    // Log authentication status (but don't expose user details)
+    console.log(`[EODHD-PROXY] Request authentication status: ${isAuthenticated ? 'Authenticated' : 'Unauthenticated'}`);
+    
     // Extract the path that should be forwarded to EODHD
     const url = new URL(req.url);
     const path = url.pathname;
@@ -35,20 +84,12 @@ serve(async (req) => {
     console.log(`EODHD_API_KEY present: ${Boolean(EODHD_API_KEY)}`);
     
     if (!EODHD_API_KEY) {
-      console.error('EODHD_API_KEY not set in environment variables');
-      return new Response(
-        JSON.stringify({ error: 'EODHD_API_KEY not set in environment variables.' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return errorResponse('EODHD_API_KEY not set in environment variables.', 500);
     }
     
     // Check if the API key is valid (not just empty string)
     if (EODHD_API_KEY.trim() === '') {
-      console.error('EODHD_API_KEY is empty');
-      return new Response(
-        JSON.stringify({ error: 'EODHD_API_KEY is empty.' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return errorResponse('EODHD_API_KEY is empty.', 500);
     }
     
     // Create a new URL with searchParams
@@ -82,7 +123,8 @@ serve(async (req) => {
       status: response.status,
       headers: {
         ...corsHeaders,
-        'Content-Type': response.headers.get('Content-Type') || 'application/json'
+        'Content-Type': response.headers.get('Content-Type') || 'application/json',
+        'X-Auth-Status': isAuthenticated ? 'authenticated' : 'unauthenticated'
       }
     });
   } catch (error) {

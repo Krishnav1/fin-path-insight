@@ -308,12 +308,18 @@ export default function PortfolioAnalyzerPage() {
   // Fetch current stock price from EODHD API via Supabase Edge Function
   const fetchStockData = async (symbol) => {
     try {
-      // Import API_ENDPOINTS to use Supabase Edge Function
+      // Import necessary modules
       const { API_ENDPOINTS } = await import('@/config/api-config');
-      const response = await fetch(`${API_ENDPOINTS.EODHD_REALTIME}/${symbol}?fmt=json`);
-      if (!response.ok) throw new Error('Failed to fetch stock data');
-      const data = await response.json();
-      return data.close || data.previousClose || null;
+      const { callEdgeFunction } = await import('@/lib/edge-function-client');
+      
+      // Make authenticated request to Supabase Edge Function using the centralized client
+      const { data, error } = await callEdgeFunction(
+        `${API_ENDPOINTS.EODHD_REALTIME}/${symbol}?fmt=json`,
+        'GET'
+      );
+      
+      if (error) throw new Error(`Failed to fetch stock data: ${error.message}`);
+      return data?.close || data?.previousClose || null;
     } catch (error) {
       console.error(`Error fetching data for ${symbol}:`, error);
       return null;

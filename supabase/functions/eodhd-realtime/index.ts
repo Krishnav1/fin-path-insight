@@ -1,7 +1,9 @@
 // Supabase Edge Function for EODHD Real-time API
 // This function forwards requests to the EODHD Real-time API
+// Supports both authenticated and unauthenticated requests
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 // CORS headers for Supabase Edge Functions
 const corsHeaders = {
@@ -30,6 +32,33 @@ if (!API_KEY) {
   throw new Error('EODHD_API_KEY not set in environment variables.');
 }
 
+// Get Supabase URL and key from environment variables
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
+const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
+
+// Helper to check authentication
+async function getUserFromToken(authHeader: string | null): Promise<any> {
+  if (!authHeader || !authHeader.startsWith('Bearer ') || !SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    return null;
+  }
+  
+  try {
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const token = authHeader.replace('Bearer ', '');
+    const { data, error } = await supabase.auth.getUser(token);
+    
+    if (error || !data.user) {
+      console.error('[Auth] Invalid token:', error);
+      return null;
+    }
+    
+    return data.user;
+  } catch (error) {
+    console.error('[Auth] Error validating token:', error);
+    return null;
+  }
+}
+
 serve(async (req) => {
   // Handle CORS preflight request
   if (req.method === 'OPTIONS') {
@@ -37,6 +66,15 @@ serve(async (req) => {
   }
 
   try {
+    // Check authentication
+    const authHeader = req.headers.get('Authorization');
+    const user = await getUserFromToken(authHeader);
+    const isAuthenticated = !!user;
+    
+    // Log authentication status (but don't expose user details)
+    console.log(`[EODHD-REALTIME] Request authentication status: ${isAuthenticated ? 'Authenticated' : 'Unauthenticated'}`);
+    
+    // Parse URL and extract symbol
     const url = new URL(req.url);
     const path = url.pathname;
     // In Supabase Edge Functions, the path will be /eodhd-realtime/SYMBOL
@@ -72,12 +110,13 @@ serve(async (req) => {
     // Get the response
     const responseData = await response.text();
 
-    // Return proxied response with CORS headers
+    // Return proxied response with CORS headers and authentication info
     return new Response(responseData, {
       status: response.status,
       headers: {
         ...corsHeaders,
-        'Content-Type': response.headers.get('Content-Type') || 'application/json'
+        'Content-Type': response.headers.get('Content-Type') || 'application/json',
+        'X-Auth-Status': isAuthenticated ? 'authenticated' : 'unauthenticated'
       }
     });
   } catch (error) {

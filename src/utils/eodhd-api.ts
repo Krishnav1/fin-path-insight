@@ -4,43 +4,24 @@
  */
 
 import { API_ENDPOINTS } from '@/config/api-config';
-
+import { callEdgeFunction } from '@/lib/edge-function-client';
+import { supabase } from '@/lib/supabase';
 
 /**
  * Fetches stock data for a given symbol
  * @param symbol Stock symbol (e.g., AAPL, MSFT)
  * @returns Promise with stock data
  */
-import { supabase } from '@/lib/supabase';
-
 export const fetchStockData = async (symbol: string) => {
-  // Get Supabase access token
-  let accessToken: string | null = null;
-  if (supabase.auth && typeof supabase.auth.getSession === 'function') {
-    const { data } = await supabase.auth.getSession();
-    accessToken = data?.session?.access_token || null;
-  }
-  // Log the token and headers
-  const headers = {
-    ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
-  };
-  console.log('[fetchStockData] accessToken:', accessToken);
-  console.log('[fetchStockData] headers:', headers);
   try {
-    const response = await fetch(
+    // Use callEdgeFunction to handle authentication, error handling, and retries
+    const { data, error } = await callEdgeFunction(
       `${API_ENDPOINTS.EODHD_PROXY}/eod/${symbol}?fmt=json`,
-      {
-        headers: {
-          ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
-        }
-      }
+      'GET'
     );
     
-    if (!response.ok) {
-      throw new Error(`Failed to fetch stock data: ${response.statusText}`);
-    }
-    
-    return await response.json();
+    if (error) throw new Error(`Failed to fetch stock data: ${error.message}`);
+    return data;
   } catch (error) {
     console.error('Error fetching stock data:', error);
     throw error;
@@ -53,31 +34,15 @@ export const fetchStockData = async (symbol: string) => {
  * @returns Promise with fundamental data
  */
 export const fetchFundamentalData = async (symbol: string) => {
-  let accessToken: string | null = null;
-  if (supabase.auth && typeof supabase.auth.getSession === 'function') {
-    const { data } = await supabase.auth.getSession();
-    accessToken = data?.session?.access_token || null;
-  }
-  const headers = {
-    ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
-  };
-  console.log('[fetchFundamentalData] accessToken:', accessToken);
-  console.log('[fetchFundamentalData] headers:', headers);
   try {
-    const response = await fetch(
+    // Use callEdgeFunction to handle authentication, error handling, and retries
+    const { data, error } = await callEdgeFunction(
       `${API_ENDPOINTS.EODHD_PROXY}/fundamentals/${symbol}?fmt=json`,
-      {
-        headers: {
-          ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
-        }
-      }
+      'GET'
     );
     
-    if (!response.ok) {
-      throw new Error(`Failed to fetch fundamental data: ${response.statusText}`);
-    }
-    
-    return await response.json();
+    if (error) throw new Error(`Failed to fetch fundamental data: ${error.message}`);
+    return data;
   } catch (error) {
     console.error('Error fetching fundamental data:', error);
     throw error;
@@ -108,32 +73,17 @@ export const calculatePortfolioMetrics = (holdings: any[]) => {
  * @returns Promise with real-time quotes
  */
 export const fetchBulkQuotes = async (symbols: string[]) => {
-  let accessToken: string | null = null;
-  if (supabase.auth && typeof supabase.auth.getSession === 'function') {
-    const { data } = await supabase.auth.getSession();
-    accessToken = data?.session?.access_token || null;
-  }
-  const headers = {
-    ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
-  };
-  console.log('[fetchBulkQuotes] accessToken:', accessToken);
-  console.log('[fetchBulkQuotes] headers:', headers);
   try {
     const symbolsStr = symbols.join(',');
-    const response = await fetch(
+    
+    // Use callEdgeFunction to handle authentication, error handling, and retries
+    const { data, error } = await callEdgeFunction(
       `${API_ENDPOINTS.EODHD_PROXY}/real-time/${symbolsStr}?fmt=json`,
-      {
-        headers: {
-          ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
-        }
-      }
+      'GET'
     );
     
-    if (!response.ok) {
-      throw new Error(`Failed to fetch quotes: ${response.statusText}`);
-    }
-    
-    return await response.json();
+    if (error) throw new Error(`Failed to fetch quotes: ${error.message}`);
+    return data;
   } catch (error) {
     console.error('Error fetching bulk quotes:', error);
     throw error;
@@ -146,35 +96,28 @@ export const fetchBulkQuotes = async (symbols: string[]) => {
  * @returns Promise with news data array
  */
 export const fetchNews = async (params: { symbols?: string[]; limit?: number; offset?: number; sort?: string; order?: string; market?: string; }) => {
-  let accessToken: string | null = null;
-  if (supabase.auth && typeof supabase.auth.getSession === 'function') {
-    const { data } = await supabase.auth.getSession();
-    accessToken = data?.session?.access_token || null;
-  }
-  const headers = {
-    ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
-  };
-  
-  const searchParams = new URLSearchParams();
-  if (params.limit) searchParams.append('limit', params.limit.toString());
-  if (params.offset) searchParams.append('offset', params.offset.toString());
-  if (params.sort) searchParams.append('sort', params.sort);
-  if (params.order) searchParams.append('order', params.order);
-  searchParams.append('fmt', 'json');
-  // Add symbols for specific markets if provided
-  if (params.symbols && params.symbols.length > 0) {
-    searchParams.append('s', params.symbols.join(','));
-  }
-  // Optionally add market-specific logic here if needed
   try {
-    const response = await fetch(
-      `${API_ENDPOINTS.EODHD_PROXY}/news?${searchParams.toString()}`,
-      { headers }
-    );
-    if (!response.ok) {
-      throw new Error(`Failed to fetch news: ${response.statusText}`);
+    // Build search parameters
+    const searchParams = new URLSearchParams();
+    if (params.limit) searchParams.append('limit', params.limit.toString());
+    if (params.offset) searchParams.append('offset', params.offset.toString());
+    if (params.sort) searchParams.append('sort', params.sort);
+    if (params.order) searchParams.append('order', params.order);
+    searchParams.append('fmt', 'json');
+    
+    // Add symbols for specific markets if provided
+    if (params.symbols && params.symbols.length > 0) {
+      searchParams.append('s', params.symbols.join(','));
     }
-    return await response.json();
+    
+    // Use callEdgeFunction to handle authentication, error handling, and retries
+    const { data, error } = await callEdgeFunction(
+      `${API_ENDPOINTS.EODHD_PROXY}/news?${searchParams.toString()}`,
+      'GET'
+    );
+    
+    if (error) throw new Error(`Failed to fetch news: ${error.message}`);
+    return data;
   } catch (error) {
     console.error('Error fetching news:', error);
     throw error;
@@ -189,31 +132,15 @@ export const fetchNews = async (params: { symbols?: string[]; limit?: number; of
  * @returns Promise with historical price data
  */
 export const fetchHistoricalPrices = async (symbol: string, fromDate: string, toDate: string) => {
-  let accessToken: string | null = null;
-  if (supabase.auth && typeof supabase.auth.getSession === 'function') {
-    const { data } = await supabase.auth.getSession();
-    accessToken = data?.session?.access_token || null;
-  }
-  const headers = {
-    ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
-  };
-  console.log('[fetchHistoricalPrices] accessToken:', accessToken);
-  console.log('[fetchHistoricalPrices] headers:', headers);
   try {
-    const response = await fetch(
+    // Use callEdgeFunction to handle authentication, error handling, and retries
+    const { data, error } = await callEdgeFunction(
       `${API_ENDPOINTS.EODHD_PROXY}/eod/${symbol}?from=${fromDate}&to=${toDate}&fmt=json`,
-      {
-        headers: {
-          ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
-        }
-      }
+      'GET'
     );
     
-    if (!response.ok) {
-      throw new Error(`Failed to fetch historical prices: ${response.statusText}`);
-    }
-    
-    return await response.json();
+    if (error) throw new Error(`Failed to fetch historical prices: ${error.message}`);
+    return data;
   } catch (error) {
     console.error('Error fetching historical prices:', error);
     throw error;
