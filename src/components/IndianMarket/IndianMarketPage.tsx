@@ -153,13 +153,13 @@ const IndianMarketPage: React.FC = () => {
       // Prepare the symbols for EODHD API (NSE exchange code)
       const formattedSymbols = indianStockSymbols.map(symbol => `${symbol}.NSE`);
       
-      // Get EODHD API key and base URL from environment or default
-      const EODHD_BASE_URL = '/api/eodhd-proxy'; // Proxied through backend
-      const EODHD_API_KEY = import.meta.env.VITE_EODHD_API_KEY || '682ab8a9176503.56947213';
+      // Import API endpoints for Supabase Edge Functions
+      const { API_ENDPOINTS } = await import('@/config/api-config');
+      // No need for explicit API key as it's handled by the Edge Function
       
       // Fetch NSE index data (NIFTY 50) from EODHD
       const niftyResponse = await axios.get(
-        `${EODHD_BASE_URL}/real-time/NIFTY50.INDX?fmt=json`
+        `${API_ENDPOINTS.EODHD_PROXY}/real-time/NIFTY50.INDX?fmt=json`
       ).then(response => response.data)
         .catch(err => {
           console.error('Error fetching NIFTY50 data:', err);

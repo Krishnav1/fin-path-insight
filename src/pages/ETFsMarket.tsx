@@ -150,7 +150,7 @@ const mockETFs: ETFData[] = [
   }
 ];
 
-const ETFsMarket = () => {
+const ETFsMarket = async () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const { market } = useMarket();
@@ -159,9 +159,9 @@ const ETFsMarket = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // EODHD API configuration
-  const EODHD_BASE_URL = '/api/eodhd-proxy'; // Uses the proxy through the backend
-  const EODHD_API_KEY = import.meta.env.VITE_EODHD_API_KEY || '682ab8a9176503.56947213';
+  // Import API endpoints for Supabase Edge Functions
+  const { API_ENDPOINTS } = await import('@/config/api-config');
+  // No need to explicitly set API key as it's handled by the Edge Function
 
   // Define ETF symbols based on market
   const GLOBAL_ETFS = ['SPY.US', 'QQQ.US', 'VTI.US', 'VOO.US', 'IEFA.US', 'AGG.US', 'VEA.US', 'VWO.US', 'BND.US', 'LQD.US'];

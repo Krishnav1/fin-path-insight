@@ -305,10 +305,12 @@ export default function PortfolioAnalyzerPage() {
     }
   };
 
-  // Fetch current stock price from EODHD API
+  // Fetch current stock price from EODHD API via Supabase Edge Function
   const fetchStockData = async (symbol) => {
     try {
-      const response = await fetch(`https://fin-path-insight.netlify.app/api/eodhd-proxy?endpoint=real-time/${symbol}?api_token=${EODHD_API_KEY}`);
+      // Import API_ENDPOINTS to use Supabase Edge Function
+      const { API_ENDPOINTS } = await import('@/config/api-config');
+      const response = await fetch(`${API_ENDPOINTS.EODHD_REALTIME}/${symbol}?fmt=json`);
       if (!response.ok) throw new Error('Failed to fetch stock data');
       const data = await response.json();
       return data.close || data.previousClose || null;

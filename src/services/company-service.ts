@@ -227,8 +227,9 @@ export const companyService = {
     
     // If no fresh cache, fetch from API
     try {
-      const apiUrl = import.meta.env.VITE_API_BASE_URL || '';
-      const response = await fetch(`${apiUrl}/api/eodhd-proxy/news?s=${symbol}&limit=10`);
+      // Import API_ENDPOINTS to use Supabase Edge Function
+      const { API_ENDPOINTS } = await import('@/config/api-config');
+      const response = await fetch(`${API_ENDPOINTS.EODHD_PROXY}/news?s=${symbol}&limit=10&fmt=json`);
       
       if (!response.ok) {
         throw new Error(`Failed to fetch news: ${response.statusText}`);
@@ -245,8 +246,9 @@ export const companyService = {
   // Get technical chart data
   async getChartData(symbol: string, timeframe: string = '1d') {
     try {
-      const apiUrl = import.meta.env.VITE_API_BASE_URL || '';
-      const response = await fetch(`${apiUrl}/api/eodhd-proxy/eod?symbol=${symbol}&period=${timeframe}&order=d`);
+      // Import API_ENDPOINTS to use Supabase Edge Function
+      const { API_ENDPOINTS } = await import('@/config/api-config');
+      const response = await fetch(`${API_ENDPOINTS.EODHD_PROXY}/eod?symbol=${symbol}&period=${timeframe}&order=d&fmt=json`);
       
       if (!response.ok) {
         throw new Error(`Failed to fetch chart data: ${response.statusText}`);
@@ -340,8 +342,9 @@ export const companyService = {
       }
       
       // If company doesn't exist, fetch basic info from EODHD API and add it
-      const apiUrl = import.meta.env.VITE_API_BASE_URL || '';
-      const response = await fetch(`${apiUrl}/api/eodhd-proxy/fundamentals?symbol=${symbol}.${exchange}`);
+      // Import API_ENDPOINTS to use Supabase Edge Function
+      const { API_ENDPOINTS } = await import('@/config/api-config');
+      const response = await fetch(`${API_ENDPOINTS.EODHD_FUNDAMENTALS}/${symbol}.${exchange}?fmt=json`);
       
       if (!response.ok) {
         throw new Error(`Failed to fetch company data: ${response.statusText}`);

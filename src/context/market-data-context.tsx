@@ -44,9 +44,17 @@ export function MarketDataProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  // EODHD API configuration
-  const EODHD_BASE_URL = '/api/eodhd-proxy'; // Uses the proxy through the backend
-  const EODHD_API_KEY = import.meta.env.VITE_EODHD_API_KEY || '682ab8a9176503.56947213';
+  // Import API endpoints for Supabase Edge Functions
+  const [apiEndpoints, setApiEndpoints] = useState<typeof import('@/config/api-config').API_ENDPOINTS | null>(null);
+  
+  // Load API endpoints
+  useEffect(() => {
+    const loadEndpoints = async () => {
+      const { API_ENDPOINTS } = await import('@/config/api-config');
+      setApiEndpoints(API_ENDPOINTS);
+    };
+    loadEndpoints();
+  }, []);
 
   // Function to fetch all market data using EODHD API
   const fetchMarketData = async () => {
@@ -77,7 +85,7 @@ export function MarketDataProvider({ children }: { children: ReactNode }) {
         try {
           // Get real-time quote using EODHD API
           const response = await axios.get(
-            `${EODHD_BASE_URL}/real-time/${formattedSymbol}?fmt=json`
+            `${apiEndpoints?.EODHD_PROXY}/real-time/${formattedSymbol}?fmt=json`
           );
           
           const data = response.data;
