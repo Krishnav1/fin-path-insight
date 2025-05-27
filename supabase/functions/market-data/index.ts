@@ -1,7 +1,9 @@
 // Supabase Edge Function for Market Data
 // This function provides market data from external APIs
+// Supports both authenticated and unauthenticated requests
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 // CORS headers for Supabase Edge Functions
 const corsHeaders = {
@@ -9,6 +11,45 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
 };
+
+// Helper for error responses
+function errorResponse(message: string, status = 400) {
+  console.error(`[MARKET-DATA] ${message}`);
+  return new Response(
+    JSON.stringify({ error: message }),
+    {
+      status,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    }
+  );
+}
+
+// Get Supabase URL and key from environment variables
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
+const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
+
+// Helper to check authentication
+async function getUserFromToken(authHeader: string | null): Promise<any> {
+  if (!authHeader || !authHeader.startsWith('Bearer ') || !SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    return null;
+  }
+  
+  try {
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const token = authHeader.replace('Bearer ', '');
+    const { data, error } = await supabase.auth.getUser(token);
+    
+    if (error || !data.user) {
+      console.error('[Auth] Invalid token:', error);
+      return null;
+    }
+    
+    return data.user;
+  } catch (error) {
+    console.error('[Auth] Error validating token:', error);
+    return null;
+  }
+}
 
 // Define the market data types
 interface MarketDataItem {
@@ -155,6 +196,19 @@ async function fetchEodhdScreenerBulk(limit = 100) {
 }
 
 serve(async (req) => {
+  // Handle CORS preflight request
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
+
+  // Check authentication
+  const authHeader = req.headers.get('Authorization');
+  const user = await getUserFromToken(authHeader);
+  const isAuthenticated = !!user;
+  
+  // Log authentication status (but don't expose user details)
+  console.log(`[MARKET-DATA] Request authentication status: ${isAuthenticated ? 'Authenticated' : 'Unauthenticated'}`);
+  
   // --- Generic function to fetch market data for any exchange ---
   async function fetchMarketData(exchange: string, search: string = '', limit: number = 50) {
     const API_KEY = Deno.env.get('EODHD_API_KEY');
@@ -288,11 +342,18 @@ serve(async (req) => {
       const limit = Number(urlObj.searchParams.get('limit')) || 50;
       
       const stocks = await fetchMarketData('indian', search, limit);
-      return new Response(JSON.stringify({ stocks }), { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      return new Response(JSON.stringify({ 
+        stocks,
+        authenticated: isAuthenticated
+      }), { 
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json',
+          'X-Auth-Status': isAuthenticated ? 'authenticated' : 'unauthenticated'
+        } 
       });
     } catch (err) {
-      return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+      return errorResponse(err.message, 500);
     }
   }
   
@@ -304,11 +365,18 @@ serve(async (req) => {
       const limit = Number(urlObj.searchParams.get('limit')) || 50;
       
       const stocks = await fetchMarketData('us', search, limit);
-      return new Response(JSON.stringify({ stocks }), { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      return new Response(JSON.stringify({ 
+        stocks,
+        authenticated: isAuthenticated
+      }), { 
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json',
+          'X-Auth-Status': isAuthenticated ? 'authenticated' : 'unauthenticated'
+        } 
       });
     } catch (err) {
-      return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+      return errorResponse(err.message, 500);
     }
   }
   
@@ -320,11 +388,18 @@ serve(async (req) => {
       const limit = Number(urlObj.searchParams.get('limit')) || 50;
       
       const stocks = await fetchMarketData('european', search, limit);
-      return new Response(JSON.stringify({ stocks }), { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      return new Response(JSON.stringify({ 
+        stocks,
+        authenticated: isAuthenticated
+      }), { 
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json',
+          'X-Auth-Status': isAuthenticated ? 'authenticated' : 'unauthenticated'
+        } 
       });
     } catch (err) {
-      return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+      return errorResponse(err.message, 500);
     }
   }
   
@@ -336,11 +411,18 @@ serve(async (req) => {
       const limit = Number(urlObj.searchParams.get('limit')) || 50;
       
       const stocks = await fetchMarketData('china', search, limit);
-      return new Response(JSON.stringify({ stocks }), { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      return new Response(JSON.stringify({ 
+        stocks,
+        authenticated: isAuthenticated
+      }), { 
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json',
+          'X-Auth-Status': isAuthenticated ? 'authenticated' : 'unauthenticated'
+        } 
       });
     } catch (err) {
-      return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+      return errorResponse(err.message, 500);
     }
   }
   
@@ -351,24 +433,25 @@ serve(async (req) => {
       const market = urlObj.searchParams.get('market') || 'us';
       
       const indices = await fetchMarketIndices(market);
-      return new Response(JSON.stringify({ indices }), { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      return new Response(JSON.stringify({ 
+        indices,
+        authenticated: isAuthenticated
+      }), { 
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json',
+          'X-Auth-Status': isAuthenticated ? 'authenticated' : 'unauthenticated'
+        } 
       });
     } catch (err) {
-      return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+      return errorResponse(err.message, 500);
     }
   }
-  // Handle CORS preflight request
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
+  // CORS preflight already handled at the beginning
 
   // Only accept GET requests
   if (req.method !== "GET") {
-    return new Response(JSON.stringify({ error: "Method not allowed" }), {
-      status: 405,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return errorResponse("Method not allowed", 405);
   }
 
   try {
@@ -395,8 +478,15 @@ serve(async (req) => {
               price: item.close,
               changePct: item.change_p,
             })),
+            authenticated: isAuthenticated
           }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { 
+            headers: { 
+              ...corsHeaders, 
+              "Content-Type": "application/json",
+              'X-Auth-Status': isAuthenticated ? 'authenticated' : 'unauthenticated'
+            } 
+          }
         );
       } catch (e) {
         return new Response(JSON.stringify({ error: e.message }), { status: 500 });
@@ -418,7 +508,16 @@ serve(async (req) => {
           ),
           tickers: stocks.slice(0, 3).map(s => s.code),
         }));
-        return new Response(JSON.stringify(sectorPerformance), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        return new Response(JSON.stringify({
+          sectorPerformance,
+          authenticated: isAuthenticated
+        }), { 
+          headers: { 
+            ...corsHeaders, 
+            "Content-Type": "application/json",
+            'X-Auth-Status': isAuthenticated ? 'authenticated' : 'unauthenticated'
+          } 
+        });
       } catch (e) {
         return new Response(JSON.stringify({ error: e.message }), { status: 500 });
       }
@@ -440,18 +539,39 @@ serve(async (req) => {
       const stockData = symbols.length > 0
         ? await fetchStockData(symbols)
         : await fetchStockData();
-      return new Response(JSON.stringify(stockData), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      return new Response(JSON.stringify({
+        data: stockData,
+        authenticated: isAuthenticated
+      }), { 
+        headers: { 
+          ...corsHeaders, 
+          "Content-Type": "application/json",
+          'X-Auth-Status': isAuthenticated ? 'authenticated' : 'unauthenticated'
+        } 
       });
     } else if (type === "crypto") {
       const cryptoData = await fetchCryptoData();
-      return new Response(JSON.stringify(cryptoData), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      return new Response(JSON.stringify({
+        data: cryptoData,
+        authenticated: isAuthenticated
+      }), { 
+        headers: { 
+          ...corsHeaders, 
+          "Content-Type": "application/json",
+          'X-Auth-Status': isAuthenticated ? 'authenticated' : 'unauthenticated'
+        } 
       });
     } else if (type === "etfs") {
       const etfData = await fetchETFData();
-      return new Response(JSON.stringify(etfData), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      return new Response(JSON.stringify({
+        data: etfData,
+        authenticated: isAuthenticated
+      }), { 
+        headers: { 
+          ...corsHeaders, 
+          "Content-Type": "application/json",
+          'X-Auth-Status': isAuthenticated ? 'authenticated' : 'unauthenticated'
+        } 
       });
     } else {
       // Return all data if no type is specified
@@ -465,8 +585,13 @@ serve(async (req) => {
         stocks,
         crypto,
         etfs,
-      }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        authenticated: isAuthenticated
+      }), { 
+        headers: { 
+          ...corsHeaders, 
+          "Content-Type": "application/json",
+          'X-Auth-Status': isAuthenticated ? 'authenticated' : 'unauthenticated'
+        } 
       });
     }
   } catch (error) {

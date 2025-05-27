@@ -1,8 +1,10 @@
 // Supabase Edge Function for FinGenie Oracle
 // This function provides AI-powered financial information using Google's Gemini API
+// Supports both authenticated and unauthenticated requests
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 import { GoogleGenerativeAI } from "https://esm.sh/@google/generative-ai@0.1.3"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 // CORS headers for Supabase Edge Functions
 const corsHeaders = {
@@ -10,6 +12,45 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
 };
+
+// Helper for error responses
+function errorResponse(message: string, status = 400) {
+  console.error(`[FINGENIE-ORACLE] ${message}`);
+  return new Response(
+    JSON.stringify({ error: message }),
+    {
+      status,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    }
+  );
+}
+
+// Get Supabase URL and key from environment variables
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
+const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
+
+// Helper to check authentication
+async function getUserFromToken(authHeader: string | null): Promise<any> {
+  if (!authHeader || !authHeader.startsWith('Bearer ') || !SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    return null;
+  }
+  
+  try {
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const token = authHeader.replace('Bearer ', '');
+    const { data, error } = await supabase.auth.getUser(token);
+    
+    if (error || !data.user) {
+      console.error('[Auth] Invalid token:', error);
+      return null;
+    }
+    
+    return data.user;
+  } catch (error) {
+    console.error('[Auth] Error validating token:', error);
+    return null;
+  }
+}
 
 // Cache for storing responses to avoid hitting rate limits
 interface CachedResponse {
@@ -26,15 +67,17 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  // Check authentication
+  const authHeader = req.headers.get('Authorization');
+  const user = await getUserFromToken(authHeader);
+  const isAuthenticated = !!user;
+  
+  // Log authentication status (but don't expose user details)
+  console.log(`[FINGENIE-ORACLE] Request authentication status: ${isAuthenticated ? 'Authenticated' : 'Unauthenticated'}`);
+
   // Only accept POST requests
   if (req.method !== "POST") {
-    return new Response(
-      JSON.stringify({ error: "Method Not Allowed" }),
-      {
-        status: 405,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+    return errorResponse("Method Not Allowed", 405);
   }
 
   // Define requestBody outside try block so it's accessible in catch
@@ -48,16 +91,12 @@ serve(async (req) => {
     requestBody = body;
     
     // Extract query from request
-    const { query, userId = "anonymous" } = body;
+    // If user is authenticated, use their actual ID, otherwise use the provided userId or "anonymous"
+    const { query } = body;
+    const userId = isAuthenticated ? user.id : (body.userId || "anonymous");
 
     if (!query) {
-      return new Response(
-        JSON.stringify({ error: "Missing query in request body" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
+      return errorResponse("Missing query in request body", 400);
     }
 
     // Check cache first
@@ -133,63 +172,45 @@ Disclaimer to include: "This information is for educational purposes only and do
       timestamp: Date.now()
     };
 
+    // Return the response with authentication status
     return new Response(
       JSON.stringify({
         response: oracleResponse,
-        userId
+        timestamp: new Date().toISOString(),
+        userId: userId,
+        authenticated: isAuthenticated
       }),
       {
         status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { 
+          ...corsHeaders, 
+          "Content-Type": "application/json",
+          'X-Auth-Status': isAuthenticated ? 'authenticated' : 'unauthenticated'
+        },
       }
     );
   } catch (error) {
-    console.error("Error processing oracle request:", error);
+    console.error('Error in FinGenie Oracle:', error);
+    console.error('Request body:', requestBody);
     
-    // Implement graceful fallback for rate limit errors
-    let errorMsg = error instanceof Error ? error.message : 'Unknown error';
-    let statusCode = 500;
+    // Use userId from authenticated user if available, otherwise from request or anonymous
+    const userId = isAuthenticated ? user.id : (requestBody.userId || "anonymous");
     
-    if (errorMsg.includes("429") || errorMsg.includes("quota")) {
-      errorMsg = "Our AI services are experiencing high demand. Please try again in a few minutes.";
-      statusCode = 429;
-      
-      // Provide a simple fallback response
-      const fallbackResponse = `# Financial Information
-
-I apologize, but our AI services are currently experiencing high demand. Here are some general financial resources you might find helpful:
-
-- Check financial news sources like Bloomberg, CNBC, or Financial Times for current market information
-- Visit investor.gov for educational resources about investing
-- Consider reviewing Investopedia for explanations of financial concepts
-
-Please try your specific query again in a few minutes.
-
-**Disclaimer:** This information is for educational purposes only and does not constitute investment advice. Financial markets involve risk, and past performance is not indicative of future results. Always consult with a qualified financial advisor before making investment decisions.`;
-      
-      return new Response(
-        JSON.stringify({
-          response: fallbackResponse,
-          error: errorMsg,
-          userId: requestBody?.userId || "anonymous",
-          fallback: true
-        }),
-        {
-          status: 200, // Return 200 with fallback content instead of error
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
-    
-    // Use the already defined errorMsg variable
     return new Response(
       JSON.stringify({
-        error: `Failed to process oracle request: ${errorMsg}`,
-        userId: requestBody?.userId || "anonymous"
+        error: "An error occurred while processing your request.",
+        response: "This information is for educational purposes only and does not constitute investment advice. Financial markets involve risk, and past performance is not indicative of future results. Always consult with a qualified financial advisor before making investment decisions.",
+        timestamp: new Date().toISOString(),
+        userId: userId,
+        authenticated: isAuthenticated
       }),
       {
-        status: statusCode,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500,
+        headers: { 
+          ...corsHeaders, 
+          "Content-Type": "application/json",
+          'X-Auth-Status': isAuthenticated ? 'authenticated' : 'unauthenticated'
+        },
       }
     );
   }
