@@ -22,6 +22,8 @@ import '../styles/AdminPanel.css';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { companyService } from '@/services/company-service';
+import { callEdgeFunction } from '@/lib/edge-function-client';
+import { API_ENDPOINTS } from '@/config/api-config';
 import {
   Select,
   SelectContent,
@@ -279,26 +281,18 @@ const AdminPanel = () => {
     });
     
     try {
-      // Make a real API call to update the knowledge base
-      const apiUrl = import.meta.env.VITE_SUPABASE_URL || '';
-      const response = await fetch(
-        `${apiUrl}/functions/v1/fingenie-oracle`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
-          },
-          body: JSON.stringify({ query: 'update knowledge base', userId: user?.id || 'admin' })
-        }
+      // Make a real API call to update the knowledge base using centralized client
+      const { data, error } = await callEdgeFunction(
+        API_ENDPOINTS.FINGENIE_ORACLE,
+        'POST',
+        { query: 'update knowledge base', userId: user?.id || 'admin' }
       );
       
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`API error: ${response.status} - ${errorText}`);
+      if (error) {
+        throw new Error(`API error: ${error.message}`);
       }
       
-      const result = await response.json();
+      const result = data;
       console.log('Knowledge base update result:', result);
       
       setMessage({
@@ -422,22 +416,17 @@ const AdminPanel = () => {
         text: `Refreshing data for ${symbol}...`
       });
       
-      const apiUrl = import.meta.env.VITE_SUPABASE_URL || '';
-      const response = await fetch(
-        `${apiUrl}/functions/v1/refresh-company-data?symbol=${symbol}&force=true`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        }
+      // Use centralized edge function client
+      const { data, error } = await callEdgeFunction(
+        `${API_ENDPOINTS.REFRESH_COMPANY_DATA}?symbol=${symbol}&force=true`,
+        'POST'
       );
       
-      if (!response.ok) {
-        throw new Error(`Failed to refresh data: ${response.statusText}`);
+      if (error) {
+        throw new Error(`Failed to refresh data: ${error.message}`);
       }
       
-      const result = await response.json();
+      const result = data;
       console.log('Refresh result:', result);
       
       setMessage({

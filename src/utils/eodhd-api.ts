@@ -3,10 +3,8 @@
  * Provides functions to interact with EODHD API for portfolio data
  */
 
-// This is a placeholder API key - should be replaced with environment variable
-// In production, this should be stored in environment variables
-const EODHD_API_KEY = process.env.EODHD_API_KEY || '682ab8a9176503.56947213';
-const EODHD_BASE_URL = 'https://eodhd.com/api';
+import { API_ENDPOINTS } from '@/config/api-config';
+
 
 /**
  * Fetches stock data for a given symbol
@@ -30,7 +28,7 @@ export const fetchStockData = async (symbol: string) => {
   console.log('[fetchStockData] headers:', headers);
   try {
     const response = await fetch(
-      `${EODHD_BASE_URL}/eod/${symbol}?fmt=json`,
+      `${API_ENDPOINTS.EODHD_PROXY}/eod/${symbol}?fmt=json`,
       {
         headers: {
           ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
@@ -67,7 +65,7 @@ export const fetchFundamentalData = async (symbol: string) => {
   console.log('[fetchFundamentalData] headers:', headers);
   try {
     const response = await fetch(
-      `${EODHD_BASE_URL}/fundamentals/${symbol}?fmt=json`,
+      `${API_ENDPOINTS.EODHD_PROXY}/fundamentals/${symbol}?fmt=json`,
       {
         headers: {
           ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
@@ -123,7 +121,7 @@ export const fetchBulkQuotes = async (symbols: string[]) => {
   try {
     const symbolsStr = symbols.join(',');
     const response = await fetch(
-      `${EODHD_BASE_URL}/real-time/${symbolsStr}?fmt=json`,
+      `${API_ENDPOINTS.EODHD_PROXY}/real-time/${symbolsStr}?fmt=json`,
       {
         headers: {
           ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
@@ -156,7 +154,7 @@ export const fetchNews = async (params: { symbols?: string[]; limit?: number; of
   const headers = {
     ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
   };
-  const EODHD_BASE_URL = '/api/eodhd-proxy';
+  
   const searchParams = new URLSearchParams();
   if (params.limit) searchParams.append('limit', params.limit.toString());
   if (params.offset) searchParams.append('offset', params.offset.toString());
@@ -170,7 +168,7 @@ export const fetchNews = async (params: { symbols?: string[]; limit?: number; of
   // Optionally add market-specific logic here if needed
   try {
     const response = await fetch(
-      `${EODHD_BASE_URL}/news?${searchParams.toString()}`,
+      `${API_ENDPOINTS.EODHD_PROXY}/news?${searchParams.toString()}`,
       { headers }
     );
     if (!response.ok) {
@@ -203,7 +201,7 @@ export const fetchHistoricalPrices = async (symbol: string, fromDate: string, to
   console.log('[fetchHistoricalPrices] headers:', headers);
   try {
     const response = await fetch(
-      `${EODHD_BASE_URL}/eod/${symbol}?from=${fromDate}&to=${toDate}&fmt=json`,
+      `${API_ENDPOINTS.EODHD_PROXY}/eod/${symbol}?from=${fromDate}&to=${toDate}&fmt=json`,
       {
         headers: {
           ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})

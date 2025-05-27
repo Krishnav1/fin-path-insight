@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { callEdgeFunction } from '@/lib/edge-function-client';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { PieChart, BarChart, LineChart } from '@/components/ui/charts';
@@ -35,6 +36,8 @@ import { useAuth } from '@/context/AuthContext';
 import { toast } from '@/components/ui/use-toast';
 import * as XLSX from 'xlsx';
 import { parse, unparse } from 'papaparse';
+import { API_ENDPOINTS } from '@/config/api-config';
+
 
 // Supabase client setup
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -659,28 +662,25 @@ export default function PortfolioAnalyzerPage() {
       // Call the analyze-portfolio edge function
       console.log('Sending portfolio data for analysis:', portfolioData);
       // Use the Supabase edge function URL instead of Netlify
-      const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://ydakwyplcqoshxcdllah.supabase.co';
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/analyze-portfolio`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(portfolioData),
-      });
+      // Use centralized edge function client
+      const { data, error } = await callEdgeFunction(
+        API_ENDPOINTS.ANALYZE_PORTFOLIO,
+        'POST',
+        portfolioData
+      );
 
-      if (!response.ok) {
-        const errorText = await response.text();
+      if (error || !data) {
+        const errorText = error ? error.message : 'Unknown error';
         console.error('API Error Response:', errorText);
-        throw new Error(`Failed to analyze portfolio: ${response.status} ${response.statusText}`);
+        throw new Error(`Failed to analyze portfolio: ${errorText}`);
       }
       
-      const analysisData = await response.json();
-      setAnalysisResult(analysisData);
+      setAnalysisResult(data);
       
       // Cache the analysis result
       setAnalysisCache({
         timestamp: Date.now(),
-        data: analysisData
+        data: data
       });
 
       // Save analysis to Supabase
@@ -690,7 +690,7 @@ export default function PortfolioAnalyzerPage() {
           .insert([{
             user_id: user.id,
             portfolio_id: portfolioId,
-            analysis_data: analysisData,
+            analysis_data: data,
             created_at: new Date().toISOString()
           }]);
       } catch (dbError) {

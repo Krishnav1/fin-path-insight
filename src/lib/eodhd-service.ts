@@ -1,6 +1,6 @@
 // EODHD API Service
-// This service provides functions to interact with the EODHD API through our Supabase Edge Functions
-// Enhanced with Supabase-based company data storage
+// This service provides functions to interact with the EODHD API strictly through Supabase Edge Functions
+// All direct EODHD API calls and Deno Deploy logic removed. Only Supabase Edge Functions are used.
 
 import axios from 'axios';
 import { companyService } from '@/services/company-service';
