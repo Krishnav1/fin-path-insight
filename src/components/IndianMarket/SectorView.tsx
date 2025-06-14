@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { ChevronDown, ChevronUp, Star, StarOff } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
+import { IndianMarketContext } from './IndianMarketController';
 import { addToWatchlist, removeFromWatchlist, isInWatchlist } from '@/services/userPreferencesService';
 
 // Define types for better type safety
@@ -17,11 +18,25 @@ interface StockData {
 }
 
 interface SectorViewProps {
-  stocks: StockData[];
   onWatchlistChange?: () => void;
+  selectedSector?: string;
+  onSectorSelect?: (sector: string) => void;
 }
 
-const SectorView: React.FC<SectorViewProps> = ({ stocks, onWatchlistChange }) => {
+const SectorView: React.FC<SectorViewProps> = ({ onWatchlistChange, selectedSector, onSectorSelect }) => {
+  const { marketData } = useContext(IndianMarketContext);
+  const { stocks: allStocks } = marketData;
+  
+  // Convert the stocks object to an array for sector grouping
+  const stocksArray = Object.values(allStocks).map(stock => ({
+    symbol: stock.symbol,
+    companyName: stock.name || stock.symbol,
+    lastPrice: stock.price,
+    change: stock.change,
+    pChange: stock.changePercent,
+    marketCap: stock.marketCap,
+    sector: stock.sector || 'Uncategorized'
+  }));
   const [expandedSector, setExpandedSector] = useState<string | null>(null);
   const [sectors, setSectors] = useState<Record<string, StockData[]>>({});
   const [watchlistStatus, setWatchlistStatus] = useState<Record<string, boolean>>({});
@@ -29,13 +44,13 @@ const SectorView: React.FC<SectorViewProps> = ({ stocks, onWatchlistChange }) =>
 
   // Group stocks by sector
   useEffect(() => {
-    if (!stocks || stocks.length === 0) return;
+    if (!stocksArray || stocksArray.length === 0) return;
 
     const groupedBySector: Record<string, StockData[]> = {};
     const watchlist: Record<string, boolean> = {};
     
     // Group by sector
-    stocks.forEach(stock => {
+    stocksArray.forEach(stock => {
       const sector = stock.sector || 'Unknown';
       
       if (!groupedBySector[sector]) {
@@ -67,11 +82,24 @@ const SectorView: React.FC<SectorViewProps> = ({ stocks, onWatchlistChange }) =>
     if (sectorsByMarketCap.length > 0) {
       setExpandedSector(sectorsByMarketCap[0].sector);
     }
-  }, [stocks]);
+  }, [stocksArray]);
+  
+  // Sync with external selectedSector prop if provided
+  useEffect(() => {
+    if (selectedSector !== undefined && selectedSector !== expandedSector) {
+      setExpandedSector(selectedSector);
+    }
+  }, [selectedSector]);
 
-  // Handle sector click to expand/collapse
+  // Handle sector click to expand/collapse and notify parent
   const handleSectorClick = (sector: string) => {
-    setExpandedSector(prev => prev === sector ? null : sector);
+    const newExpandedSector = expandedSector === sector ? null : sector;
+    setExpandedSector(newExpandedSector);
+    
+    // Notify parent if callback exists
+    if (onSectorSelect && newExpandedSector !== null) {
+      onSectorSelect(newExpandedSector);
+    }
   };
 
   // Handle stock click to navigate to company analysis

@@ -168,13 +168,36 @@ const IndianMarketController: React.FC<IndianMarketControllerProps> = ({ childre
   }, [marketData.stocks]);
 
   // Initial data load
+  // Check if current time is within market hours (9:30 AM to 3:30 PM)  
+  const isWithinMarketHours = () => {
+    const now = new Date();
+    const hours = now.getHours();
+    const minutes = now.getMinutes();
+    const day = now.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+    
+    // Don't refresh on weekends
+    if (day === 0 || day === 6) return false;
+    
+    // Convert to 24-hour format: 9:30 AM = 9:30, 3:30 PM = 15:30
+    const currentTimeMinutes = hours * 60 + minutes;
+    const marketOpenMinutes = 9 * 60 + 30;  // 9:30 AM
+    const marketCloseMinutes = 15 * 60 + 30; // 3:30 PM
+    
+    return currentTimeMinutes >= marketOpenMinutes && currentTimeMinutes <= marketCloseMinutes;
+  };
+
   useEffect(() => {
     fetchMarketData();
     
-    // Set up auto-refresh interval (5 minutes)
+    // Set up auto-refresh interval (10 minutes) but only during market hours
     const intervalId = setInterval(() => {
-      fetchMarketData(true);
-    }, 5 * 60 * 1000);
+      if (isWithinMarketHours()) {
+        console.log('Auto-refreshing market data during market hours');
+        fetchMarketData(true);
+      } else {
+        console.log('Outside market hours - skipping auto-refresh');
+      }
+    }, 10 * 60 * 1000); // 10 minutes
     
     return () => clearInterval(intervalId);
   }, [fetchMarketData]);

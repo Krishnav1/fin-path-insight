@@ -23,6 +23,8 @@ import './IndianMarketPage.css';
 const IndianMarketPage: React.FC = () => {
   // Track active tab for mobile view
   const [activeTab, setActiveTab] = useState<string>("overview");
+  // Track selected sector for coordination between mobile and desktop views
+  const [selectedSector, setSelectedSector] = useState<string | undefined>(undefined);
   
   return (
     <div className="flex flex-col min-h-screen">
@@ -58,7 +60,11 @@ const IndianMarketPage: React.FC = () => {
                 </TabsContent>
                 
                 <TabsContent value="sectors">
-                  <SectorView stocks={[]} />
+                  <SectorView 
+                    selectedSector={selectedSector} 
+                    onSectorSelect={setSelectedSector} 
+                    onWatchlistChange={() => console.log('Watchlist updated')} 
+                  />
                 </TabsContent>
               </Tabs>
             </div>
@@ -85,7 +91,11 @@ const IndianMarketPage: React.FC = () => {
                   <CardTitle>Sectors</CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
-                  <SectorView stocks={[]} />
+                  <SectorView 
+                    selectedSector={selectedSector} 
+                    onSectorSelect={setSelectedSector}
+                    onWatchlistChange={() => console.log('Watchlist updated')} 
+                  />
                 </CardContent>
               </Card>
             </div>

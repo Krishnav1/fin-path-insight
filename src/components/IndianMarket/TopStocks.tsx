@@ -1,5 +1,5 @@
 import React, { useContext } from 'react';
-import { useRouter } from 'next/router';
+import { useNavigate } from 'react-router-dom';
 import { TrendingUp, TrendingDown, Star } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,12 +7,12 @@ import { IndianMarketContext } from './IndianMarketController';
 import { addToWatchlist, removeFromWatchlist, isInWatchlist } from '@/services/userPreferencesService';
 
 const TopStocks: React.FC = () => {
-  const router = useRouter();
+  const navigate = useNavigate();
   const { marketData, refreshData } = useContext(IndianMarketContext);
   const { stocks, isLoading } = marketData;
 
   const handleStockClick = (symbol: string) => {
-    router.push(`/company/${symbol}.NSE`);
+    navigate(`/company/${symbol}.NSE`);
   };
 
   const toggleWatchlist = (symbol: string, e: React.MouseEvent) => {
