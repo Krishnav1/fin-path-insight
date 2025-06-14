@@ -575,9 +575,6 @@ export default function PortfolioAnalyzerPage() {
                   {refreshing ? 'Refreshing...' : 'Refresh Prices'}
                 </Button>
               </div>
-              <Button onClick={analyzePortfolio} disabled={analyzing || stocks.length === 0}>
-                {analyzing ? 'Analyzing...' : 'Analyze Portfolio'}
-              </Button>
             </CardFooter>
           </Card>
           

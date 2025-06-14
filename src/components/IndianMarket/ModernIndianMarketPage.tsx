@@ -2,14 +2,13 @@ import React, { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import IndianMarketController from './IndianMarketController';
 import MarketOverview from './MarketOverview';
 import TopStocks from './TopStocks';
 import Watchlist from './Watchlist';
 import StockSearch from './StockSearch';
 import SectorView from './SectorView';
-import './IndianMarketPage.css';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 /**
  * Enhanced Indian Market Page Component
@@ -23,7 +22,7 @@ import './IndianMarketPage.css';
 const IndianMarketPage: React.FC = () => {
   // Track active tab for mobile view
   const [activeTab, setActiveTab] = useState<string>("overview");
-  
+
   return (
     <div className="flex flex-col min-h-screen">
       <Header />
@@ -58,7 +57,7 @@ const IndianMarketPage: React.FC = () => {
                 </TabsContent>
                 
                 <TabsContent value="sectors">
-                  <SectorView stocks={[]} />
+                  <SectorView />
                 </TabsContent>
               </Tabs>
             </div>
@@ -85,7 +84,7 @@ const IndianMarketPage: React.FC = () => {
                   <CardTitle>Sectors</CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
-                  <SectorView stocks={[]} />
+                  <SectorView />
                 </CardContent>
               </Card>
             </div>
