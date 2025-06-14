@@ -3,6 +3,8 @@
  * This service provides methods to store and retrieve stock data from localStorage
  */
 
+import { StockData } from "./indianMarketService";
+
 const CACHE_PREFIX = 'fin-path-insight';
 const CACHE_EXPIRY = 5 * 60 * 1000; // 5 minutes
 
@@ -14,7 +16,7 @@ interface CacheItem<T> {
 /**
  * Set an item in cache with expiration
  */
-export function setCacheItem<T>(key: string, value: T): void {
+export function setCacheItem<T>(key: string, STOCK_DATA_TTL: number, value: T): void {
   try {
     const cacheKey = `${CACHE_PREFIX}_${key}`;
     const item: CacheItem<T> = {

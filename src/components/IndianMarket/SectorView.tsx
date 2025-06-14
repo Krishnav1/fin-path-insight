@@ -80,13 +80,13 @@ const SectorView: React.FC<SectorViewProps> = ({ stocks, onWatchlistChange }) =>
   };
 
   // Handle watchlist toggle
-  const handleWatchlistToggle = (symbol: string) => {
+  const handleWatchlistToggle = (symbol: string, sector: string) => {
     const isCurrentlyInWatchlist = watchlistStatus[symbol];
     
     if (isCurrentlyInWatchlist) {
       removeFromWatchlist(symbol);
     } else {
-      addToWatchlist(symbol);
+      addToWatchlist(symbol, sector);
     }
     
     // Update local state
@@ -219,7 +219,7 @@ const SectorView: React.FC<SectorViewProps> = ({ stocks, onWatchlistChange }) =>
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    onClick={() => handleWatchlistToggle(stock.symbol)}
+                                    onClick={() => handleWatchlistToggle(stock.symbol, stock.sector)}
                                     title={watchlistStatus[stock.symbol] ? "Remove from watchlist" : "Add to watchlist"}
                                   >
                                     {watchlistStatus[stock.symbol] ? (

@@ -57,7 +57,7 @@ const IndianMarketPage: React.FC = () => {
                 </TabsContent>
                 
                 <TabsContent value="sectors">
-                  <SectorView />
+                  <SectorView stocks={[]} />
                 </TabsContent>
               </Tabs>
             </div>
@@ -84,7 +84,7 @@ const IndianMarketPage: React.FC = () => {
                   <CardTitle>Sectors</CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
-                  <SectorView />
+                  <SectorView stocks={[]} />
                 </CardContent>
               </Card>
             </div>

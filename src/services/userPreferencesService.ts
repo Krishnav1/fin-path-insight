@@ -28,7 +28,7 @@ export function getWatchlist(): WatchlistItem[] {
 /**
  * Add a stock to the watchlist
  */
-export function addToWatchlist(symbol: string): WatchlistItem[] {
+export function addToWatchlist(symbol: string, p0: string): WatchlistItem[] {
   try {
     // Ensure we have the .NSE suffix
     const formattedSymbol = symbol.includes('.') ? symbol : `${symbol}.NSE`;

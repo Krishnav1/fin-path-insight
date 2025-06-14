@@ -11,7 +11,7 @@ import * as eodhd from '@/utils/eodhd-api';
 
 // Cache TTL values
 const MARKET_DATA_TTL = 5 * 60 * 1000; // 5 minutes for market data
-const STOCK_DATA_TTL = 5 * 60 * 1000;  // 5 minutes for stock data
+export const STOCK_DATA_TTL = 5 * 60 * 1000;  // 5 minutes for stock data
 
 // Cache keys
 const MARKET_OVERVIEW_CACHE_KEY = 'indian_market_overview';
@@ -124,7 +124,7 @@ export async function getIndianMarketOverview(forceRefresh = false): Promise<Mar
     };
 
     // Cache the results
-    setCacheItem(MARKET_OVERVIEW_CACHE_KEY, marketOverview, MARKET_DATA_TTL);
+    setCacheItem(MARKET_OVERVIEW_CACHE_KEY, MARKET_DATA_TTL, marketOverview);
     
     return marketOverview;
   } catch (error) {
@@ -158,7 +158,7 @@ export async function getIndianStocksBatch(symbols: string[], forceRefresh = fal
     const formattedSymbols = sortedSymbols.map(symbol => `${symbol}.NSE`);
     
     // Split into batches of 15 symbols as recommended by EODHD API
-    const batches = [];
+    const batches: string[][] = [];
     for (let i = 0; i < formattedSymbols.length; i += 15) {
       batches.push(formattedSymbols.slice(i, i + 15));
     }
@@ -256,7 +256,7 @@ export async function getIndianStocksBatch(symbols: string[], forceRefresh = fal
     }));
 
     // Cache the results
-    setCacheItem(cacheKey, results, STOCK_DATA_TTL);
+    setCacheItem(cacheKey, STOCK_DATA_TTL, results);
 
     return results;
   } catch (error) {

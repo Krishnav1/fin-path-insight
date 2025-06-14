@@ -3,6 +3,7 @@ import { Star, XCircle, TrendingUp, TrendingDown, RefreshCw } from 'lucide-react
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
+import { STOCK_DATA_TTL } from '../../services/indianMarketService';
 import { 
   getWatchlist, 
   removeFromWatchlist, 
@@ -87,7 +88,7 @@ const Watchlist: React.FC<WatchlistProps> = ({ onRefresh }) => {
       
       // Prepare symbols for batch API call (max 15 symbols per request as recommended)
       const symbols = items.map(item => item.symbol);
-      const batches = [];
+      const batches: string[][] = [];
       
       // Split into batches of 15 symbols
       for (let i = 0; i < symbols.length; i += 15) {
@@ -146,7 +147,7 @@ const Watchlist: React.FC<WatchlistProps> = ({ onRefresh }) => {
       setLastUpdated(new Date().toISOString());
       
       // Cache the results
-      setCacheItem('watchlist_data', batchResults);
+      setCacheItem('watchlist_data', STOCK_DATA_TTL, batchResults);
     } catch (error) {
       console.error('Error fetching watchlist data:', error);
     } finally {

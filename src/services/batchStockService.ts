@@ -5,6 +5,7 @@
 
 import axios from 'axios';
 import { getCacheItem, setCacheItem } from './cacheService';
+import { STOCK_DATA_TTL } from './indianMarketService';
 
 // Interface for stock data returned by API
 export interface BatchStockData {
@@ -58,7 +59,7 @@ export async function getBatchStockData(
     const { API_ENDPOINTS } = await import('@/config/api-config');
     
     // Split into batches of 15 symbols (recommended by EODHD)
-    const batches = [];
+    const batches: string[][] = [];
     for (let i = 0; i < formattedSymbols.length; i += 15) {
       batches.push(formattedSymbols.slice(i, i + 15));
     }
@@ -124,7 +125,7 @@ export async function getBatchStockData(
     }));
     
     // Cache the results
-    setCacheItem(cacheKey, results);
+    setCacheItem(cacheKey, STOCK_DATA_TTL, results);
     
     return results;
   } catch (error) {
