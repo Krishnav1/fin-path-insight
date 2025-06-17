@@ -23,7 +23,6 @@ import {
 } from "../ui/dropdown-menu";
 import { useToast } from "../../hooks/use-toast";
 import { ThemeToggle } from "../ui/theme-toggle";
-import { MarketToggle } from "../ui/market-toggle";
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -158,9 +157,6 @@ export default function Header() {
         </div>
         
         <div className="flex items-center gap-1 sm:gap-2 md:gap-4">
-          <div className="hidden sm:block">
-            <MarketToggle />
-          </div>
           
           {searchOpen ? (
             <div className="relative hidden sm:block">
@@ -280,9 +276,7 @@ export default function Header() {
             />
           </div>
           
-          <div className="flex justify-center mb-3">
-            <MarketToggle />
-          </div>
+
           
           <Link to="/markets" className="block py-2 px-3 font-medium text-slate-700 hover:bg-slate-100 rounded-md dark:text-slate-300 dark:hover:bg-slate-800">Markets</Link>
           <div className="pl-6 space-y-1 mb-1">

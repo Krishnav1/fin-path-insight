@@ -6,7 +6,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/context/AuthContext";
 import { ThemeProvider } from "@/hooks/use-theme";
-import { MarketProvider } from "@/hooks/use-market";
 import { MarketDataProvider } from "@/context/market-data-context";
 import { FinGenieProvider } from "@/contexts/FinGenieContext";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
@@ -80,7 +79,6 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <ThemeProvider defaultTheme="system">
-        <MarketProvider defaultMarket="global">
           <MarketDataProvider>
             <FinGenieProvider>
               <AuthProvider>
@@ -347,10 +345,9 @@ const App = () => (
                 {/* FinGenie chatbot */}
                 <FinGenie />
               </BrowserRouter>
-            </AuthProvider>
+              </AuthProvider>
             </FinGenieProvider>
           </MarketDataProvider>
-        </MarketProvider>
       </ThemeProvider>
     </TooltipProvider>
   </QueryClientProvider>

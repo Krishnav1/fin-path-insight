@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { StockQuote, MarketIndex, getMajorIndices, getTopGainersLosers, getMultiSourceStockData, getComprehensiveStockData } from '@/lib/api-service';
-import { useMarket } from '@/hooks/use-market';
 import axios from 'axios';
 
 // Define market data types for the context
@@ -36,7 +35,8 @@ const INDIA_POPULAR_STOCKS = [
 ];
 
 export function MarketDataProvider({ children }: { children: ReactNode }) {
-  const { market } = useMarket();
+  // Default to global market data
+  const market = "global";
   const [indices, setIndices] = useState<MarketIndex[]>([]);
   const [popularStocks, setPopularStocks] = useState<Record<string, StockQuote>>({});
   const [topGainers, setTopGainers] = useState<StockQuote[]>([]);
