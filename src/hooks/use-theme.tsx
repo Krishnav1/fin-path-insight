@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from "react"
 
-type Theme = "dark" | "light" | "system"
+type Theme = "dark" | "light"
 
 type ThemeProviderProps = {
   children: React.ReactNode
@@ -16,7 +16,7 @@ type ThemeProviderState = {
 }
 
 const initialState: ThemeProviderState = {
-  theme: "system",
+  theme: "light",
   setTheme: () => null,
 }
 
@@ -24,7 +24,7 @@ const ThemeProviderContext = createContext<ThemeProviderState>(initialState)
 
 export function ThemeProvider({
   children,
-  defaultTheme = "system",
+  defaultTheme = "light",
   storageKey = "fin-insight-theme",
   ...props
 }: ThemeProviderProps) {
@@ -36,18 +36,12 @@ export function ThemeProvider({
     const root = window.document.documentElement
     
     root.classList.remove("light", "dark")
-    
-    if (theme === "system") {
-      const systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
-        .matches
-        ? "dark"
-        : "light"
-      
-      root.classList.add(systemTheme)
-      return
-    }
-    
     root.classList.add(theme)
+    
+    // Add transition class for smooth theme switching
+    if (!root.classList.contains('theme-transition')) {
+      root.classList.add('theme-transition')
+    }
   }, [theme])
 
   const value = {

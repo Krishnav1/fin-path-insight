@@ -153,51 +153,10 @@ export default function FinGenieChat() {
         </div>
       </CardHeader>
       
-      <CardContent className="p-0">
-        <ScrollArea className="h-[500px] md:h-[600px] p-4">
-          <div className="flex flex-col gap-4 pb-4">
-            {messages.map((message, index) => (
-              <div
-                key={index}
-                className={`flex ${
-                  message.role === "user" ? "justify-end" : "justify-start"
-                }`}
-              >
-                <div
-                  className={`max-w-[80%] md:max-w-[70%] rounded-lg p-3 ${
-                    message.role === "user"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted"
-                  }`}
-                >
-                  <div className="whitespace-pre-wrap">{message.content}</div>
-                  <div className={`text-xs mt-1 ${
-                    message.role === "user" ? "text-primary-foreground/70" : "text-muted-foreground"
-                  }`}>
-                    {message.timestamp.toLocaleTimeString()}
-                  </div>
-                </div>
-              </div>
-            ))}
-            {isLoading && (
-              <div className="flex justify-start">
-                <div className="max-w-[80%] md:max-w-[70%] rounded-lg p-4 bg-muted">
-                  <div className="flex items-center gap-2">
-                    <Skeleton className="h-4 w-4 rounded-full animate-pulse" />
-                    <Skeleton className="h-4 w-4 rounded-full animate-pulse" />
-                    <Skeleton className="h-4 w-4 rounded-full animate-pulse" />
-                  </div>
-                </div>
-              </div>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
-        </ScrollArea>
-      </CardContent>
-      
-      <CardFooter className="border-t p-4">
+      {/* Updated layout: Input at top, messages below */}
+      <CardContent className="p-4 pt-6 pb-0">
         {error && (
-          <div className="w-full mb-2 p-2 text-sm bg-destructive/10 text-destructive rounded border border-destructive/20">
+          <div className="w-full mb-4 p-2 text-sm bg-destructive/10 text-destructive rounded border border-destructive/20">
             {error}
             <Button 
               variant="outline" 
@@ -209,7 +168,7 @@ export default function FinGenieChat() {
             </Button>
           </div>
         )}
-        <form onSubmit={handleSubmit} className="flex w-full gap-2">
+        <form onSubmit={handleSubmit} className="flex w-full gap-2 mb-6">
           <Input
             placeholder="Ask FinGenie about investments, financial planning, or market trends..."
             value={input}
@@ -224,6 +183,73 @@ export default function FinGenieChat() {
             <Download className="h-4 w-4" />
           </Button>
         </form>
+      </CardContent>
+      
+      {/* Messages appear below the input */}
+      <ScrollArea className="h-[450px] md:h-[500px] px-4 pb-4">
+        <div className="flex flex-col gap-4">
+          {messages.map((message, index) => (
+            <div
+              key={index}
+              className="w-full animate-fadeIn"
+            >
+              <div className="flex items-start gap-3">
+                {message.role === "assistant" && (
+                  <Avatar className="h-8 w-8 mt-1 bg-primary">
+                    <AvatarFallback>FG</AvatarFallback>
+                  </Avatar>
+                )}
+                <div
+                  className={`flex-1 rounded-lg p-3 ${
+                    message.role === "user"
+                      ? "bg-primary/10 ml-12 border border-primary/20"
+                      : "bg-muted"
+                  }`}
+                >
+                  <div className="whitespace-pre-wrap">{message.content}</div>
+                  <div className={`text-xs mt-1 text-muted-foreground flex justify-end`}>
+                    {message.timestamp.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
+                  </div>
+                </div>
+                {message.role === "user" && (
+                  <Avatar className="h-8 w-8 mt-1 bg-secondary">
+                    <AvatarFallback>You</AvatarFallback>
+                  </Avatar>
+                )}
+              </div>
+            </div>
+          ))}
+          
+          {isLoading && (
+            <div className="w-full">
+              <div className="flex items-start gap-3">
+                <Avatar className="h-8 w-8 mt-1 bg-primary">
+                  <AvatarFallback>FG</AvatarFallback>
+                </Avatar>
+                <div className="flex-1 rounded-lg p-4 bg-muted">
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="h-4 w-4 rounded-full animate-pulse" />
+                    <Skeleton className="h-4 w-4 rounded-full animate-pulse" />
+                    <Skeleton className="h-4 w-4 rounded-full animate-pulse" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          <div ref={messagesEndRef} className="h-4" />
+        </div>
+      </ScrollArea>
+      
+      <CardFooter className="border-t p-3 flex justify-between">
+        <Button variant="ghost" size="sm" onClick={() => setMessages([{
+          role: "assistant",
+          content: "Hello! I'm FinGenie, your personal finance assistant. How can I help you today?",
+          timestamp: new Date(),
+        }])}>
+          Clear Chat
+        </Button>
+        <span className="text-xs text-muted-foreground">Powered by AI</span>
       </CardFooter>
     </Card>
   );

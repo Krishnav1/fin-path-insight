@@ -286,10 +286,7 @@ export default function Header() {
             <Link to="/markets?type=movers" className="block py-1 px-3 text-sm text-slate-600 hover:bg-slate-100 rounded-md dark:text-slate-400 dark:hover:bg-slate-800">Market Movers</Link>
           </div>
           <Link to="/indian-market" className="block py-2 px-3 font-medium text-slate-700 hover:bg-slate-100 rounded-md dark:text-slate-300 dark:hover:bg-slate-800">Indian Market</Link>
-          <Link to="/global-market-realtime" className="block py-2 px-3 font-medium text-slate-700 hover:bg-slate-100 rounded-md dark:text-slate-300 dark:hover:bg-slate-800 flex items-center gap-2">
-            <span>Global Market</span>
-            <span className="text-xs bg-green-100 text-green-800 px-1 rounded">LIVE</span>
-          </Link>
+
           <Link to="/news" className="block py-2 px-3 font-medium text-slate-700 hover:bg-slate-100 rounded-md dark:text-slate-300 dark:hover:bg-slate-800">News</Link>
           <Link to="/tools" className="block py-2 px-3 font-medium text-slate-700 hover:bg-slate-100 rounded-md dark:text-slate-300 dark:hover:bg-slate-800">Tools</Link>
           <div className="pl-6 space-y-1 mb-1">
