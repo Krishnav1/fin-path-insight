@@ -100,14 +100,8 @@ export default function Header() {
                 Markets <ChevronDown size={16} />
               </Link>
               <div className="absolute top-full left-0 bg-white shadow-md rounded-md p-2 w-48 invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-all transform origin-top-left border border-slate-200 dark:bg-slate-800 dark:border-slate-700">
-                <Link to="/markets?type=stocks" className="block px-3 py-2 text-sm hover:bg-slate-100 rounded-md dark:hover:bg-slate-700">Stocks</Link>
-                <Link to="/us-market" className="block px-3 py-2 text-sm hover:bg-slate-100 rounded-md dark:hover:bg-slate-700 pl-6">- US Market</Link>
-                <Link to="/european-market" className="block px-3 py-2 text-sm hover:bg-slate-100 rounded-md dark:hover:bg-slate-700 pl-6">- European Market</Link>
-                <Link to="/china-market" className="block px-3 py-2 text-sm hover:bg-slate-100 rounded-md dark:hover:bg-slate-700 pl-6">- China Market</Link>
-                <Link to="/indian-market" className="block px-3 py-2 text-sm hover:bg-slate-100 rounded-md dark:hover:bg-slate-700 pl-6">- Indian Market</Link>
-                <Link to="/markets?type=etfs" className="block px-3 py-2 text-sm hover:bg-slate-100 rounded-md dark:hover:bg-slate-700">ETFs</Link>
-                <Link to="/markets?type=crypto" className="block px-3 py-2 text-sm hover:bg-slate-100 rounded-md dark:hover:bg-slate-700">Crypto</Link>
-                <Link to="/markets?type=movers" className="block px-3 py-2 text-sm hover:bg-slate-100 rounded-md dark:hover:bg-slate-700">Market Movers</Link>
+                <Link to="/us-market" className="block px-3 py-2 text-sm hover:bg-slate-100 rounded-md dark:hover:bg-slate-700">US Market</Link>
+                <Link to="/indian-market" className="block px-3 py-2 text-sm hover:bg-slate-100 rounded-md dark:hover:bg-slate-700">Indian Market</Link>
               </div>
             </div>
             
@@ -280,12 +274,9 @@ export default function Header() {
           
           <Link to="/markets" className="block py-2 px-3 font-medium text-slate-700 hover:bg-slate-100 rounded-md dark:text-slate-300 dark:hover:bg-slate-800">Markets</Link>
           <div className="pl-6 space-y-1 mb-1">
-            <Link to="/markets?type=stocks" className="block py-1 px-3 text-sm text-slate-600 hover:bg-slate-100 rounded-md dark:text-slate-400 dark:hover:bg-slate-800">Stocks</Link>
-            <Link to="/markets?type=etfs" className="block py-1 px-3 text-sm text-slate-600 hover:bg-slate-100 rounded-md dark:text-slate-400 dark:hover:bg-slate-800">ETFs</Link>
-            <Link to="/markets?type=crypto" className="block py-1 px-3 text-sm text-slate-600 hover:bg-slate-100 rounded-md dark:text-slate-400 dark:hover:bg-slate-800">Crypto</Link>
-            <Link to="/markets?type=movers" className="block py-1 px-3 text-sm text-slate-600 hover:bg-slate-100 rounded-md dark:text-slate-400 dark:hover:bg-slate-800">Market Movers</Link>
+            <Link to="/us-market" className="block py-1 px-3 text-sm text-slate-600 hover:bg-slate-100 rounded-md dark:text-slate-400 dark:hover:bg-slate-800">US Market</Link>
+            <Link to="/indian-market" className="block py-1 px-3 text-sm text-slate-600 hover:bg-slate-100 rounded-md dark:text-slate-400 dark:hover:bg-slate-800">Indian Market</Link>
           </div>
-          <Link to="/indian-market" className="block py-2 px-3 font-medium text-slate-700 hover:bg-slate-100 rounded-md dark:text-slate-300 dark:hover:bg-slate-800">Indian Market</Link>
 
           <Link to="/news" className="block py-2 px-3 font-medium text-slate-700 hover:bg-slate-100 rounded-md dark:text-slate-300 dark:hover:bg-slate-800">News</Link>
           <Link to="/tools" className="block py-2 px-3 font-medium text-slate-700 hover:bg-slate-100 rounded-md dark:text-slate-300 dark:hover:bg-slate-800">Tools</Link>

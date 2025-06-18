@@ -256,7 +256,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         'userPreferences',
         'lastVisited',
         'portfolioState',
-        'finPathUser'
+        'finPathUser',
+        // Clear any cached auth state
+        'authState',
+        'authUser',
+        'authSession'
       ];
       
       // Remove specific known keys
@@ -265,15 +269,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         sessionStorage.removeItem(key);
       });
       
+      // Clear all auth-related cookies
+      document.cookie.split(';').forEach(cookie => {
+        const [name] = cookie.trim().split('=');
+        if (name.includes('auth') || name.includes('supabase') || name.includes('sb-')) {
+          document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/;`;
+        }
+      });
+      
       // Also clear any keys matching patterns
       Object.keys(localStorage).forEach(key => {
-        if (key.startsWith('supabase.') || key.startsWith('sb-')) {
+        if (key.startsWith('supabase.') || key.startsWith('sb-') || key.includes('auth')) {
           localStorage.removeItem(key);
         }
       });
       
       Object.keys(sessionStorage).forEach(key => {
-        if (key.startsWith('supabase.') || key.startsWith('sb-')) {
+        if (key.startsWith('supabase.') || key.startsWith('sb-') || key.includes('auth')) {
           sessionStorage.removeItem(key);
         }
       });
@@ -309,17 +321,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setProfile(null);
       setSession(null);
       
-      // CRITICAL: Force a complete page reload and redirect to login
-      // This is the most reliable way to clear all state and auth tokens
-      console.log('Redirecting to login page with forced reload...');
+      // CRITICAL: Force a hard page refresh to clear everything
+      console.log('Performing hard refresh to login page...');
       
-      // Use a more reliable approach to force reload
-      window.location.href = '/login?signout=true&t=' + new Date().getTime();
+      // Set a flag in sessionStorage to indicate we're in the process of logging out
+      // This can be checked on login page to ensure we're fully logged out
+      sessionStorage.setItem('forceLogoutRefresh', 'true');
       
-      // As a fallback, also try to reload the page after a short delay
-      setTimeout(() => {
+      // Use multiple approaches to ensure the browser actually reloads fully
+      // This is the most aggressive approach to ensure the page is completely reloaded
+      try {
+        // Method 1: Direct location replace with cache-busting parameter
+        window.location.replace('/login?nocache=' + new Date().getTime());
+        
+        // Method 2: Fallback with traditional href change and reload
+        setTimeout(() => {
+          window.location.href = '/login?fallback=true&t=' + new Date().getTime();
+          window.location.reload(); // Force reload the page
+        }, 200);
+        
+        // Method 3: Last resort - just reload the current page after redirect attempt
+        setTimeout(() => {
+          window.location.reload();
+        }, 500);
+      } catch (navError) {
+        console.error('Navigation error during logout:', navError);
+        // Final attempt - simple reload
         window.location.reload();
-      }, 500);
+      }
       
       return true;
     } catch (err) {
@@ -332,9 +361,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       // Even if there was an error, try force reload as a last resort
       setTimeout(() => {
-        window.location.href = '/login';
+        window.location.href = '/login?error=true';
         window.location.reload();
-      }, 1000);
+      }, 500);
       
       return false;
     }

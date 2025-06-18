@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/context/AuthContext";
 import { ThemeProvider } from "@/hooks/use-theme";
 import { MarketDataProvider } from "@/context/market-data-context";
+import { NewsProvider } from "@/context/news-context"; // Added NewsProvider import
 import { FinGenieProvider } from "@/contexts/FinGenieContext";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import FinGenie from "@/components/FinGenie";
@@ -30,6 +31,7 @@ const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const CompleteProfile = lazy(() => import("./pages/CompleteProfile"));
 const AuthCallback = lazy(() => import("./pages/Auth/Callback"));
 const MarketOverview = lazy(() => import("./pages/MarketOverview"));
+const USMarket = lazy(() => import("./pages/StocksMarket"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Profile = lazy(() => import("./pages/Profile"));
 const Settings = lazy(() => import("./pages/Settings"));
@@ -47,7 +49,6 @@ const AdminPanel = lazy(() => import("./pages/AdminPanel"));
 const StockDetails = lazy(() => import("./components/StockDetails"));
 const CryptoDetails = lazy(() => import("./components/CryptoDetails"));
 const IndianMarketPage = lazy(() => import("./components/IndianMarket/IndianMarketPage"));
-const GlobalMarketRealTimePage = lazy(() => import("./pages/GlobalMarketRealTime"));
 
 // Lazy loaded static pages
 const AboutPage = lazy(() => import("./pages/about/index"));
@@ -78,14 +79,15 @@ const queryClient = new QueryClient({
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <ThemeProvider defaultTheme="system">
+      <ThemeProvider defaultTheme={undefined}> {/* Changed defaultTheme to undefined to potentially fix lint and allow provider default */} 
+        <NewsProvider> {/* Added NewsProvider here */}
           <MarketDataProvider>
             <FinGenieProvider>
               <AuthProvider>
-              <Toaster />
-              <Sonner />
-              <BrowserRouter>
-                <Routes>
+                <Toaster />
+                <Sonner />
+                <BrowserRouter>
+                  <Routes>
                   {/* Public routes - Index and NotFound are not lazy loaded */}
                   <Route path="/" element={<Index />} />
                   <Route path="*" element={<NotFound />} />
@@ -131,15 +133,14 @@ const App = () => (
                       <MarketOverview />
                     </Suspense>
                   } />
+                  <Route path="/us-market" element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <USMarket />
+                    </Suspense>
+                  } />
                   <Route path="/indian-market" element={
                     <Suspense fallback={<LoadingFallback />}>
                       <IndianMarketPage />
-                    </Suspense>
-                  } />
-                  <Route path="/global-market-realtime" element={
-                    <Suspense fallback={<LoadingFallback />}>
-                      {/* Redirect to the enhanced stocks market page with real-time data */}
-                      <Navigate to="/markets?type=stocks&exchange=us" replace />
                     </Suspense>
                   } />
                   
@@ -219,11 +220,7 @@ const App = () => (
                       <CryptoDetails />
                     </Suspense>
                   } />
-                  <Route path="/etfs/:symbol" element={
-                    <Suspense fallback={<LoadingFallback />}>
-                      <StockDetails />
-                    </Suspense>
-                  } />
+                  {/* ETF details now handled by stock details */}
                   
                   {/* Tool routes */}
                   <Route path="/tools/stock-screener" element={
@@ -348,6 +345,7 @@ const App = () => (
               </AuthProvider>
             </FinGenieProvider>
           </MarketDataProvider>
+        </NewsProvider>
       </ThemeProvider>
     </TooltipProvider>
   </QueryClientProvider>

@@ -2,7 +2,6 @@ import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import Hero from "@/components/home/Hero";
 import MarketOverview from "@/components/home/MarketOverview";
-import TopMovers from "@/components/home/TopMovers";
 import LatestNews from "@/components/home/LatestNews";
 import FinPathPreview from "@/components/home/FinPathPreview";
 import PopularTools from "@/components/home/PopularTools";
@@ -153,12 +152,26 @@ const Index = () => {
         
         <section className="py-8 md:py-16 bg-slate-50 dark:bg-slate-950">
           <div className="container mx-auto px-4">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              <div className="lg:col-span-1">
-                <TopMovers />
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Latest News</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Stay updated with the latest financial developments</p>
+            </div>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-fin-primary dark:text-white">Global News</h3>
+                  <Link to="/news?category=global" className="text-sm text-fin-teal hover:underline">View All</Link>
+                </div>
+                <LatestNews category="global" limit={5} />
               </div>
-              <div className="lg:col-span-2">
-                <LatestNews />
+              
+              <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-fin-primary dark:text-white">Indian News</h3>
+                  <Link to="/news?category=india" className="text-sm text-fin-teal hover:underline">View All</Link>
+                </div>
+                <LatestNews category="india" limit={5} />
               </div>
             </div>
           </div>

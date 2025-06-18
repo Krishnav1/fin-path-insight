@@ -1,18 +1,50 @@
-import { TrendingUp, TrendingDown, RefreshCw } from "lucide-react";
+import { TrendingUp, TrendingDown, RefreshCw, Info } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useMarket } from "@/hooks/use-market";
 import { useMarketData } from "@/context/market-data-context";
+import { useState, useEffect } from "react";
 
 export default function MarketOverview() {
   const { market } = useMarket();
-  const { indices, isLoading, refreshData, lastUpdated } = useMarketData();
+  const { indices, isLoading, refreshData, lastUpdated, nextRefreshTime } = useMarketData();
   
-  // Filter indices by market
-  const filteredIndices = indices.filter(index => 
-    index.symbol && index.symbol.includes('.NS') ? market === 'india' : market === 'global'
-  );
+  // State for countdown timer
+  const [timeUntilRefresh, setTimeUntilRefresh] = useState<string>("");
+  
+  // Update countdown timer every second
+  useEffect(() => {
+    if (!nextRefreshTime) return;
+    
+    const interval = setInterval(() => {
+      const now = new Date();
+      const diffMs = nextRefreshTime.getTime() - now.getTime();
+      
+      if (diffMs <= 0) {
+        setTimeUntilRefresh("Refreshing...");
+        return;
+      }
+      
+      const minutes = Math.floor(diffMs / (1000 * 60));
+      const seconds = Math.floor((diffMs % (1000 * 60)) / 1000);
+      
+      setTimeUntilRefresh(`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [nextRefreshTime]);
+  
+  // Filter indices by market type
+  const filteredIndices = indices.filter(index => {
+    // For NSE indices (Indian market)
+    if (index.symbol && (index.symbol.includes('.NSE') || index.symbol.includes('.NS'))) {
+      return market === 'india';
+    }
+    // For US indices (Global market)
+    return market === 'global';
+  });
 
   // Format currency based on market and symbol
   const formatCurrency = (value: number, symbol: string) => {
@@ -73,23 +105,41 @@ export default function MarketOverview() {
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400">Powered by EODHD Financial API</p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           {lastUpdated && (
             <span className="text-xs text-slate-500 dark:text-slate-400">
               Updated: {formatLastUpdated(lastUpdated)}
             </span>
           )}
+          
+          {nextRefreshTime && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 cursor-help">
+                    <span>{timeUntilRefresh}</span>
+                    <Info className="h-3 w-3" />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  <p>Time until next auto-refresh</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+          
           <Button
             variant="outline"
             size="icon"
-            className="h-8 w-8"
+            className="h-8 w-8 flex-shrink-0"
             onClick={handleRefresh}
             disabled={isLoading}
           >
             <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
           </Button>
-          <Link to="/markets" className="text-sm font-medium text-fin-teal hover:underline">
-            View All Markets
+          
+          <Link to="/us-market" className="text-sm font-medium text-fin-teal hover:underline whitespace-nowrap">
+            View Markets
           </Link>
         </div>
       </div>
