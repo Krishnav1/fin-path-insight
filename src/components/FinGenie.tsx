@@ -83,7 +83,7 @@ export default function FinGenie() {
     
     try {
       // Send the message to our Netlify function
-      const response = await fetch('/.netlify/functions/fingenieChat', {
+      const response = await fetch('https://ydakwyplcqoshxcdllah.supabase.co/functions/v1/fingenie-chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
