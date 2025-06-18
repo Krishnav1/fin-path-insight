@@ -208,13 +208,7 @@ export default function FinGeniePage() {
                     </div>
                     
                     <div className="flex items-center space-x-2">
-                      <Tabs value={activeTab} onValueChange={setActiveTab} className="hidden md:block">
-                        <TabsList className="bg-white/20">
-                          <TabsTrigger value="chat" className="data-[state=active]:bg-white/30 text-white">Chat</TabsTrigger>
-                          <TabsTrigger value="tools" className="data-[state=active]:bg-white/30 text-white">Tools</TabsTrigger>
-                        </TabsList>
-                      </Tabs>
-                      
+                      {/* TabsList will be moved outside the CardHeader */}
                       <Button 
                         variant="outline" 
                         size="icon" 
@@ -229,8 +223,16 @@ export default function FinGeniePage() {
                     Your AI finance assistant that provides personalized insights and answers
                   </CardDescription>
                 </CardHeader>
-                
-                <TabsContent value="chat" className="flex-1 flex flex-col p-0 m-0">
+
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
+                  <div className="px-6 pt-4 pb-2 border-b border-slate-200 dark:border-slate-700">
+                    <TabsList className="grid w-full grid-cols-2 md:w-auto md:inline-flex">
+                      <TabsTrigger value="chat">Chat</TabsTrigger>
+                      <TabsTrigger value="tools">Tools</TabsTrigger>
+                    </TabsList>
+                  </div>
+                  
+                  <TabsContent value="chat" className="flex-1 flex flex-col p-0 m-0 mt-0 rounded-none border-0">
                   {/* Chat Messages */}
                   <div className="flex-1 overflow-y-auto p-6 space-y-6">
                     {chatHistory.map((msg) => (
@@ -301,7 +303,7 @@ export default function FinGeniePage() {
                   </div>
                 </TabsContent>
                 
-                <TabsContent value="tools" className="flex-1 p-6 m-0 overflow-auto">
+                <TabsContent value="tools" className="flex-1 p-6 m-0 mt-0 overflow-auto rounded-none border-0">
                   <div className="space-y-6">
                     <div>
                       <h3 className="text-lg font-medium mb-4">Financial Tools</h3>
@@ -411,6 +413,7 @@ export default function FinGeniePage() {
                     </div>
                   </div>
                 </TabsContent>
+                </Tabs> {/* Closing the main Tabs wrapper */}
               </Card>
             </div>
             

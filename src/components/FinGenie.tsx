@@ -5,7 +5,6 @@ import { Loader2, Bot, X, Send, Minimize2, ExternalLink } from "lucide-react";
 import { Card, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import axios from "axios";
 
 // Define the message type
 type Message = {
@@ -82,11 +81,13 @@ export default function FinGenie() {
     }, 100);
     
     try {
-      // Send the message to our Netlify function
+      // Send the message to our Supabase Edge function
+      const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlkYWt3eXBsY3Fvc2h4Y2RsbGFoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDcyMTAwNTMsImV4cCI6MjA2Mjc4NjA1M30.J0c0YqSsR9XbtbYLVOq6oqQwYQ3G7j65Q0stEtS4W2s'; // IMPORTANT: Replace with your actual key or use env var
       const response = await fetch('https://ydakwyplcqoshxcdllah.supabase.co/functions/v1/fingenie-chat', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
         },
         body: JSON.stringify({
           userId: userId,
@@ -99,8 +100,8 @@ export default function FinGenie() {
       // Check if we have a valid response
       if (response.ok) {
         const data = await response.json();
-        if (data && data.reply) {
-          responseContent = data.reply;
+        if (data && data.response) { // Changed data.reply to data.response based on edge function
+          responseContent = data.response;
         }
       } else {
         console.error('Error communicating with FinGenie API:', await response.text());
@@ -311,4 +312,4 @@ export default function FinGenie() {
       )}
     </div>
   );
-} 
+}

@@ -42,7 +42,7 @@ const FinPath = lazy(() => import("./pages/finpath/index"));
 const FinWell = lazy(() => import("./pages/FinWell"));
 const Tools = lazy(() => import("./pages/Tools"));
 const CompanyAnalysis = lazy(() => import("./pages/CompanyAnalysis"));
-const FinGeniePage = lazy(() => import("./pages/FinGeniePage"));
+
 const AdminPanel = lazy(() => import("./pages/AdminPanel"));
 
 // Lazy loaded components
@@ -193,11 +193,7 @@ const App = () => (
                       <Learn />
                     </Suspense>
                   } />
-                  <Route path="/fingenie" element={
-                    <Suspense fallback={<LoadingFallback />}>
-                      <FinGeniePage />
-                    </Suspense>
-                  } />
+                  <Route path="/fingenie" element={<Navigate to="/tools/fingenie" replace />} />
                   <Route path="/company/:symbol" element={
                     <Suspense fallback={<LoadingFallback />}>
                       <CompanyAnalysis />
