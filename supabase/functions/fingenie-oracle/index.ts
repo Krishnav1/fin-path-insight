@@ -1,19 +1,17 @@
-// Supabase Edge Function for FinGenie Oracle
-// This function provides AI-powered financial information using Google's Gemini API
-// Supports both authenticated and unauthenticated requests
+/// <reference types="https://deno.land/x/deno/cli/types/dts/index.d.ts" />
 
-import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
-import { GoogleGenerativeAI } from "https://esm.sh/@google/generative-ai@0.1.3"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
+import { create, getNumericDate } from 'https://deno.land/x/djwt@v2.9.1/mod.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 // CORS headers for Supabase Edge Functions
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-// Helper for error responses
+// Helper for consistent error responses
 function errorResponse(message: string, status = 400) {
   console.error(`[FINGENIE-ORACLE] ${message}`);
   return new Response(
@@ -25,112 +23,90 @@ function errorResponse(message: string, status = 400) {
   );
 }
 
-// Get Supabase URL and key from environment variables
-const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
-const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
-
-// Helper to check authentication
-async function getUserFromToken(authHeader: string | null): Promise<any> {
-  if (!authHeader || !authHeader.startsWith('Bearer ') || !SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    return null;
+// Helper to convert string to ArrayBuffer
+function str2ab(str: string) {
+  const buf = new ArrayBuffer(str.length);
+  const bufView = new Uint8Array(buf);
+  for (let i = 0, strLen = str.length; i < strLen; i++) {
+    bufView[i] = str.charCodeAt(i);
   }
-  
-  try {
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    const token = authHeader.replace('Bearer ', '');
-    const { data, error } = await supabase.auth.getUser(token);
-    
-    if (error || !data.user) {
-      console.error('[Auth] Invalid token:', error);
-      return null;
-    }
-    
-    return data.user;
-  } catch (error) {
-    console.error('[Auth] Error validating token:', error);
-    return null;
-  }
+  return buf;
 }
 
-// Cache for storing responses to avoid hitting rate limits
-interface CachedResponse {
-  response: string;
-  timestamp: number;
-}
+// Deno-native Google Auth
+async function getGoogleAuthToken() {
+  const serviceAccountBase64 = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_JSON_BASE64");
+  if (!serviceAccountBase64) {
+    throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON_BASE64 environment variable is not set");
+  }
+  const serviceAccountJson = atob(serviceAccountBase64);
+  const credentials = JSON.parse(serviceAccountJson);
 
-const responseCache: Record<string, CachedResponse> = {};
-const CACHE_TTL = 1800000; // 30 minutes in milliseconds
+  const pem = credentials.private_key;
+  const pemHeader = "-----BEGIN PRIVATE KEY-----";
+  const pemFooter = "-----END PRIVATE KEY-----";
+  const pemContents = pem.replace(/\\n/g, "").substring(pemHeader.length, pem.length - pemFooter.length + 1);
+  const binaryDer = atob(pemContents);
+
+  const key = await crypto.subtle.importKey(
+    "pkcs8",
+    str2ab(binaryDer),
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    true,
+    ["sign"]
+  );
+
+  const jwt = await create({ alg: "RS256", typ: "JWT" }, {
+    iss: credentials.client_email,
+    scope: "https://www.googleapis.com/auth/cloud-platform",
+    aud: "https://oauth2.googleapis.com/token",
+    exp: getNumericDate(3600),
+    iat: getNumericDate(0),
+  }, key);
+
+  const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion: jwt }),
+  });
+
+  if (!tokenResponse.ok) {
+    throw new Error(`Failed to get Google access token: ${await tokenResponse.text()}`);
+  }
+
+  const tokenData = await tokenResponse.json();
+  return { token: tokenData.access_token, projectId: credentials.project_id };
+}
 
 serve(async (req) => {
-  // Handle CORS preflight request
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: corsHeaders });
   }
-
-  // Check authentication
-  const authHeader = req.headers.get('Authorization');
-  const user = await getUserFromToken(authHeader);
-  const isAuthenticated = !!user;
-  
-  // Log authentication status (but don't expose user details)
-  console.log(`[FINGENIE-ORACLE] Request authentication status: ${isAuthenticated ? 'Authenticated' : 'Unauthenticated'}`);
-
-  // Only accept POST requests
-  if (req.method !== "POST") {
-    return errorResponse("Method Not Allowed", 405);
-  }
-
-  // Define requestBody outside try block so it's accessible in catch
-  let requestBody: { userId?: string; query?: string } = {};
 
   try {
-    // Parse request body
-    const body = await req.json();
-    
-    // Store in outer variable for access in catch block
-    requestBody = body;
-    
-    // Extract query from request
-    // If user is authenticated, use their actual ID, otherwise use the provided userId or "anonymous"
-    const { query } = body;
-    const userId = isAuthenticated ? user.id : (body.userId || "anonymous");
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return errorResponse('Missing or invalid authorization header', 401);
+    }
 
+    const supabase = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_ANON_KEY') ?? '');
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+
+    if (userError || !user) {
+      return errorResponse(userError?.message || 'Invalid token', 401);
+    }
+
+    const { query } = await req.json();
     if (!query) {
-      return errorResponse("Missing query in request body", 400);
+      return errorResponse('Missing query in request body');
     }
 
-    // Check cache first
-    const cacheKey = `${userId}:${query}`;
-    const cachedData = responseCache[cacheKey];
-    
-    if (cachedData && (Date.now() - cachedData.timestamp) < CACHE_TTL) {
-      console.log(`Using cached response for query: ${query}`);
-      return new Response(
-        JSON.stringify({
-          response: cachedData.response,
-          userId,
-          cached: true
-        }),
-        {
-          status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
+    const { token: googleToken, projectId } = await getGoogleAuthToken();
+    const region = "asia-south1";
+    const vertex_ai_endpoint = `https://${region}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${region}/publishers/google/models/gemini-1.5-pro:generateContent`;
 
-    // Get API key from environment
-    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
-    const vertexRegion = "asia-south1"; // Added for consistency
 
-    if (!GEMINI_API_KEY) {
-      throw new Error("GEMINI_API_KEY environment variable is not set");
-    }
-
-    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-
-    // Prepare the prompt for Gemini
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
-    
     const promptTemplate = `
 You are FinGenie Oracle, a specialized AI assistant focused on providing accurate, educational information about financial markets, investment strategies, and economic concepts.
 
@@ -155,58 +131,39 @@ Format your response in well-structured Markdown, including:
 Disclaimer to include: "This information is for educational purposes only and does not constitute investment advice. Financial markets involve risk, and past performance is not indicative of future results. Always consult with a qualified financial advisor before making investment decisions."
 `;
 
-    // Send the query to Gemini
-    console.log("Sending query to Gemini Oracle...");
-    const result = await model.generateContent(promptTemplate);
-    const response = result.response;
-    const oracleResponse = response.text();
-
-    // Store in cache
-    responseCache[cacheKey] = {
-      response: oracleResponse,
-      timestamp: Date.now()
+    const vertexRequestBody = {
+      contents: [{ role: "user", parts: [{ text: promptTemplate }] }],
+      generationConfig: {
+        temperature: 0.5,
+        topP: 0.8,
+        topK: 40,
+        maxOutputTokens: 2048,
+        response_mime_type: "application/json",
+      },
     };
 
-    // Return the response with authentication status
-    return new Response(
-      JSON.stringify({
-        response: oracleResponse,
-        timestamp: new Date().toISOString(),
-        userId: userId,
-        authenticated: isAuthenticated
-      }),
-      {
-        status: 200,
-        headers: { 
-          ...corsHeaders, 
-          "Content-Type": "application/json",
-          'X-Auth-Status': isAuthenticated ? 'authenticated' : 'unauthenticated'
-        },
-      }
-    );
+    const vertexResponse = await fetch(vertex_ai_endpoint, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${googleToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(vertexRequestBody),
+    });
+
+    if (!vertexResponse.ok) {
+      throw new Error(`Vertex AI API request failed: ${await vertexResponse.text()}`);
+    }
+
+    const responseJson = await vertexResponse.json();
+    const analysisText = responseJson.candidates[0].content.parts[0].text;
+
+    return new Response(JSON.stringify({ response: analysisText }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 200,
+    });
+
   } catch (error) {
-    console.error('Error in FinGenie Oracle:', error);
-    console.error('Request body:', requestBody);
-    
-    // Use userId from authenticated user if available, otherwise from request or anonymous
-    const userId = isAuthenticated ? user.id : (requestBody.userId || "anonymous");
-    
-    return new Response(
-      JSON.stringify({
-        error: "An error occurred while processing your request.",
-        response: "This information is for educational purposes only and does not constitute investment advice. Financial markets involve risk, and past performance is not indicative of future results. Always consult with a qualified financial advisor before making investment decisions.",
-        timestamp: new Date().toISOString(),
-        userId: userId,
-        authenticated: isAuthenticated
-      }),
-      {
-        status: 500,
-        headers: { 
-          ...corsHeaders, 
-          "Content-Type": "application/json",
-          'X-Auth-Status': isAuthenticated ? 'authenticated' : 'unauthenticated'
-        },
-      }
-    );
+    return errorResponse(error.message, 500);
   }
 })

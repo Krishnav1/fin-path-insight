@@ -5,6 +5,7 @@ import { Loader2, Bot, X, Send, Minimize2, ExternalLink } from "lucide-react";
 import { Card, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/context/AuthContext";
 
 // Define the message type
 type Message = {
@@ -39,7 +40,7 @@ export default function FinGenie() {
     }
   ]);
   const [isLoading, setIsLoading] = useState(false);
-  const [userId] = useState(() => `user-${Math.random().toString(36).substring(2, 9)}`);
+    const { session } = useAuth();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -57,83 +58,86 @@ export default function FinGenie() {
     }
   }, [isOpen, isMinimized]);
 
-  const handleSubmit = async (e?: React.FormEvent) => {
+    const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    
     if (!inputValue.trim() || isLoading) return;
-    
-    // Create a new user message
+
     const userMessage: Message = {
       id: Date.now().toString(),
       content: inputValue.trim(),
       role: "user",
-      timestamp: new Date()
+      timestamp: new Date(),
     };
-    
-    // Add the user message to the chat
-    setMessages(prev => [...prev, userMessage]);
+
+    setMessages((prev) => [...prev, userMessage]);
     setInputValue("");
     setIsLoading(true);
-    
-    // Scroll to bottom
+
     setTimeout(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, 100);
-    
+
     try {
-      // Send the message to our Supabase Edge function
-      const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlkYWt3eXBsY3Fvc2h4Y2RsbGFoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDcyMTAwNTMsImV4cCI6MjA2Mjc4NjA1M30.J0c0YqSsR9XbtbYLVOq6oqQwYQ3G7j65Q0stEtS4W2s'; // IMPORTANT: Replace with your actual key or use env var
-      const response = await fetch('https://ydakwyplcqoshxcdllah.supabase.co/functions/v1/fingenie-chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-        },
-        body: JSON.stringify({
-          userId: userId,
-          message: userMessage.content
-        })
-      });
-      
+      const accessToken = session?.access_token;
+
+      if (!accessToken) {
+        throw new Error("You must be logged in to use the chat.");
+      }
+
+      const response = await fetch(
+        'https://ydakwyplcqoshxcdllah.supabase.co/functions/v1/fingenie-chat',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            query: userMessage.content,
+          }),
+        }
+      );
+
       let responseContent = FALLBACK_RESPONSE;
-      
-      // Check if we have a valid response
+
       if (response.ok) {
         const data = await response.json();
-        if (data && data.response) { // Changed data.reply to data.response based on edge function
+        if (data && data.response) {
           responseContent = data.response;
         }
       } else {
-        console.error('Error communicating with FinGenie API:', await response.text());
+        const errorText = await response.text();
+        console.error('Error with chat API:', errorText);
+        try {
+          const errorJson = JSON.parse(errorText);
+          responseContent = errorJson.error || `API Error: ${response.status}`;
+        } catch {
+          responseContent = `API Error: ${response.status}`;
+        }
       }
-      
-      // Create the AI response message
+
       const aiMessage: Message = {
         id: Date.now().toString(),
         content: responseContent,
         role: "assistant",
-        timestamp: new Date()
+        timestamp: new Date(),
       };
-      
-      // Add the AI response to the chat
-      setMessages(prev => [...prev, aiMessage]);
+
+      setMessages((prev) => [...prev, aiMessage]);
     } catch (error) {
-      console.error('Error communicating with FinGenie API:', error);
-      
-      // Create an error message with the fallback response
+      console.error('Error in handleSubmit:', error);
+
       const errorMessage: Message = {
         id: Date.now().toString(),
-        content: FALLBACK_RESPONSE,
+        content: error instanceof Error ? error.message : FALLBACK_RESPONSE,
         role: "assistant",
-        timestamp: new Date()
+        timestamp: new Date(),
       };
-      
-      // Add the error message to the chat
-      setMessages(prev => [...prev, errorMessage]);
+
+      setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
-      
-      // Scroll to bottom again
+
       setTimeout(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
       }, 100);

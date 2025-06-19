@@ -106,7 +106,7 @@
     "netlify-cli": "^21.2.1",
     "rollup-plugin-visualizer": "^5.14.0",
     "serverless-http": "^3.2.0",
-    "supabase": "^2.22.12",
+    "supabase": "^2.26.9",
     "terser": "^5.39.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3",

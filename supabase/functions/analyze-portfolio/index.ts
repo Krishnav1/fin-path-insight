@@ -1,9 +1,183 @@
-// Supabase Edge Function for Portfolio Analysis
+/// <reference types="https://deno.land/x/deno/cli/types/dts/index.d.ts" />
+
+import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
+import { create, getNumericDate } from 'https://deno.land/x/djwt@v2.9.1/mod.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+// Define the structure for the analysis response, matching the frontend
+interface GeminiAnalysis {
+  overview: {
+    total_invested: string;
+    market_value: string;
+    absolute_return: string;
+    percent_return: string;
+    top_gainer: string;
+    worst_performer: string;
+  };
+  stock_breakdown: Array<{
+    symbol: string;
+    sector: string;
+    percent_gain: string;
+    recommendation: string;
+  }>;
+  diversification: {
+    sector_breakdown: Record<string, string>;
+    risk_flag: 'High' | 'Medium' | 'Low';
+  };
+  recommendations: string[];
+  summary: string;
+}
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
+
+function errorResponse(message: string, status = 400) {
+  console.error(`[ANALYZE-PORTFOLIO] ${message}`);
+  return new Response(JSON.stringify({ error: message }), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
+function str2ab(str: string) {
+  const buf = new ArrayBuffer(str.length);
+  const bufView = new Uint8Array(buf);
+  for (let i = 0, strLen = str.length; i < strLen; i++) {
+    bufView[i] = str.charCodeAt(i);
+  }
+  return buf;
+}
+
+async function getGoogleAuthToken() {
+  const serviceAccountBase64 = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_JSON_BASE64");
+  if (!serviceAccountBase64) {
+    throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON_BASE64 environment variable is not set");
+  }
+  const serviceAccountJson = atob(serviceAccountBase64);
+  const credentials = JSON.parse(serviceAccountJson);
+
+  const pem = credentials.private_key;
+  const pemHeader = "-----BEGIN PRIVATE KEY-----";
+  const pemFooter = "-----END PRIVATE KEY-----";
+  const pemContents = pem.replace(/\\n/g, "").substring(pemHeader.length, pem.length - pemFooter.length + 1);
+  const binaryDer = atob(pemContents);
+
+  const key = await crypto.subtle.importKey(
+    "pkcs8",
+    str2ab(binaryDer),
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    true,
+    ["sign"]
+  );
+
+  const jwt = await create({ alg: "RS256", typ: "JWT" }, {
+    iss: credentials.client_email,
+    scope: "https://www.googleapis.com/auth/cloud-platform",
+    aud: "https://oauth2.googleapis.com/token",
+    exp: getNumericDate(3600),
+    iat: getNumericDate(0),
+  }, key);
+
+  const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion: jwt }),
+  });
+
+  if (!tokenResponse.ok) {
+    throw new Error(`Failed to get Google access token: ${await tokenResponse.text()}`);
+  }
+
+  const tokenData = await tokenResponse.json();
+  return { token: tokenData.access_token, projectId: credentials.project_id };
+}
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
+
+  try {
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return errorResponse('Missing or invalid authorization header', 401);
+    }
+
+    const supabase = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_ANON_KEY') ?? '');
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+
+    if (userError || !user) {
+      return errorResponse(userError?.message || 'Invalid token', 401);
+    }
+
+    const { portfolio } = await req.json();
+    if (!portfolio || !Array.isArray(portfolio) || portfolio.length === 0) {
+      return errorResponse('Missing or invalid portfolio data in request body');
+    }
+
+    const { token: googleToken, projectId } = await getGoogleAuthToken();
+    const region = "asia-south1";
+    const vertex_ai_endpoint = `https://${region}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${region}/publishers/google/models/gemini-1.5-pro:generateContent`;
+
+    const holdingsString = portfolio.map(p => `${p.symbol}: ${p.quantity} shares`).join(', ');
+    const prompt = `
+      You are a world-class financial analyst AI, FinGenie. Your task is to provide a comprehensive analysis of the user's stock portfolio.
+      The user's current holdings are: ${holdingsString}.
+
+      You MUST return your analysis as a single, minified JSON object with no markdown formatting. The JSON object must strictly adhere to the following structure:
+      A root object with keys: "overview", "stock_breakdown", "diversification", "recommendations", "summary".
+      - "overview": an object with string keys "total_invested", "market_value", "absolute_return", "percent_return", "top_gainer", "worst_performer".
+      - "stock_breakdown": an array of objects, each with string keys "symbol", "sector", "percent_gain", "recommendation".
+      - "diversification": an object with key "sector_breakdown" (which is an object of string to string like {"Tech":"50%"}) and "risk_flag" (a string: "High", "Medium", or "Low").
+      - "recommendations": an array of 3-5 strings.
+      - "summary": a concise 2-3 sentence string.
+
+      Analyze the provided holdings and generate the complete JSON object. Ensure all fields are populated with realistic, insightful, and data-driven strings. For fields requiring calculations (like returns), make reasonable assumptions based on the provided holdings.
+    `;
+
+    const vertexRequestBody = {
+      contents: [{ parts: [{ text: prompt }] }],
+      "generationConfig": {
+        "responseMimeType": "application/json",
+      }
+    };
+
+    const vertexResponse = await fetch(vertex_ai_endpoint, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${googleToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(vertexRequestBody),
+    });
+
+    if (!vertexResponse.ok) {
+      const errorText = await vertexResponse.text();
+      return errorResponse(`Vertex AI API request failed: ${errorText}`, vertexResponse.status);
+    }
+
+    const responseJson = await vertexResponse.json();
+    const analysisText = responseJson.candidates[0].content.parts[0].text;
+
+    const analysis: GeminiAnalysis = JSON.parse(analysisText);
+
+    return new Response(JSON.stringify(analysis), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 200,
+    });
+
+  } catch (error) {
+    return errorResponse(error.message, 500);
+  }
+});
 // This function analyzes portfolio holdings using Google's Gemini API
 // Requires authentication since it deals with user portfolio data
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { create, getNumericDate } from 'https://deno.land/x/djwt@v2.9.1/mod.ts';
+
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 // Helper to get Google service account credentials from environment variables
 function getGoogleServiceAccount(): Record<string, unknown> {
@@ -69,314 +243,154 @@ async function getUserFromToken(authHeader: string | null): Promise<any> {
 serve(async (req) => {
   // Handle CORS preflight request
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: corsHeaders });
   }
 
-  // Check authentication - this endpoint requires authentication
-  const authHeader = req.headers.get('Authorization');
-  const user = await getUserFromToken(authHeader);
-  
-  if (!user) {
-    return errorResponse('Authentication required. Please log in.', 401);
+  // Helper to standardize holdings for analysis
+  function standardizeHoldings(holdings: any[]) {
+    return holdings.map(holding => {
+      const standardized = { ...holding };
+      if (standardized.symbol) {
+        standardized.symbol = standardized.symbol.split('.')[0];
+      }
+      if (standardized.currentPrice && typeof standardized.currentPrice !== 'number') {
+        standardized.currentPrice = parseFloat(standardized.currentPrice) || 0;
+      }
+      return standardized;
+    });
   }
-  
-  // Log authenticated user (but don't expose sensitive details)
-  console.log(`[ANALYZE-PORTFOLIO] Authenticated request from user: ${user.id}`);
 
-  // Only accept POST requests
-  if (req.method !== "POST") {
-    return errorResponse("Method Not Allowed", 405);
+  // Ensures the AI response matches the GeminiAnalysis interface shape
+  function ensureGeminiAnalysisShape(obj: any): any {
+    return {
+      overview: {
+        total_invested: obj?.overview?.total_invested ?? '',
+        market_value: obj?.overview?.market_value ?? '',
+        absolute_return: obj?.overview?.absolute_return ?? '',
+        percent_return: obj?.overview?.percent_return ?? '',
+        top_gainer: obj?.overview?.top_gainer ?? '',
+        worst_performer: obj?.overview?.worst_performer ?? ''
+      },
+      stock_breakdown: Array.isArray(obj?.stock_breakdown) ? obj.stock_breakdown.map((s: any) => ({
+        symbol: s?.symbol ?? '',
+        sector: s?.sector ?? '',
+        percent_gain: s?.percent_gain ?? '',
+        recommendation: s?.recommendation ?? ''
+      })) : [],
+      diversification: {
+        sector_breakdown: typeof obj?.diversification?.sector_breakdown === 'object' && obj.diversification.sector_breakdown !== null ? obj.diversification.sector_breakdown : {},
+        risk_flag: obj?.diversification?.risk_flag ?? 'Medium'
+      },
+      recommendations: Array.isArray(obj?.recommendations) ? obj.recommendations : [],
+      summary: obj?.summary ?? ''
+    };
   }
 
   try {
-    // Parse request body
-    const body = await req.json();
-    
-    // Extract holdings data from request
-    const { holdings } = body;
+    // Check authentication - this endpoint requires authentication
+    const authHeader = req.headers.get('Authorization');
+    const user = await getUserFromToken(authHeader);
+    if (!user) {
+      return errorResponse('Authentication required. Please log in.', 401);
+    }
 
+    // Only accept POST requests
+    if (req.method !== "POST") {
+      return errorResponse("Method Not Allowed", 405);
+    }
+
+    const body = await req.json();
+    const { holdings } = body;
     if (!holdings || !Array.isArray(holdings) || holdings.length === 0) {
       return errorResponse("Missing or invalid holdings data in request body", 400);
     }
 
-    // --- Vertex AI with Service Account (Production) ---
-    // 1. Get service account credentials
-    const credentials = getGoogleServiceAccount();
-    // Hardcoded project ID as per user instruction
-    const projectId = 'gen-lang-client-0790586374';
-    const vertexRegion = 'asia-south1'; // Changed from us-central1
-    
-    // 2. Get OAuth2 access token using service account
-    // (Deno-compatible JWT signing)
-    async function getAccessToken() {
-      const header = { alg: 'RS256', typ: 'JWT' };
-      const iat = Math.floor(Date.now() / 1000);
-      const exp = iat + 60 * 60; // 1 hour
-      const payload = {
-        iss: credentials.client_email,
-        sub: credentials.client_email,
-        aud: 'https://oauth2.googleapis.com/token',
-        scope: 'https://www.googleapis.com/auth/cloud-platform',
-        iat,
-        exp,
-      };
-      function base64url(obj: object) {
-        return btoa(JSON.stringify(obj)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-      }
-      const enc = new TextEncoder();
-      const toSign = `${base64url(header)}.${base64url(payload)}`;
-      const keyData = credentials.private_key as string;
-      const cryptoKey = await crypto.subtle.importKey(
-        'pkcs8',
-        (function pemToArrayBuffer(pem: string) {
-          const b64 = pem.replace('-----BEGIN PRIVATE KEY-----', '').replace('-----END PRIVATE KEY-----', '').replace(/\s+/g, '');
-          const binary = atob(b64);
-          const buf = new Uint8Array(binary.length);
-          for (let i = 0; i < binary.length; i++) buf[i] = binary.charCodeAt(i);
-          return buf.buffer;
-        })(keyData),
-        { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
-        false,
-        ['sign']
-      );
-      const signature = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', cryptoKey, enc.encode(toSign));
-      const jwt = `${toSign}.${btoa(String.fromCharCode(...new Uint8Array(signature))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')}`;
-      // Exchange JWT for access token
-      const tokenResp = await fetch('https://oauth2.googleapis.com/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`
-      });
-      const tokenJson = await tokenResp.json();
-      if (!tokenJson.access_token) throw new Error('Failed to get access token');
-      return tokenJson.access_token;
-    }
+    const { token, projectId } = await getGoogleAuthToken();
+    const region = "asia-south1";
+    const vertex_ai_endpoint = `https://${region}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${region}/publishers/google/models/gemini-1.5-pro:generateContent`;
 
-    // Helper to standardize symbols for analysis
-    function standardizeHoldings(holdings: any[]) {
-      return holdings.map(holding => {
-        // Create a copy to avoid modifying the original
-        const standardized = { ...holding };
-        
-        // Standardize symbol format (remove any exchange suffix for clarity)
-        if (standardized.symbol) {
-          // Remove any exchange suffix (.NS, .NSE, etc.)
-          standardized.symbol = standardized.symbol.split('.')[0];
-        }
-        
-        // Ensure currentPrice is a number
-        if (standardized.currentPrice && typeof standardized.currentPrice !== 'number') {
-          standardized.currentPrice = parseFloat(standardized.currentPrice) || 0;
-        }
-        
-        return standardized;
-      });
-    }
-
-    // Ensures the AI response matches the GeminiAnalysis interface shape
-    function ensureGeminiAnalysisShape(obj: any): any {
-      return {
-        overview: {
-          total_invested: obj?.overview?.total_invested ?? '',
-          market_value: obj?.overview?.market_value ?? '',
-          absolute_return: obj?.overview?.absolute_return ?? '',
-          percent_return: obj?.overview?.percent_return ?? '',
-          top_gainer: obj?.overview?.top_gainer ?? '',
-          worst_performer: obj?.overview?.worst_performer ?? ''
-        },
-        stock_breakdown: Array.isArray(obj?.stock_breakdown) ? obj.stock_breakdown.map((s: any) => ({
-          symbol: s?.symbol ?? '',
-          sector: s?.sector ?? '',
-          percent_gain: s?.percent_gain ?? '',
-          recommendation: s?.recommendation ?? ''
-        })) : [],
-        diversification: {
-          sector_breakdown: typeof obj?.diversification?.sector_breakdown === 'object' && obj.diversification.sector_breakdown !== null ? obj.diversification.sector_breakdown : {},
-          risk_flag: obj?.diversification?.risk_flag ?? 'Medium'
-        },
-        recommendations: Array.isArray(obj?.recommendations) ? obj.recommendations : [],
-        summary: obj?.summary ?? ''
-      };
-    }
-    
-    // Standardize holdings data
+    // Standardize holdings and create the prompt
     const standardizedHoldings = standardizeHoldings(holdings);
-    console.log('Standardized holdings for analysis:', JSON.stringify(standardizedHoldings, null, 2));
-    
-    // 3. Prepare the prompt
     const prompt = `
-You are a Senior Equity Research Analyst assisting users on a financial platform called FinGenie. A user has entered their portfolio holdings.
-
-Your job is to analyze the data and provide insightful, personalized, and jargon-free feedback for a retail investor. Use simple language but offer genuine financial intelligence. Base all analysis only on the data below (no external API or live data).
-
-📊 PORTFOLIO HOLDINGS:
-${JSON.stringify(standardizedHoldings, null, 2)}
-
-📊 ANALYSIS TASKS:
-
-1. **Portfolio Overview**
-   - Total invested amount
-   - Current market value
-   - Absolute and % Returns
-   - Best & Worst Performing Stock (based on % return)
-
-2. **Stock-Level Breakdown**
-   - % Gain/Loss per stock
-   - Highlight top gainers (e.g. >10%) and underperformers (<-10%)
-
-3. **Diversification & Risk**
-   - Sector exposure breakdown in %
-   - Check for concentration risks (e.g. >50% in one sector)
-   - Is the portfolio well-diversified?
-
-4. **Insights & Recommendations**
-   - Suggest stocks to hold, reallocate, or consider selling
-   - Recommend sector/stock types for diversification
-   - Mention if any red flags in risk
-
-5. **One-paragraph Summary**
-   Write a friendly and clear closing summary. Example:
-   "Your portfolio has grown by 5.2%, driven by Tata Power. However, HDFC Bank is under pressure. Consider reducing exposure to Banking."
-
-🧾 OUTPUT FORMAT (strictly in JSON):
-
-{
-  "overview": {
-    "total_invested": "...",
-    "market_value": "...",
-    "absolute_return": "...",
-    "percent_return": "...",
-    "top_gainer": "...",
-    "worst_performer": "..."
-  },
-  "stock_breakdown": [
-    {
-      "symbol": "...",
-      "sector": "...",
-      "percent_gain": "...",
-      "recommendation": "Hold / Exit / Watch"
-    },
-    ...
-  ],
-  "diversification": {
-    "sector_breakdown": {
-      "IT": "40%",
-      "Banking": "30%",
-      "Energy": "30%"
-    },
-    "risk_flag": "High / Medium / Low"
-  },
-  "recommendations": [
-    "Consider diversifying into FMCG or Pharma",
-    "Book partial profit in Tata Power",
-    ...
-  ],
-  "summary": "..."
-}
-
-Only use the data provided. Don't assume any external or real-time info.
+      You are a Senior Equity Research Analyst assisting users on a financial platform called FinGenie. A user has entered their portfolio holdings.
+      Your job is to analyze the data and provide insightful, personalized, and jargon-free feedback for a retail investor. Use simple language but offer genuine financial intelligence. Base all analysis only on the data below (no external API or live data).
+      
+      📊 PORTFOLIO HOLDINGS:
+      ${JSON.stringify(standardizedHoldings, null, 2)}
+      
+      🧾 OUTPUT FORMAT (strictly in JSON):
+      {
+        "overview": {
+          "total_invested": "...",
+          "market_value": "...",
+          "absolute_return": "...",
+          "percent_return": "...",
+          "top_gainer": "...",
+          "worst_performer": "..."
+        },
+        "stock_breakdown": [
+          { "symbol": "...", "sector": "...", "percent_gain": "...", "recommendation": "Hold / Exit / Watch" }
+        ],
+        "diversification": {
+          "sector_breakdown": { "IT": "40%", "Banking": "30%" },
+          "risk_flag": "High / Medium / Low"
+        },
+        "recommendations": [
+          "Consider diversifying into FMCG or Pharma",
+          "Book partial profit in Tata Power"
+        ],
+        "summary": "..."
+      }
     `;
 
-    // 4. Get access token
-    const accessToken = await getAccessToken();
-
-    // 5. Call Vertex AI Text Generation endpoint
-    // Updated to use Gemini 1.5 Pro model and the correct project ID
-    const apiUrl = `https://${vertexRegion}-aiplatform.googleapis.com/v1/projects/gen-lang-client-0790586374/locations/${vertexRegion}/publishers/google/models/gemini-1.5-pro:generateContent`;
-    const vertexBody = {
+    // Prepare and send the request to Vertex AI
+    const requestBody = {
       contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.7, maxOutputTokens: 2048 }
+      generationConfig: {
+        temperature: 0.5,
+        topP: 0.8,
+        topK: 40,
+        maxOutputTokens: 2048,
+        response_mime_type: "application/json",
+      },
     };
-    console.log('Calling Vertex AI with prompt:', prompt.substring(0, 500) + '... [truncated]');
-    
-    // Variable to store the Vertex AI response
-    let vertexJson;
-    
-    try {
-      const vertexResp = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(vertexBody)
-      });
-      
-      // Check if the response is OK
-      if (!vertexResp.ok) {
-        const errorText = await vertexResp.text();
-        console.error(`Vertex API error (${vertexResp.status}):`, errorText);
-        return new Response(
-          JSON.stringify({ 
-            error: `Vertex AI returned error status: ${vertexResp.status}`, 
-            details: errorText
-          }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      
-      vertexJson = await vertexResp.json();
-      console.log('Vertex AI response structure:', JSON.stringify(Object.keys(vertexJson)));
-      
-      if (!vertexJson.candidates || !vertexJson.candidates[0]?.content?.parts[0]?.text) {
-        console.error('Invalid Vertex AI response structure:', JSON.stringify(vertexJson, null, 2));
-        return new Response(
-          JSON.stringify({ 
-            error: 'Vertex AI did not return a valid response', 
-            details: 'Response missing expected structure',
-            rawResponse: vertexJson 
-          }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-    } catch (error) {
-      console.error('Exception calling Vertex AI:', error);
-      return new Response(
-        JSON.stringify({ 
-          error: 'Exception occurred while calling Vertex AI', 
-          details: error instanceof Error ? error.message : String(error) 
-        }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-    let analysisText = vertexJson.candidates[0].content.parts[0].text;
 
-    // Try to parse the response as JSON
-    let analysisJson;
-    try {
-      // Extract JSON from the response if it's wrapped in markdown code blocks
-      if (analysisText.trim().startsWith('```json')) {
-        analysisText = analysisText.replace(/^```json|```$/g, '').trim();
-      } else if (analysisText.includes('```')) {
-        analysisText = analysisText.split('```')[1].split('```')[0].trim();
-      }
-      analysisJson = JSON.parse(analysisText);
+    const vertexResponse = await fetch(vertex_ai_endpoint, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    });
 
-      // Validate and fill missing fields to match GeminiAnalysis interface
-      analysisJson = ensureGeminiAnalysisShape(analysisJson);
-    } catch (jsonError) {
-      console.error('Error parsing Vertex AI response as JSON:', jsonError);
-      console.log('Raw response:', analysisText);
-      return new Response(
-        JSON.stringify({ error: 'Failed to parse analysis results as JSON', rawResponse: analysisText }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    if (!vertexResponse.ok) {
+      const errorBody = await vertexResponse.text();
+      throw new Error(`Vertex AI API request failed with status ${vertexResponse.status}: ${errorBody}`);
     }
+
+    const responseJson = await vertexResponse.json();
+    let analysisText = responseJson.candidates[0].content.parts[0].text;
+
+    // Extract and parse the JSON from the response
+    if (analysisText.trim().startsWith('```json')) {
+      analysisText = analysisText.replace(/^```json|```$/g, '').trim();
+    }
+    const analysisJson = ensureGeminiAnalysisShape(JSON.parse(analysisText));
+
+    // Return success response
     return new Response(
       JSON.stringify({ 
         analysis: analysisJson, 
         timestamp: new Date().toISOString(),
-        userId: user.id // Include the user ID for client-side verification
+        userId: user.id
       }),
       {
         status: 200,
-        headers: { 
-          ...corsHeaders, 
-          "Content-Type": "application/json",
-          'X-Auth-Status': 'authenticated'
-        }
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
       }
     );
+
   } catch (error) {
     console.error('Error processing portfolio analysis request:', error);
     return errorResponse(error instanceof Error ? error.message : 'Unknown server error', 500);

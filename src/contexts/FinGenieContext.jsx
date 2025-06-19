@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 // Using fetch instead of axios for consistency
+import { supabase } from '@/lib/supabase';
 
 // Create context
 const FinGenieContext = createContext();
@@ -103,16 +104,20 @@ export const FinGenieProvider = ({ children }) => {
       } else {
         // Regular chat message - use Netlify function directly
         try {
-          const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlkYWt3eXBsY3Fvc2h4Y2RsbGFoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDcyMTAwNTMsImV4cCI6MjA2Mjc4NjA1M30.J0c0YqSsR9XbtbYLVOq6oqQwYQ3G7j65Q0stEtS4W2s'; // IMPORTANT: Replace with your actual key or use env var
+          // Get the user's session token for authentication
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session) {
+            throw new Error('No active user session found');
+          }
+          
           const response = await fetch('https://ydakwyplcqoshxcdllah.supabase.co/functions/v1/fingenie-chat', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+              'Authorization': `Bearer ${session.access_token}`
             },
             body: JSON.stringify({
-              userId: sessionId,
-              message: message
+              query: message
             })
           });
           
@@ -121,7 +126,7 @@ export const FinGenieProvider = ({ children }) => {
           }
           
           const data = await response.json();
-          botResponse = data.reply || 'I\'m not sure how to answer that. Could you try asking something about finance or investing?';
+          botResponse = data.response || 'I\'m not sure how to answer that. Could you try asking something about finance or investing?';
         } catch (apiErr) {
           console.error('Error with chat API:', apiErr);
           // Fallback message if the API is not available
