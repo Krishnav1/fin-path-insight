@@ -9,9 +9,12 @@ export const API_ENDPOINTS = {
   // Base URL
   SUPABASE_URL: SUPABASE_URL,
   
-  // Indian API Edge Functions (NEW)
+  // Market Data Edge Functions (Primary)
   INDIAN_MARKET_DATA: `${SUPABASE_URL}/functions/v1/indian-market-data`,
   INDIAN_API_SYNC: `${SUPABASE_URL}/functions/v1/indian-api-sync`,
+  EODHD_PROXY: `${SUPABASE_URL}/functions/v1/market-data`, // Proxy for EODHD API calls
+  
+  // AI & Chat Functions
   FINGENIE_CHAT_GEMINI: `${SUPABASE_URL}/functions/v1/fingenie-chat-gemini`,
   
   // Portfolio & Analysis Functions

@@ -6,6 +6,8 @@ import Footer from '../components/layout/Footer';
 import FinGenieInvestmentReport from '../components/FinGenieInvestmentReport';
 import MarkdownRenderer from '../components/MarkdownRenderer';
 import { voiceInputService } from '../services/voiceInputService';
+import ExportConversationsDialog from '../components/ExportConversationsDialog';
+import { conversationService } from '../services/conversationService';
 import { 
   Send, 
   Bot, 
@@ -23,7 +25,8 @@ import {
   Mic,
   MicOff,
   Zap,
-  AlertCircle
+  AlertCircle,
+  Download
 } from 'lucide-react';
 
 // Sample financial insights for the sidebar
@@ -104,6 +107,7 @@ const FinGeniePage: React.FC = () => {
   const [isListening, setIsListening] = useState(false);
   const [voiceSupported, setVoiceSupported] = useState(false);
   const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [showExportDialog, setShowExportDialog] = useState(false);
   const [chatHistory, setChatHistory] = useState<Message[]>([
     { 
       id: 'welcome',
@@ -261,6 +265,21 @@ const FinGeniePage: React.FC = () => {
       voiceInputService.start();
     }
   };
+
+  const handleExportConversations = () => {
+    setShowExportDialog(true);
+  };
+
+  const getExportableConversations = () => {
+    return chatHistory
+      .filter(msg => msg.id !== 'welcome')
+      .map(msg => ({
+        id: msg.id,
+        user_message: msg.sender === 'user' ? msg.text : '',
+        bot_response: msg.sender === 'bot' ? msg.text : '',
+        created_at: msg.timestamp.toISOString()
+      }));
+  };
   
   const formatTime = (timestamp: Date) => {
     return new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: 'numeric', hour12: true }).format(timestamp);
@@ -304,19 +323,22 @@ const FinGeniePage: React.FC = () => {
               >
                 <TrendingUp size={16} className="mr-1" /> Reports
               </button>
-              <button 
-                onClick={clearConversations}
-                className="px-3 py-1.5 rounded-md hover:bg-white/10 transition-colors text-white"
-                title="Clear conversation"
-              >
-                <RefreshCw size={16} />
-              </button>
-              <button
-                onClick={toggleMobileMenu}
-                className="md:hidden p-2 text-slate-600 dark:text-slate-400"
-              >
-                <Menu size={20} />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleExportConversations}
+                  className="p-2 hover:bg-white/10 rounded-md transition-colors"
+                  disabled={chatHistory.length <= 1}
+                  title="Export conversations"
+                >
+                  <Download size={18} />
+                </button>
+                <button
+                  onClick={toggleMobileMenu}
+                  className="md:hidden p-2"
+                >
+                  <Menu size={20} />
+                </button>
+              </div>
             </div>
           </div>
           
@@ -518,6 +540,13 @@ const FinGeniePage: React.FC = () => {
       </div>
       
       <Footer />
+      
+      {/* Export Dialog */}
+      <ExportConversationsDialog
+        conversations={getExportableConversations()}
+        isOpen={showExportDialog}
+        onClose={() => setShowExportDialog(false)}
+      />
     </div>
   );
 };
