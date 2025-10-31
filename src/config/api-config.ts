@@ -9,24 +9,24 @@ export const API_ENDPOINTS = {
   // Base URL
   SUPABASE_URL: SUPABASE_URL,
   
-  // Edge Function endpoints
+  // Indian API Edge Functions (NEW)
+  INDIAN_MARKET_DATA: `${SUPABASE_URL}/functions/v1/indian-market-data`,
+  INDIAN_API_SYNC: `${SUPABASE_URL}/functions/v1/indian-api-sync`,
+  FINGENIE_CHAT_GEMINI: `${SUPABASE_URL}/functions/v1/fingenie-chat-gemini`,
+  
+  // Portfolio & Analysis Functions
   ANALYZE_PORTFOLIO: `${SUPABASE_URL}/functions/v1/analyze-portfolio`,
-  MARKET_DATA: `${SUPABASE_URL}/functions/v1/market-data`,
-  EODHD_PROXY: `${SUPABASE_URL}/functions/v1/eodhd-proxy`,
-  EODHD_FUNDAMENTALS: `${SUPABASE_URL}/functions/v1/eodhd-fundamentals`,
-  EODHD_REALTIME: `${SUPABASE_URL}/functions/v1/eodhd-realtime`,
-  FINGENIE_CHAT: `${SUPABASE_URL}/functions/v1/fingenie-chat`,
-  FINGENIE_ORACLE: `${SUPABASE_URL}/functions/v1/fingenie-oracle`,
   INVESTMENT_REPORT: `${SUPABASE_URL}/functions/v1/investment-report`,
   COMPANY_DATA_INGEST: `${SUPABASE_URL}/functions/v1/company-data-ingest`,
   REFRESH_COMPANY_DATA: `${SUPABASE_URL}/functions/v1/refresh-company-data`,
+  
+  // Legacy endpoints (DEPRECATED - will be removed)
+  MARKET_DATA: `${SUPABASE_URL}/functions/v1/market-data`,
 };
 
 // API Keys - these should be stored in environment variables
 export const API_KEYS = {
   GEMINI_API_KEY: import.meta.env.VITE_GEMINI_API_KEY || '',
-  EODHD_API_KEY: import.meta.env.VITE_EODHD_API_KEY || '',
-  ALPHA_VANTAGE_API_KEY: import.meta.env.VITE_ALPHA_VANTAGE_API_KEY || '',
 };
 
 // Headers for Supabase Edge Function calls

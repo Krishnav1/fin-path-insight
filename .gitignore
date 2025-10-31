@@ -28,5 +28,20 @@ dist-ssr
 .env.development.local
 .env.test.local
 .env.production.local
+.env.*
+
+# Sensitive files - DO NOT COMMIT
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!vercel.json
+service-account-base64.txt
+fin-insight-*.json
+convert-to-base64.ps1
+
 # Local Netlify folder
 .netlify
+
+# Supabase
+.supabase

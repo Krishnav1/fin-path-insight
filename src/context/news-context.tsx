@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { getFinancialNews } from '@/lib/eodhd-service';
+import { getMarketNews } from '@/services/indianMarketService';
 
 // Define news item interface
 export interface NewsItem {
@@ -153,27 +153,37 @@ export function NewsProvider({ children }: NewsProviderProps) {
         order: 'desc'
       };
       
-      // Fetch both global and Indian news in parallel for efficiency
-      const [globalNewsData, indianNewsData] = await Promise.all([
-        getFinancialNews(globalParams),
-        getFinancialNews(indianParams)
-      ]);
+      // Fetch news from Indian API
+      const newsData = await getMarketNews(undefined, 50);
       
-      // Format and set global news
-      const formattedGlobalNews = formatNewsData(globalNewsData);
-      setGlobalNews(formattedGlobalNews);
+      // Format news data
+      const formattedNews = newsData.map(item => ({
+        id: item.url,
+        title: item.title,
+        content: item.description || '',
+        excerpt: item.description || '',
+        snippet: item.description || '',
+        source: item.source,
+        publishedAt: item.published_at,
+        link: item.url,
+        url: item.url,
+        image_url: item.image_url,
+        imageUrl: item.image_url,
+        symbols: item.symbols || [],
+        category: item.category
+      }));
       
-      // Format and set Indian news
-      const formattedIndianNews = formatNewsData(indianNewsData);
-      setIndianNews(formattedIndianNews);
+      // Set both global and Indian news to the same data
+      setGlobalNews(formattedNews);
+      setIndianNews(formattedNews);
       
       // Organize news by category
       const newsByCategory: Record<string, NewsItem[]> = {
-        "All": [...formattedGlobalNews, ...formattedIndianNews]
+        "All": formattedNews
       };
       
       // Categorize all news items
-      [...formattedGlobalNews, ...formattedIndianNews].forEach(item => {
+      formattedNews.forEach(item => {
         if (item.category) {
           newsByCategory[item.category] = newsByCategory[item.category] || [];
           newsByCategory[item.category].push(item);

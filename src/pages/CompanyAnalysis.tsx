@@ -18,7 +18,7 @@ import AIAnalysis from "@/components/company/AIAnalysis";
 import { Loader2, ArrowLeft, RefreshCw, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useMarket } from "@/hooks/use-market";
-import { getComprehensiveStockData } from "@/lib/api-service";
+import { fetchCompanyData, type CompanyData as ImportedCompanyData } from "@/services/companyDataService";
 import { getPeerComparison } from "@/services/apiService";
 // Import html2pdf and declare its type to include the 'from' method
 import html2pdfLib from 'html2pdf.js';
@@ -106,325 +106,18 @@ export default function CompanyAnalysis() {
   const [refreshing, setRefreshing] = useState(false);
   const { market } = useMarket();
 
-  const fetchCompanyData = async () => {
+  const fetchCompanyDataInternal = async () => {
     if (!symbol) return;
     
     setLoading(true);
     try {
-      // Determine if this is an Indian stock based on context
-      const isIndianStock = market === 'india';
-      
-      // Using the EODHD API for comprehensive stock data
-      // This function handles symbol formatting (.NS for Indian stocks)
-      const stockData = await getComprehensiveStockData(symbol, isIndianStock);
-      
-      if (!stockData) {
-        throw new Error("Failed to fetch stock data from EODHD API");
-      }
-      
-      // Basic info we can directly extract from stock data
-      // Always use the base symbol without exchange suffix for consistency
-      const cleanSymbol = (symbol: string) => symbol.replace(/\.(NS|NSE|US|NYSE)$/, '');
-      
-      const baseCompanyData: Partial<CompanyData> = {
-        ticker: cleanSymbol(stockData.symbol),
-        displaySymbol: stockData.displaySymbol || cleanSymbol(stockData.symbol),
-        name: stockData.name || cleanSymbol(symbol || ''),
-        exchange: stockData.exchange || (isIndianStock ? 'NSE' : 'NYSE/NASDAQ'),
-        currentPrice: stockData.price,
-        priceChange: stockData.change,
-        priceChangePercent: stockData.changePercent,
-        marketCap: stockData.marketCap,
-        peRatio: stockData.peRatio,
-        eps: stockData.eps,
-        beta: stockData.beta,
-        market52WeekHigh: stockData.high52Week,
-        market52WeekLow: stockData.low52Week,
-        lastUpdated: stockData.lastUpdated ? 
-          (isNaN(Date.parse(stockData.lastUpdated)) ? new Date() : new Date(stockData.lastUpdated)) : 
-          new Date(),
-        chartData: stockData.chartData || [],
-        news: stockData.news || []
-      };
-      
-      // Extract sector and industry from Alpha Vantage data
-      const sector = stockData.sector || "Technology";
-      const industry = stockData.industry || "Software";
-      
-      // Get peer comparison data
-      const peerData = await getPeerComparison(symbol, sector);
-      
-      // Create yearly financial data from Alpha Vantage income statement
-      const yearlyFinancials = stockData.yearlyFinancials || [];
-      
-      // Use Alpha Vantage year-by-year data or fallback to generated data
-      let yearlyRevenue = yearlyFinancials.length > 0 
-        ? yearlyFinancials.map(data => ({
-            year: data.year,
-            value: data.revenue
-          }))
-        : [
-            { year: 2020, value: Math.random() * 100e9 + 20e9 },
-            { year: 2021, value: Math.random() * 120e9 + 30e9 },
-            { year: 2022, value: Math.random() * 140e9 + 40e9 },
-            { year: 2023, value: Math.random() * 160e9 + 50e9 }
-          ];
-      
-      let yearlyProfit = yearlyFinancials.length > 0
-        ? yearlyFinancials.map(data => ({
-            year: data.year,
-            value: data.netIncome
-          }))
-        : [
-            { year: 2020, value: Math.random() * 20e9 + 5e9 },
-            { year: 2021, value: Math.random() * 25e9 + 8e9 },
-            { year: 2022, value: Math.random() * 30e9 + 10e9 },
-            { year: 2023, value: Math.random() * 35e9 + 12e9 }
-          ];
-      
-      // Generate EPS yearly data from Alpha Vantage if available
-      const yearlyEps = yearlyFinancials.length > 0
-        ? yearlyFinancials.map(data => ({
-            year: data.year,
-            value: data.eps
-          }))
-        : [
-            { year: 2020, value: (yearlyProfit[0]?.value || 0) / 1e8 },
-            { year: 2021, value: (yearlyProfit[1]?.value || 0) / 1e8 },
-            { year: 2022, value: (yearlyProfit[2]?.value || 0) / 1e8 },
-            { year: 2023, value: (yearlyProfit[3]?.value || 0) / 1e8 }
-          ];
-      
-      // For other financial metrics, use ratios/metrics from Alpha Vantage or generate
-      const revenueGrowth = stockData.revenueGrowth || 
-        ((yearlyRevenue[3]?.value - yearlyRevenue[2]?.value) / yearlyRevenue[2]?.value) * 100 || 10;
-      
-      const profitMargin = stockData.profitMargin || 
-        yearlyProfit[3]?.value / yearlyRevenue[3]?.value * 100 || 15;
-      
-      // Use overview information for company description
-      const description = stockData.description || `${baseCompanyData.name} is a leading company in the ${industry} industry. The company provides products and services in the ${sector} sector, serving customers globally.`;
-      
-      // Complete the company data object with all available data
-      const completeCompanyData: CompanyData = {
-        ...baseCompanyData as CompanyData,
-        sector,
-        industry,
-        about: description,
-        foundedYear: stockData.foundedYear || 1990,
-        ceo: stockData.ceo || "John Doe",
-        headquarters: stockData.headquarters || "New York, USA",
-        website: stockData.website || `https://www.${symbol?.split('.')[0]?.toLowerCase() || 'company'}.com`,
-        businessModel: stockData.businessModel || `${baseCompanyData.name} operates in the ${sector} sector, providing ${industry.toLowerCase()} products and services.`,
-        strengths: stockData.strengths || [
-          revenueGrowth > 10 ? "Strong revenue growth" : "Stable revenue",
-          profitMargin > 15 ? "High profit margin" : "Good profit margin",
-          stockData.peRatio < 15 ? "Attractive valuation (low P/E)" : "Market standard valuation"
-        ],
-        weaknesses: stockData.weaknesses || [
-          revenueGrowth < 5 ? "Slow revenue growth" : "Competition in the sector",
-          profitMargin < 8 ? "Low profit margin" : "Market volatility impact",
-          stockData.peRatio > 30 ? "High valuation (high P/E)" : "Regulatory challenges"
-        ],
-        dividendYield: stockData.dividendYield || 1.2,
-        roe: stockData.roe || 15,
-        roce: stockData.roce || 18,
-        debtToEquity: stockData.debtToEquity || 0.5,
-        revenueGrowth,
-        profitMargin,
-        yearlyRevenue,
-        yearlyProfit,
-        yearlyEps,
-        yearlyRoe: stockData.yearlyRoe || [
-          { year: 2020, value: Math.random() * 10 + 8 },
-          { year: 2021, value: Math.random() * 10 + 9 },
-          { year: 2022, value: Math.random() * 10 + 10 },
-          { year: 2023, value: Math.random() * 10 + 11 }
-        ],
-        yearlyRoce: stockData.yearlyRoce || [
-          { year: 2020, value: Math.random() * 10 + 10 },
-          { year: 2021, value: Math.random() * 10 + 11 },
-          { year: 2022, value: Math.random() * 10 + 12 },
-          { year: 2023, value: Math.random() * 10 + 13 }
-        ],
-        yearlyDebtToEquity: stockData.yearlyDebtToEquity || [
-          { year: 2020, value: Math.random() * 0.4 + 0.2 },
-          { year: 2021, value: Math.random() * 0.4 + 0.2 },
-          { year: 2022, value: Math.random() * 0.4 + 0.2 },
-          { year: 2023, value: Math.random() * 0.4 + 0.2 }
-        ],
-        yearlyDividendYield: stockData.yearlyDividendYield || [
-          { year: 2020, value: Math.random() * 2 + 0.5 },
-          { year: 2021, value: Math.random() * 2 + 0.6 },
-          { year: 2022, value: Math.random() * 2 + 0.7 },
-          { year: 2023, value: Math.random() * 2 + 0.8 }
-        ],
-        marketShare: stockData.marketShare || Math.random() * 15 + 5,
-        growthDrivers: [
-          "Product innovation",
-          "Geographical expansion",
-          "Strategic acquisitions"
-        ],
-        peerComparison: peerData || [],
-        analystRatings: {
-          buy: stockData.peRatio < 15 ? 25 : (stockData.peRatio < 25 ? 18 : 12),
-          hold: 15,
-          sell: stockData.peRatio > 30 ? 15 : 5
-        },
-        valuation: determineValuation(stockData.peRatio, revenueGrowth)
-      };
-      
-      setCompanyData(completeCompanyData);
+      const data = await fetchCompanyData(symbol);
+      setCompanyData(data);
     } catch (error) {
       console.error("Error fetching company data:", error);
-      
-      // Create fallback company data when API fails
-      const fallbackSymbolName = symbol?.includes('.') ? symbol.split('.')[0] : symbol;
-      const fallbackData: CompanyData = {
-        ticker: symbol || 'UNKNOWN',
-        displaySymbol: fallbackSymbolName || symbol || 'UNKNOWN',
-        name: fallbackSymbolName || 'Unknown Company',
-        exchange: symbol?.includes('.NS') ? 'NSE' : 'NYSE/NASDAQ',
-        currentPrice: 100 + Math.random() * 900,
-        priceChange: Math.random() * 10 - 5,
-        priceChangePercent: Math.random() * 5 - 2.5,
-        sector: 'Technology',
-        industry: 'Software',
-        about: `${fallbackSymbolName || 'This company'} is a business operating in the technology sector, providing software solutions and services to clients globally.`,
-        foundedYear: 1990 + Math.floor(Math.random() * 30),
-        ceo: 'John Doe',
-        headquarters: 'New York, USA',
-        website: `https://www.${(fallbackSymbolName || 'company').toLowerCase()}.com`,
-        businessModel: `${fallbackSymbolName || 'This company'} operates in the technology sector, providing software products and services.`,
-        strengths: [
-          'Strong market position',
-          'Diversified product portfolio',
-          'Robust cash flow generation'
-        ],
-        weaknesses: [
-          'Increasing competition',
-          'Regulatory challenges',
-          'Cyclical demand patterns'
-        ],
-        marketCap: 1e9 + Math.random() * 9e9,
-        peRatio: 10 + Math.random() * 25,
-        eps: 1 + Math.random() * 10,
-        dividendYield: Math.random() * 3,
-        roe: 10 + Math.random() * 10,
-        roce: 12 + Math.random() * 10,
-        debtToEquity: 0.2 + Math.random() * 0.4,
-        revenueGrowth: 5 + Math.random() * 15,
-        profitMargin: 10 + Math.random() * 20,
-        yearlyRevenue: [
-          { year: 2020, value: Math.random() * 100e9 + 20e9 },
-          { year: 2021, value: Math.random() * 120e9 + 30e9 },
-          { year: 2022, value: Math.random() * 140e9 + 40e9 },
-          { year: 2023, value: Math.random() * 160e9 + 50e9 }
-        ],
-        yearlyProfit: [
-          { year: 2020, value: Math.random() * 20e9 + 5e9 },
-          { year: 2021, value: Math.random() * 25e9 + 8e9 },
-          { year: 2022, value: Math.random() * 30e9 + 10e9 },
-          { year: 2023, value: Math.random() * 35e9 + 12e9 }
-        ],
-        yearlyEps: [
-          { year: 2020, value: 2 + Math.random() * 3 },
-          { year: 2021, value: 2.5 + Math.random() * 3.5 },
-          { year: 2022, value: 3 + Math.random() * 4 },
-          { year: 2023, value: 3.5 + Math.random() * 4.5 }
-        ],
-        yearlyRoe: [
-          { year: 2020, value: 8 + Math.random() * 10 },
-          { year: 2021, value: 9 + Math.random() * 10 },
-          { year: 2022, value: 10 + Math.random() * 10 },
-          { year: 2023, value: 11 + Math.random() * 10 }
-        ],
-        yearlyRoce: [
-          { year: 2020, value: 10 + Math.random() * 10 },
-          { year: 2021, value: 11 + Math.random() * 10 },
-          { year: 2022, value: 12 + Math.random() * 10 },
-          { year: 2023, value: 13 + Math.random() * 10 }
-        ],
-        yearlyDebtToEquity: [
-          { year: 2020, value: 0.2 + Math.random() * 0.4 },
-          { year: 2021, value: 0.2 + Math.random() * 0.4 },
-          { year: 2022, value: 0.2 + Math.random() * 0.4 },
-          { year: 2023, value: 0.2 + Math.random() * 0.4 }
-        ],
-        yearlyDividendYield: [
-          { year: 2020, value: 0.5 + Math.random() * 2 },
-          { year: 2021, value: 0.6 + Math.random() * 2 },
-          { year: 2022, value: 0.7 + Math.random() * 2 },
-          { year: 2023, value: 0.8 + Math.random() * 2 }
-        ],
-        market52WeekHigh: 100 + Math.random() * 1100,
-        market52WeekLow: 50 + Math.random() * 100,
-        marketShare: 5 + Math.random() * 15,
-        growthDrivers: [
-          'Product innovation',
-          'Geographical expansion',
-          'Strategic acquisitions'
-        ],
-        peerComparison: [
-          {
-            name: 'Competitor A',
-            ticker: 'COMPA',
-            marketCap: 0.8e9 + Math.random() * 8e9,
-            peRatio: 8 + Math.random() * 20,
-            revenueGrowth: 3 + Math.random() * 15,
-            roe: 9 + Math.random() * 10
-          },
-          {
-            name: 'Competitor B',
-            ticker: 'COMPB',
-            marketCap: 1.2e9 + Math.random() * 10e9,
-            peRatio: 12 + Math.random() * 25,
-            revenueGrowth: 8 + Math.random() * 20,
-            roe: 12 + Math.random() * 15
-          },
-          {
-            name: 'Competitor C',
-            ticker: 'COMPC',
-            marketCap: 0.5e9 + Math.random() * 5e9,
-            peRatio: 6 + Math.random() * 18,
-            revenueGrowth: 1 + Math.random() * 12,
-            roe: 7 + Math.random() * 8
-          }
-        ],
-        analystRatings: {
-          buy: 15 + Math.floor(Math.random() * 10),
-          hold: 8 + Math.floor(Math.random() * 10),
-          sell: 2 + Math.floor(Math.random() * 5)
-        },
-        valuation: "Fairly Valued",
-        lastUpdated: new Date(),
-        news: [
-          {
-            title: `${fallbackSymbolName || 'Company'} Reports Strong Quarterly Results`,
-            url: '#',
-            source: 'Financial Times',
-            publishedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-            snippet: `${fallbackSymbolName || 'The company'} exceeded analyst expectations with 15% revenue growth...`
-          },
-          {
-            title: `${fallbackSymbolName || 'Company'} Announces New Product Line`,
-            url: '#',
-            source: 'Bloomberg',
-            publishedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-            snippet: `${fallbackSymbolName || 'The company'} is expanding its product portfolio with innovative solutions...`
-          }
-        ],
-        chartData: Array.from({ length: 30 }, (_, i) => ({
-          date: new Date(Date.now() - (30 - i) * 24 * 60 * 60 * 1000),
-          close: 100 + Math.random() * 50 * (1 + i/60),
-          volume: Math.random() * 10000000
-        }))
-      };
-      
-      setCompanyData(fallbackData);
+      setCompanyData(null);
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   };
 
@@ -445,13 +138,12 @@ export default function CompanyAnalysis() {
     if (refreshing) return;
     setRefreshing(true);
     
-    // Display a message to the user that data is being refreshed from EODHD API
-    console.log("Refreshing company data from EODHD API...");
+    console.log("Refreshing company data from Indian API...");
     
     try {
-      await fetchCompanyData();
+      await fetchCompanyDataInternal();
     } catch (error) {
-      console.error("Error refreshing company data from EODHD API:", error);
+      console.error("Error refreshing company data:", error);
     } finally {
       setRefreshing(false);
     }
@@ -459,13 +151,10 @@ export default function CompanyAnalysis() {
 
   // Fetch data on initial load
   useEffect(() => {
-    fetchCompanyData();
+    fetchCompanyDataInternal();
   }, [symbol, market]);
 
-  // Handle manual refresh
-  
-
-  // Handle PDF download
+  // ... (rest of the code remains the same)
   const handleDownloadPDF = () => {
     if (!companyData) return;
     
@@ -564,7 +253,7 @@ export default function CompanyAnalysis() {
                   <h1 className="text-3xl font-bold tracking-tight">{companyData?.name}</h1>
                   <span className="text-sm font-medium text-slate-500 dark:text-slate-400">{companyData?.ticker}</span>
                 </div>
-                <p className="text-slate-500 dark:text-slate-400 text-sm">Powered by EODHD Financial API</p>
+                <p className="text-slate-500 dark:text-slate-400 text-sm">Powered by Indian API</p>
               </div>
             </div>
             <div className="flex items-center gap-2">

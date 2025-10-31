@@ -4,8 +4,8 @@ import '../styles/FinGeniePage.css';
 import Header from '../components/layout/Header';
 import Footer from '../components/layout/Footer';
 import FinGenieInvestmentReport from '../components/FinGenieInvestmentReport';
-// Oracle functionality has been integrated into the main chat
-// Using fetch instead of axios to avoid unused import warning
+import MarkdownRenderer from '../components/MarkdownRenderer';
+import { voiceInputService } from '../services/voiceInputService';
 import { 
   Send, 
   Bot, 
@@ -15,17 +15,15 @@ import {
   PieChart,
   Lightbulb,
   RefreshCw,
-  ChevronDown,
-  ChevronUp,
   ChevronRight,
   ChevronLeft,
-  Download,
-  Share2,
-  HelpCircle,
-  X,
   Menu,
   MessageSquare,
-  TrendingUp
+  TrendingUp,
+  Mic,
+  MicOff,
+  Zap,
+  AlertCircle
 } from 'lucide-react';
 
 // Sample financial insights for the sidebar
@@ -63,6 +61,14 @@ const SUGGESTED_QUESTIONS = [
   "Explain the difference between stocks and bonds"
 ];
 
+// Quick action prompts
+const QUICK_ACTIONS = [
+  { icon: <BarChart2 size={16} />, label: 'Analyze my portfolio', prompt: 'Analyze my portfolio performance and give me insights' },
+  { icon: <TrendingUp size={16} />, label: 'Market summary', prompt: 'Give me a summary of today\'s market performance' },
+  { icon: <Sparkles size={16} />, label: 'Top gainers', prompt: 'Show me today\'s top gainers in the Indian market' },
+  { icon: <PieChart size={16} />, label: 'Investment advice', prompt: 'What are some good investment strategies for beginners?' },
+];
+
 interface Message {
   id: string;
   sender: 'user' | 'bot';
@@ -89,12 +95,15 @@ type SampleInsight = {
 };
 
 const FinGeniePage: React.FC = () => {
-  const { sendMessage, conversations, isLoading, clearConversations } = useFinGenie();
+  const { sendMessage, conversations, isLoading, clearConversations, error } = useFinGenie();
   const [message, setMessage] = useState('');
   const [showSidebar, setShowSidebar] = useState(true);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('chat'); // 'chat', 'investment-report'
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [isListening, setIsListening] = useState(false);
+  const [voiceSupported, setVoiceSupported] = useState(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
   const [chatHistory, setChatHistory] = useState<Message[]>([
     { 
       id: 'welcome',
@@ -103,6 +112,44 @@ const FinGeniePage: React.FC = () => {
       timestamp: new Date()
     }
   ]);
+
+  // Initialize voice input
+  useEffect(() => {
+    setVoiceSupported(voiceInputService.isSupported());
+
+    if (voiceInputService.isSupported()) {
+      voiceInputService.initialize(
+        {
+          language: 'en-US',
+          continuous: false,
+          interimResults: true
+        },
+        {
+          onResult: (transcript, isFinal) => {
+            setMessage(transcript);
+            if (isFinal) {
+              setIsListening(false);
+            }
+          },
+          onError: (error) => {
+            setVoiceError(error);
+            setIsListening(false);
+          },
+          onStart: () => {
+            setIsListening(true);
+            setVoiceError(null);
+          },
+          onEnd: () => {
+            setIsListening(false);
+          }
+        }
+      );
+    }
+
+    return () => {
+      voiceInputService.destroy();
+    };
+  }, []);
 
   // Scroll to bottom of chat when messages update
   useEffect(() => {
@@ -201,6 +248,19 @@ const FinGeniePage: React.FC = () => {
     setMessage(question);
     handleSendMessage();
   };
+
+  const handleQuickAction = (prompt: string) => {
+    setMessage(prompt);
+    setTimeout(() => handleSendMessage(), 100);
+  };
+
+  const toggleVoiceInput = () => {
+    if (isListening) {
+      voiceInputService.stop();
+    } else {
+      voiceInputService.start();
+    }
+  };
   
   const formatTime = (timestamp: Date) => {
     return new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: 'numeric', hour12: true }).format(timestamp);
@@ -280,7 +340,11 @@ const FinGeniePage: React.FC = () => {
                             <span className="font-medium text-fin-teal">FinGenie</span>
                           </div>
                         )}
-                        <div className="whitespace-pre-wrap">{msg.text}</div>
+                        {msg.sender === 'bot' ? (
+                          <MarkdownRenderer content={msg.text} />
+                        ) : (
+                          <div className="whitespace-pre-wrap">{msg.text}</div>
+                        )}
                         <div className="text-xs opacity-70 mt-1 text-right">
                           {formatTime(msg.timestamp)}
                         </div>
@@ -315,38 +379,86 @@ const FinGeniePage: React.FC = () => {
             {/* Chat input - only show when chat tab is active */}
             {activeTab === 'chat' && (
               <form onSubmit={handleSendMessage} className="p-4 border-t border-slate-200 dark:border-slate-700">
-                <div className="flex items-center">
+                {/* Error banner */}
+                {(error || voiceError) && (
+                  <div className="mb-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-start gap-2">
+                    <AlertCircle size={18} className="text-red-600 dark:text-red-400 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-sm text-red-800 dark:text-red-200">{error || voiceError}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Quick Actions */}
+                <div className="mb-3 flex flex-wrap gap-2">
+                  {QUICK_ACTIONS.map((action, index) => (
+                    <button
+                      key={index}
+                      type="button"
+                      onClick={() => handleQuickAction(action.prompt)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-fin-teal to-fin-teal-dark text-white rounded-full text-sm hover:shadow-md transition-all"
+                      disabled={isLoading}
+                    >
+                      {action.icon}
+                      <span>{action.label}</span>
+                      <Zap size={12} />
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-2">
                   <div className="flex-1 relative">
                     <input
                       type="text"
                       value={message}
                       onChange={(e) => setMessage(e.target.value)}
-                      placeholder="Ask FinGenie anything about finance..."
-                      className="w-full px-4 py-2 pr-10 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-fin-teal"
-                      disabled={isLoading}
+                      placeholder={isListening ? "Listening..." : "Ask FinGenie anything about finance..."}
+                      className="w-full px-4 py-2 pr-20 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-fin-teal"
+                      disabled={isLoading || isListening}
                     />
-                    <button
-                      type="submit"
-                      className="absolute right-2 top-1/2 transform -translate-y-1/2 text-fin-teal disabled:text-slate-400"
-                      disabled={!message.trim() || isLoading}
-                    >
-                      <Send size={18} />
-                    </button>
+                    <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-1">
+                      {voiceSupported && (
+                        <button
+                          type="button"
+                          onClick={toggleVoiceInput}
+                          className={`p-1.5 rounded-full transition-colors ${
+                            isListening 
+                              ? 'bg-red-500 text-white animate-pulse' 
+                              : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-600'
+                          }`}
+                          disabled={isLoading}
+                          title={isListening ? 'Stop listening' : 'Start voice input'}
+                        >
+                          {isListening ? <MicOff size={18} /> : <Mic size={18} />}
+                        </button>
+                      )}
+                      <button
+                        type="submit"
+                        className="p-1.5 text-fin-teal disabled:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-full transition-colors"
+                        disabled={!message.trim() || isLoading || isListening}
+                      >
+                        <Send size={18} />
+                      </button>
+                    </div>
                   </div>
                 </div>
                 
                 {/* Suggested questions */}
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {SUGGESTED_QUESTIONS.map((question, index) => (
-                    <button
-                      key={index}
-                      type="button"
-                      className="text-xs bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 px-3 py-1 rounded-full"
-                      onClick={() => handleSuggestedQuestion(question)}
-                    >
-                      {question}
-                    </button>
-                  ))}
+                <div className="mt-3">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">Suggested questions:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {SUGGESTED_QUESTIONS.map((question, index) => (
+                      <button
+                        key={index}
+                        type="button"
+                        className="text-xs bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 px-3 py-1 rounded-full transition-colors"
+                        onClick={() => handleSuggestedQuestion(question)}
+                        disabled={isLoading}
+                      >
+                        {question}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </form>
             )}

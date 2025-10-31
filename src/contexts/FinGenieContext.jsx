@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 // Using fetch instead of axios for consistency
 import { supabase } from '@/lib/supabase';
+import { conversationService } from '@/services/conversationService';
+import { notificationService } from '@/services/notificationService';
 
 // Create context
 const FinGenieContext = createContext();
@@ -21,13 +23,30 @@ export const FinGenieProvider = ({ children }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [reportData, setReportData] = useState(null);
+  const [contextHistory, setContextHistory] = useState([]);
 
-  // Initialize session ID on component mount
+  // Initialize session ID and load conversation history
   useEffect(() => {
-    // Try to get user ID from localStorage if available
-    const storedUserId = localStorage.getItem('userId');
-    const newSessionId = storedUserId || `guest_${Math.random().toString(36).substring(2, 10)}`;
-    setSessionId(newSessionId);
+    const initializeSession = async () => {
+      // Try to get user ID from Supabase
+      const { data: { user } } = await supabase.auth.getUser();
+      const newSessionId = user?.id || `guest_${Math.random().toString(36).substring(2, 10)}`;
+      setSessionId(newSessionId);
+
+      // Load conversation history if user is authenticated
+      if (user) {
+        const history = await conversationService.getConversations(20);
+        const formattedHistory = history.map(conv => ({
+          id: conv.id,
+          userMessage: conv.user_message,
+          botResponse: conv.bot_response,
+          timestamp: new Date(conv.created_at)
+        }));
+        setConversations(formattedHistory.reverse());
+      }
+    };
+
+    initializeSession();
   }, []);
 
   // Check if message is requesting a stock report
@@ -102,53 +121,80 @@ export const FinGenieProvider = ({ children }) => {
           botResponse = "I'd be happy to generate an investment report for you, but I need a valid stock ticker symbol (like AAPL or RELIANCE.NSE). Could you please specify which stock you're interested in?";
         }
       } else {
-        // Regular chat message - use Netlify function directly
+        // Regular chat message - use Edge function with context
         try {
           // Get the user's session token for authentication
           const { data: { session } } = await supabase.auth.getSession();
           if (!session) {
             throw new Error('No active user session found');
           }
+
+          // Get conversation context for context-aware responses
+          const context = await conversationService.getConversationContext(sessionId, 5);
           
-          const response = await fetch('https://ydakwyplcqoshxcdllah.supabase.co/functions/v1/fingenie-chat', {
+          const response = await fetch('https://ydakwyplcqoshxcdllah.supabase.co/functions/v1/fingenie-chat-gemini', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${session.access_token}`
             },
             body: JSON.stringify({
-              query: message
+              query: message,
+              context: context || undefined,
+              session_id: sessionId
             })
           });
           
           if (!response.ok) {
-            throw new Error(`Server responded with ${response.status}: ${response.statusText}`);
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || `Server responded with ${response.status}: ${response.statusText}`);
           }
           
           const data = await response.json();
           botResponse = data.response || 'I\'m not sure how to answer that. Could you try asking something about finance or investing?';
         } catch (apiErr) {
           console.error('Error with chat API:', apiErr);
+          setError(apiErr.message || 'API Error');
           // Fallback message if the API is not available
-          botResponse = "I'm currently experiencing connectivity issues with my knowledge base. Please try again later or ask me about generating an investment report for a specific stock (e.g., 'Generate an investment report for AAPL').";
+          botResponse = "I'm currently experiencing connectivity issues. Please try again in a moment.";
         }
       }
       
+      // Save conversation to Supabase
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await conversationService.saveConversation({
+          session_id: sessionId,
+          user_message: message,
+          bot_response: botResponse,
+          context_data: { timestamp: new Date().toISOString() }
+        });
+      }
+      
       // Update conversations
-      setConversations(prev => [
-        ...prev,
-        {
-          id: Date.now(),
-          userMessage: message,
-          botResponse,
-          timestamp: new Date()
-        }
-      ]);
+      const newConversation = {
+        id: Date.now(),
+        userMessage: message,
+        botResponse,
+        timestamp: new Date()
+      };
+      
+      setConversations(prev => [...prev, newConversation]);
+      setContextHistory(prev => [...prev, newConversation]);
       
       return botResponse;
     } catch (err) {
       console.error('Error processing message:', err);
       setError(err.message || 'Failed to process your request');
+      
+      // Create error notification
+      await notificationService.createNotification({
+        type: 'error',
+        title: 'FinGenie Error',
+        message: 'Failed to process your message. Please try again.',
+        priority: 'normal'
+      });
+      
       return "I'm sorry, I encountered an error processing your request. Please try again.";
     } finally {
       setIsLoading(false);
@@ -156,8 +202,15 @@ export const FinGenieProvider = ({ children }) => {
   };
 
   // Clear all conversations
-  const clearConversations = () => {
+  const clearConversations = async () => {
     setConversations([]);
+    setContextHistory([]);
+    
+    // Clear from database if user is authenticated
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      await conversationService.deleteAllConversations();
+    }
   };
 
   // Value to be provided by the context
@@ -167,6 +220,7 @@ export const FinGenieProvider = ({ children }) => {
     isLoading,
     error,
     reportData,
+    contextHistory,
     sendMessage,
     clearConversations
   };
